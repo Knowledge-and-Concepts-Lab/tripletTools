@@ -6,3 +6,5 @@
 ^run_check\.R$
 ^tripletTools_manual\.md$
 ^tripletTools_manual\.pdf$
+^doc$
+^Meta$
