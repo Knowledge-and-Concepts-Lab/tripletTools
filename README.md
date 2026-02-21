@@ -1,7 +1,7 @@
 # tripletTools for R
 This repo contains an R package designed to aid in the analysis of data from triadic comparisons (tripelt) tasks.
 
-To install, in R 3.5 or great, do the following:
+To install, in R 3.5 or greater, do the following:
 
 ```
 install.packages("remotes")
