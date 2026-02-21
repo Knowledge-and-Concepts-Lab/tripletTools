@@ -2,7 +2,7 @@
 title: "Reading Triplet Data"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Reading Data}
+  %\VignetteIndexEntry{Reading Triplet Data}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
