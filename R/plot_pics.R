@@ -87,10 +87,15 @@ plot_pics <- function (md, plist, x = 1, y = 2, pr = 1.0, pc = NULL,
   ##Generate plot
   #Generate the plotting frame if it's a new plot
   if(newplot){
-    #Use range of data if x/ylim not specified
-    #ylim <- if("ylim" %in% names(args)) args$ylim else range(md[,y])
-    #xlim <- if("xlim" %in% names(args)) args$xlim else range(md[,x])
-    plot(0, 0, type = "n", ...)
+
+    graphics::plot.default(0, 0, type = "n", ...)
+
+    }
+
+    # Call plot.default deterministically
+    dots$type <- "n"
+    do.call(graphics::plot.default, c(list(x = 0, y = 0), dots))
+
   }
 
   #Get ranges on axes

@@ -261,26 +261,30 @@ mn_by_clust <- get.group.list.mean(cfd_embeddings, clusts)
 Plotting each cluster's mean embedding shows whether different groups of participants organized the faces in qualitatively different ways:
 
 ```{r plot-cluster-1, fig.cap="Mean 2-D embedding for cluster 1."}
-plot_pics(mn_by_clust[[1]], cfd_pics, psize = 0.04,
+
+dmat <- mn_by_clust[[1]] #Copy data matrix
+dmat <- dmat / max(abs(dmat)) #Max scaling
+
+tripletTools::plot_pics(dmat, cfd_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
-          xlim = range(mn_by_clust[[1]][,1]),
-          ylim = range(mn_by_clust[[1]][,2]),
           main = "Cluster 1 – mean embedding")
 ```
 
 ```{r plot-cluster-2, fig.cap="Mean 2-D embedding for cluster 2."}
-plot_pics(mn_by_clust[[2]], cfd_pics, psize = 0.04,
+dmat <- mn_by_clust[[2]] #Copy data matrix
+dmat <- dmat / max(abs(dmat)) #Max scaling
+
+tripletTools::plot_pics(dmat, cfd_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
-          xlim = range(mn_by_clust[[2]][,1]),
-          ylim = range(mn_by_clust[[2]][,2]),
           main = "Cluster 2 – mean embedding")
 ```
 
 ```{r plot-cluster-3, fig.cap="Mean 2-D embedding for cluster 3."}
-plot_pics(mn_by_clust[[3]], cfd_pics, psize = 0.04,
+dmat <- mn_by_clust[[3]] #Copy data matrix
+dmat <- dmat / max(abs(dmat)) #Max scaling
+
+tripletTools::plot_pics(dmat, cfd_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
-          xlim = range(mn_by_clust[[3]][,1]),
-          ylim = range(mn_by_clust[[3]][,2]),
           main = "Cluster 3 – mean embedding")
 ```
 
