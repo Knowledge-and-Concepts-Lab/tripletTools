@@ -249,13 +249,19 @@ recording whether each participant agreed with the majority vote (1),
 disagreed (0), or did not see the triplet (NA). The mean across triplets
 gives each participant’s overall agreement rate:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">vmat</span><span class="op">$</span><span class="va">bysbj</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, <span class="fl">2</span><span class="op">)</span></span>
-<span><span class="co">#&gt; 78972 78103 77827 79088 79377 80900 81492 81753 81157 78375 79564 81964 79666 </span></span>
-<span><span class="co">#&gt;  0.83  0.67  0.75  0.67  0.75  0.67  0.67  0.75  0.50  0.75  0.50  0.50  0.67 </span></span>
-<span><span class="co">#&gt; 79497 79363 77536 81416 82291 78399 78416 81182 82531 79471 81233 82327 79457 </span></span>
-<span><span class="co">#&gt;  0.75  0.58  0.83  0.33  0.58  0.50  0.58  0.67  0.67  0.50  0.67  0.75  1.00 </span></span>
-<span><span class="co">#&gt; 79996 77641 78808 80093 81270 79549 78864 79882 79672 79060 78383 78332 79028 </span></span>
-<span><span class="co">#&gt;  0.67  0.67  0.58  0.83  0.50  0.67  0.75  0.67  0.67  0.67  0.58  0.67  0.83</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/barplot.html" class="external-link">barplot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">vmat</span><span class="op">$</span><span class="va">bysbj</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, </span>
+<span>        beside <span class="op">=</span> <span class="cn">T</span>, </span>
+<span>        ylim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1.0</span><span class="op">)</span>,</span>
+<span>        xlab <span class="op">=</span> <span class="st">"Participant"</span>,</span>
+<span>        ylab <span class="op">=</span> <span class="st">"Agreement"</span>,</span>
+<span>        cex.names <span class="op">=</span> <span class="fl">0.5</span>,</span>
+<span>        las<span class="op">=</span><span class="fl">2</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/box.html" class="external-link">box</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span>h <span class="op">=</span> <span class="fl">0.5</span>, lty <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
+<p><img src="overview_vignette_files/figure-html/vmat-mean-1.png" class="r-plt" alt="" width="576"></p>
+<p>Participants vary quite a bit as to how well they agree with the
+majority vote, indicating potential individual differences in how people
+view these stimuli.</p>
 <hr>
 </div>
 <div class="section level2">
@@ -304,8 +310,8 @@ trials:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span>     <span class="op">&lt;-</span> <span class="fu"><a href="../reference/test.model.html">test.model</a></span><span class="op">(</span><span class="va">cfd_embeddings</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="va">cfd_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="va">test_rows</span>  <span class="op">&lt;-</span> <span class="va">result</span><span class="op">$</span><span class="va">sampleSet</span> <span class="op">==</span> <span class="st">"test"</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">ModPred</span><span class="op">[</span><span class="va">test_rows</span><span class="op">]</span> <span class="op">==</span> <span class="va">result</span><span class="op">$</span><span class="va">Answer</span><span class="op">[</span><span class="va">test_rows</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] NA</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">ModPred</span><span class="op">[</span><span class="va">test_rows</span><span class="op">]</span> <span class="op">==</span> <span class="va">result</span><span class="op">$</span><span class="va">Answer</span><span class="op">[</span><span class="va">test_rows</span><span class="op">]</span>, na.rm<span class="op">=</span><span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0.8277512</span></span></code></pre></div>
 <div class="section level3">
 <h3 id="prediction-strength">Prediction strength<a class="anchor" aria-label="anchor" href="#prediction-strength"></a>
 </h3>
@@ -318,7 +324,11 @@ other).</p>
 <p>If the embedding is well-calibrated, trials where it is most
 confident should also be the trials where participants agree most
 strongly. We can test this using the validation trials, for which we
-have an inter-subject agreement measure:</p>
+have an inter-subject agreement measure. <em>NOTE</em>: typically one
+would evaluate this for a group embedding, since validation statistics
+are computed across the whole group. This release does not contain a
+group embedding of the stimuli, so we will illustrate using the
+embedding from Participant 1:</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Validation trials for participant 1</span></span>
 <span><span class="va">vtrips</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">cfd_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="va">sampleAlg</span> <span class="op">==</span> <span class="st">"validation"</span><span class="op">)</span></span>
@@ -349,7 +359,10 @@ trials.
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Correlation:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cor</a></span><span class="op">(</span><span class="va">pstrength</span>, <span class="va">pmaj</span>, use <span class="op">=</span> <span class="st">"complete.obs"</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Correlation: 0.561</span></span></code></pre></div>
 <p>A positive correlation indicates that the embedding correctly
-identifies which triplets have clearer, more consistent answers.</p>
+identifies which triplets have clearer, more consistent answers. Note
+though that there are 2 items with low agreement where Participant 1’s
+embedding suggests a clear answer. These may be items where Participant
+1’s mental representations differ from the group.</p>
 <hr>
 </div>
 </div>
@@ -404,9 +417,13 @@ alignment have a high distance.</p>
 <p>We can cluster participants by their representational distances using
 standard hierarchical clustering:</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">hc</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/hclust.html" class="external-link">hclust</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/dist.html" class="external-link">as.dist</a></span><span class="op">(</span><span class="va">repdist</span><span class="op">)</span>, method <span class="op">=</span> <span class="st">"ward.D"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="co">#Compute hierarchical cluster tree:</span></span>
+<span><span class="va">hc</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/hclust.html" class="external-link">hclust</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/dist.html" class="external-link">as.dist</a></span><span class="op">(</span><span class="va">repdist</span><span class="op">)</span>, method <span class="op">=</span> <span class="st">"ward.D"</span><span class="op">)</span> </span>
+<span></span>
+<span><span class="co">#Cut tree into 3 clusters:</span></span>
 <span><span class="va">clusts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/cutree.html" class="external-link">cutree</a></span><span class="op">(</span><span class="va">hc</span>, k <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
 <span></span>
+<span><span class="co">#Plot tree and highlight groups created by cutting:</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">hc</span>,</span>
 <span>     labels <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>     main   <span class="op">=</span> <span class="st">"Participant clustering by representational distance"</span>,</span>
@@ -429,6 +446,8 @@ of participants organized the faces in qualitatively different ways:</p>
 <div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_pics.html">plot_pics</a></span><span class="op">(</span><span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="va">cfd_pics</span>, psize <span class="op">=</span> <span class="fl">0.04</span>,</span>
 <span>          xlab <span class="op">=</span> <span class="st">"Dimension 1"</span>, ylab <span class="op">=</span> <span class="st">"Dimension 2"</span>,</span>
+<span>          xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span><span class="op">)</span>,</span>
+<span>          ylim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">[</span>,<span class="fl">2</span><span class="op">]</span><span class="op">)</span>,</span>
 <span>          main <span class="op">=</span> <span class="st">"Cluster 1 – mean embedding"</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
 <img src="overview_vignette_files/figure-html/plot-cluster-1-1.png" class="r-plt" alt="Mean 2-D embedding for cluster 1." width="576"><p class="caption">
@@ -438,6 +457,8 @@ Mean 2-D embedding for cluster 1.
 <div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_pics.html">plot_pics</a></span><span class="op">(</span><span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">2</span><span class="op">]</span><span class="op">]</span>, <span class="va">cfd_pics</span>, psize <span class="op">=</span> <span class="fl">0.04</span>,</span>
 <span>          xlab <span class="op">=</span> <span class="st">"Dimension 1"</span>, ylab <span class="op">=</span> <span class="st">"Dimension 2"</span>,</span>
+<span>          xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">2</span><span class="op">]</span><span class="op">]</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span><span class="op">)</span>,</span>
+<span>          ylim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">2</span><span class="op">]</span><span class="op">]</span><span class="op">[</span>,<span class="fl">2</span><span class="op">]</span><span class="op">)</span>,</span>
 <span>          main <span class="op">=</span> <span class="st">"Cluster 2 – mean embedding"</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
 <img src="overview_vignette_files/figure-html/plot-cluster-2-1.png" class="r-plt" alt="Mean 2-D embedding for cluster 2." width="576"><p class="caption">
@@ -447,6 +468,8 @@ Mean 2-D embedding for cluster 2.
 <div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_pics.html">plot_pics</a></span><span class="op">(</span><span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">3</span><span class="op">]</span><span class="op">]</span>, <span class="va">cfd_pics</span>, psize <span class="op">=</span> <span class="fl">0.04</span>,</span>
 <span>          xlab <span class="op">=</span> <span class="st">"Dimension 1"</span>, ylab <span class="op">=</span> <span class="st">"Dimension 2"</span>,</span>
+<span>          xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">3</span><span class="op">]</span><span class="op">]</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span><span class="op">)</span>,</span>
+<span>          ylim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">3</span><span class="op">]</span><span class="op">]</span><span class="op">[</span>,<span class="fl">2</span><span class="op">]</span><span class="op">)</span>,</span>
 <span>          main <span class="op">=</span> <span class="st">"Cluster 3 – mean embedding"</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
 <img src="overview_vignette_files/figure-html/plot-cluster-3-1.png" class="r-plt" alt="Mean 2-D embedding for cluster 3." width="576"><p class="caption">
@@ -482,13 +505,15 @@ their cluster.</p>
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="va">pbc</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  self  same other </span></span>
 <span><span class="co">#&gt; 0.773 0.675 0.594</span></span></code></pre></div>
+<p>We can show the mean and 95% confidence interval of these values
+across participants as a ribbon plot:</p>
 <div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_cis.html">plot_cis</a></span><span class="op">(</span><span class="va">pbc</span>,</span>
 <span>         xvals  <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>,</span>
 <span>         main   <span class="op">=</span> <span class="st">"Prediction accuracy by cluster membership"</span>,</span>
 <span>         ylab   <span class="op">=</span> <span class="st">"Hold-out prediction accuracy"</span>,</span>
 <span>         xaxt   <span class="op">=</span> <span class="st">"n"</span>,</span>
-<span>         ylim   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.5</span>, <span class="fl">0.75</span><span class="op">)</span><span class="op">)</span></span>
+<span>         ylim   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.5</span>, <span class="fl">1.0</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/axis.html" class="external-link">axis</a></span><span class="op">(</span><span class="fl">1</span>, at <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Self"</span>, <span class="st">"Same cluster"</span>, <span class="st">"Other cluster"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span>h <span class="op">=</span> <span class="fl">0.5</span>, lty <span class="op">=</span> <span class="fl">2</span>, col <span class="op">=</span> <span class="st">"grey50"</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">

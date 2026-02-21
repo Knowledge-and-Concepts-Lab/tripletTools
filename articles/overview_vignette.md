@@ -174,14 +174,22 @@ did not see the triplet (NA). The mean across triplets gives each
 participant’s overall agreement rate:
 
 ``` r
-round(rowMeans(vmat$bysbj, na.rm = TRUE), 2)
-#> 78972 78103 77827 79088 79377 80900 81492 81753 81157 78375 79564 81964 79666 
-#>  0.83  0.67  0.75  0.67  0.75  0.67  0.67  0.75  0.50  0.75  0.50  0.50  0.67 
-#> 79497 79363 77536 81416 82291 78399 78416 81182 82531 79471 81233 82327 79457 
-#>  0.75  0.58  0.83  0.33  0.58  0.50  0.58  0.67  0.67  0.50  0.67  0.75  1.00 
-#> 79996 77641 78808 80093 81270 79549 78864 79882 79672 79060 78383 78332 79028 
-#>  0.67  0.67  0.58  0.83  0.50  0.67  0.75  0.67  0.67  0.67  0.58  0.67  0.83
+barplot(rowMeans(vmat$bysbj, na.rm = TRUE), 
+        beside = T, 
+        ylim = c(0, 1.0),
+        xlab = "Participant",
+        ylab = "Agreement",
+        cex.names = 0.5,
+        las=2)
+box()
+abline(h = 0.5, lty = 2)
 ```
+
+![](overview_vignette_files/figure-html/vmat-mean-1.png)
+
+Participants vary quite a bit as to how well they agree with the
+majority vote, indicating potential individual differences in how people
+view these stimuli.
 
 ------------------------------------------------------------------------
 
@@ -237,8 +245,8 @@ specific errors or compute accuracy on any subset of trials:
 ``` r
 result     <- test.model(cfd_embeddings[[1]], cfd_triplets[[1]])
 test_rows  <- result$sampleSet == "test"
-mean(result$ModPred[test_rows] == result$Answer[test_rows])
-#> [1] NA
+mean(result$ModPred[test_rows] == result$Answer[test_rows], na.rm=TRUE)
+#> [1] 0.8277512
 ```
 
 ### Prediction strength
@@ -252,7 +260,11 @@ option. It ranges from 0.5 (options equidistant from the referent) to
 If the embedding is well-calibrated, trials where it is most confident
 should also be the trials where participants agree most strongly. We can
 test this using the validation trials, for which we have an
-inter-subject agreement measure:
+inter-subject agreement measure. *NOTE*: typically one would evaluate
+this for a group embedding, since validation statistics are computed
+across the whole group. This release does not contain a group embedding
+of the stimuli, so we will illustrate using the embedding from
+Participant 1:
 
 ``` r
 # Validation trials for participant 1
@@ -289,7 +301,10 @@ cat("Correlation:", round(cor(pstrength, pmaj, use = "complete.obs"), 3), "\n")
 ```
 
 A positive correlation indicates that the embedding correctly identifies
-which triplets have clearer, more consistent answers.
+which triplets have clearer, more consistent answers. Note though that
+there are 2 items with low agreement where Participant 1’s embedding
+suggests a clear answer. These may be items where Participant 1’s mental
+representations differ from the group.
 
 ------------------------------------------------------------------------
 
@@ -356,9 +371,13 @@ We can cluster participants by their representational distances using
 standard hierarchical clustering:
 
 ``` r
-hc     <- hclust(as.dist(repdist), method = "ward.D")
+#Compute hierarchical cluster tree:
+hc     <- hclust(as.dist(repdist), method = "ward.D") 
+
+#Cut tree into 3 clusters:
 clusts <- cutree(hc, k = 3)
 
+#Plot tree and highlight groups created by cutting:
 plot(hc,
      labels = FALSE,
      main   = "Participant clustering by representational distance",
@@ -386,6 +405,8 @@ participants organized the faces in qualitatively different ways:
 ``` r
 plot_pics(mn_by_clust[[1]], cfd_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
+          xlim = range(mn_by_clust[[1]][,1]),
+          ylim = range(mn_by_clust[[1]][,2]),
           main = "Cluster 1 – mean embedding")
 ```
 
@@ -397,6 +418,8 @@ Mean 2-D embedding for cluster 1.
 ``` r
 plot_pics(mn_by_clust[[2]], cfd_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
+          xlim = range(mn_by_clust[[2]][,1]),
+          ylim = range(mn_by_clust[[2]][,2]),
           main = "Cluster 2 – mean embedding")
 ```
 
@@ -408,6 +431,8 @@ Mean 2-D embedding for cluster 2.
 ``` r
 plot_pics(mn_by_clust[[3]], cfd_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
+          xlim = range(mn_by_clust[[3]][,1]),
+          ylim = range(mn_by_clust[[3]][,2]),
           main = "Cluster 3 – mean embedding")
 ```
 
@@ -448,13 +473,16 @@ round(colMeans(pbc), 3)
 #> 0.773 0.675 0.594
 ```
 
+We can show the mean and 95% confidence interval of these values across
+participants as a ribbon plot:
+
 ``` r
 plot_cis(pbc,
          xvals  = 1:3,
          main   = "Prediction accuracy by cluster membership",
          ylab   = "Hold-out prediction accuracy",
          xaxt   = "n",
-         ylim   = c(0.5, 0.75))
+         ylim   = c(0.5, 1.0))
 axis(1, at = 1:3, labels = c("Self", "Same cluster", "Other cluster"))
 abline(h = 0.5, lty = 2, col = "grey50")
 ```
