@@ -12,6 +12,8 @@ Once installed you can invoke the package as usual with:
 
 ```library(tripletTools)```
 
-To get a sense of how to use the tools, run ```vignette()``` within an R session.
+The articles above provide an overview of package use (tripletTools Overview) and describe file formats 
+and how to read data files for new studies (Read Triplet Data). These can also be viewed as vignettes from
+within RStudio.
 
-All functions are documented in tripletTools_manual.pdf
+All functions are documented in `tripletTools_manual.pdf`
