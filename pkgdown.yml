@@ -4,7 +4,7 @@ pkgdown_sha: ~
 articles:
   overview_vignette: overview_vignette.html
   read_data_vignette: read_data_vignette.html
-last_built: 2026-02-21T21:47Z
+last_built: 2026-02-21T21:57Z
 urls:
   reference: https://knowledge-and-concepts-lab.github.io/tripletTools/reference
   article: https://knowledge-and-concepts-lab.github.io/tripletTools/articles
