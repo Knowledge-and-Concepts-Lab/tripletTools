@@ -1,7 +1,7 @@
 #' Plot column means and confidence intervals
 #'
 #'
-#' @importFrom graphics lines polygon
+#' @importFrom graphics lines polygon barplot box
 #' @importFrom grDevices rgb
 #'
 #' @param d A matrix of numerical data

@@ -6,13 +6,13 @@
 #'
 #' @param model An embedding model.
 #' @param vdat A matrix of triplet data.
-#' @param eflag Flag indicating whether model is embedding.
+#' @param isemb Flag indicating whether model is an embedding; if FALSE, model is treated as a distance matrix.
 #'
 #' @returns Vector containing the prediction strength metric for each triplet
 #'  in `vdat`
 #'
 #' @details
-#' If `eflag==FALSE` function assumes `model` is a distance matrix.
+#' If `isemb==FALSE` function assumes `model` is a distance matrix.
 #'
 #' The prediction-strength metric has a floor of 0.5 (both equally distant) and
 #' increases to approach 1.0 when one option is very close and the other very far,
@@ -41,12 +41,15 @@
 #' pstrength <- model.strength(emb, vdat)
 
 
-model.strength <- function(model, vdat, eflag=TRUE){
+model.strength <- function(model, vdat, isemb=TRUE){
 
-  if(eflag){ #If model is an embedding
+  if(isemb){ #If model is an embedding
     dmat<-as.matrix(dist(model))
-  } else if(dim(model)[1] != dim(model)[2]){
-    stop("Model is flagged as distance matrix but is not symmetric")
+  } else{
+    dmat <- as.matrix(model)
+    if(dim(model)[1] != dim(model)[2]){
+      stop("Model is flagged as distance matrix but is not symmetric")
+    }
   }
 
   ntriads<-dim(vdat)[1] #Number of triads

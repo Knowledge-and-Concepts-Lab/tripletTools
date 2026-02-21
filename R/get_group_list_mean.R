@@ -32,6 +32,7 @@ get.group.list.mean <- function(elist, grps){
   nitems <- length(elist)
   gid <- unique(grps) #Group IDs
   ngps <- length(gid) #Number of groups
+  inames <- row.names(elist[[1]]) #Item names
 
   o <- list() #Initialize output
 
@@ -51,6 +52,7 @@ get.group.list.mean <- function(elist, grps){
     #To rotate so first dimension is largest component, etc:
     s <- svd(gpmn) #SVD of matrix
     o[[i]] <- s$u %*% diag(s$d) #reconstruct from U and eigen values
+    row.names(o[[i]]) <- inames #Name rows
   }
   names(o) <- paste0("group-", gid)
   o

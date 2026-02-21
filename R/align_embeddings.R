@@ -6,6 +6,7 @@
 #' @importFrom vegan procrustes protest
 #'
 #' @param emb List of embeddings; each element is one participant.
+#' @param scl Flag indicating whether alignment should allow scaling
 #' @param baseno Integer indicating which list element to use as the base.
 #'
 #' @return A list with each participant's embedding aligned to the base embedding.
@@ -34,7 +35,7 @@
 #' unaligned <- list(s1,s2)
 #' aligned <- align.embeddings(unaligned)
 
-align.embeddings <- function (emb, baseno = 1)
+align.embeddings <- function (emb, scl = TRUE, baseno = 1)
 {
 
   o <- list() #Initialize output list
@@ -46,7 +47,7 @@ align.embeddings <- function (emb, baseno = 1)
                                 emb[[i]],
                                 symmetric = TRUE,
                                 reflect = TRUE,
-                                scale = TRUE)$Yrot
+                                scale = scl)$Yrot
   }
   o
 }

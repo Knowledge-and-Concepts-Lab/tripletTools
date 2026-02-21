@@ -56,7 +56,7 @@ get.prediction.matrix <- function(elist, tlist, ttype = "test"){
     thisemb <- elist[[i]]
     for(j in c(1:ntrip)){
       thistrip <- subset(tlist[[j]], tlist[[j]]$sampleSet==ttype)
-      o[j,i] <- get.hoacc(thisemb, thistrip)
+      o[j,i] <- get.hoacc(thisemb, thistrip, ttype)
     }
   }
   o

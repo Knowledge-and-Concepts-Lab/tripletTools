@@ -2,3 +2,7 @@
 ^\.Rproj\.user$
 ^LICENSE\.md$
 ^data-raw$
+^\.vscode$
+^run_check\.R$
+^tripletTools_manual\.md$
+^tripletTools_manual\.pdf$

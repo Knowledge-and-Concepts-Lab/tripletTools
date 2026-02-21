@@ -4,6 +4,7 @@
 #' predicted by their own embedding and embeddings from members of the same
 #' or other clusters.
 #'
+#' @importFrom stats aggregate
 #' @param pacc Participant-by-participant matrix of predictive accuracies of the
 #'   kind returned by `get_prediction_matrix`.
 #' @param clusts Vector indicating the cluster membership for each participant in

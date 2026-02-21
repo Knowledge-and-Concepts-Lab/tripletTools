@@ -44,5 +44,5 @@
 #' participants who agree with the majority vote. This gives an estimate of how
 #' consistent judgments are across participants.
 #'
-#' @source <https://www.who.int/teams/global-tuberculosis-programme/data>
+#' @source <https://www.chicagofaces.org/>
 "cfd_triplets"

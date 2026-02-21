@@ -4,14 +4,14 @@
 \alias{model.strength}
 \title{Get model strength}
 \usage{
-model.strength(model, vdat, eflag = TRUE)
+model.strength(model, vdat, isemb = TRUE)
 }
 \arguments{
 \item{model}{An embedding model.}
 
 \item{vdat}{A matrix of triplet data.}
 
-\item{eflag}{Flag indicating whether model is embedding.}
+\item{isemb}{Flag indicating whether model is an embedding; if FALSE, model is treated as a distance matrix.}
 }
 \value{
 Vector containing the prediction strength metric for each triplet
@@ -23,7 +23,7 @@ or distance model explain the triad choices contained in vdat by computing
 the distance of the furthest option divided by the sum of both distances.
 }
 \details{
-If \code{eflag==FALSE} function assumes \code{model} is a distance matrix.
+If \code{isemb==FALSE} function assumes \code{model} is a distance matrix.
 
 The prediction-strength metric has a floor of 0.5 (both equally distant) and
 increases to approach 1.0 when one option is very close and the other very far,

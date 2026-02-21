@@ -4,10 +4,12 @@
 \alias{align.embeddings}
 \title{Align embeddings across participants}
 \usage{
-align.embeddings(emb, baseno = 1)
+align.embeddings(emb, scl = TRUE, baseno = 1)
 }
 \arguments{
 \item{emb}{List of embeddings; each element is one participant.}
+
+\item{scl}{Flag indicating whether alignment should allow scaling}
 
 \item{baseno}{Integer indicating which list element to use as the base.}
 }
