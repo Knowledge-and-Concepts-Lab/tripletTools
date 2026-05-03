@@ -90,12 +90,6 @@ plot_pics <- function (md, plist, x = 1, y = 2, pr = 1.0, pc = NULL,
 
     graphics::plot.default(0, 0, type = "n", ...)
 
-    }
-
-    # Call plot.default deterministically
-    dots$type <- "n"
-    do.call(graphics::plot.default, c(list(x = 0, y = 0), dots))
-
   }
 
   #Get ranges on axes
