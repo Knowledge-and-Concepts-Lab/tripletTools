@@ -40,6 +40,7 @@ reflection.
 ## Examples
 
 ``` r
+
 #Example data for subject 1
 s1 <- data.frame(
       x = c(1:10) + runif(10)/10,

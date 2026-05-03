@@ -60,6 +60,7 @@ column names.
 ## Examples
 
 ``` r
+
 #Path to example triplet data
 fpath <- system.file("extdata", "cfd36_triplets_individual.csv", package = "tripletTools")
 

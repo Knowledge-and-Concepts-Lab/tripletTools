@@ -26,6 +26,7 @@ This vignette illustrates each of these steps using the example dataset
 included with the package.
 
 ``` r
+
 library(tripletTools)
 ```
 
@@ -39,17 +40,18 @@ perceived gender (male/female), race (Black/White), and emotional
 expression (happy, fearful, angry). Thirty-nine participants each judged
 approximately 1,000 triplets online.
 
-| Object           | Description                                                                            |
-|------------------|----------------------------------------------------------------------------------------|
-| `cfd_triplets`   | Named list of 39 data frames, one per participant, containing trial-by-trial judgments |
-| `cfd_embeddings` | Named list of 39 matrices, one per participant, containing 2-D embedding coordinates   |
-| `cfd_pics`       | Named list of 36 PNG images, one per stimulus face                                     |
+| Object | Description |
+|----|----|
+| `cfd_triplets` | Named list of 39 data frames, one per participant, containing trial-by-trial judgments |
+| `cfd_embeddings` | Named list of 39 matrices, one per participant, containing 2-D embedding coordinates |
+| `cfd_pics` | Named list of 36 PNG images, one per stimulus face |
 
 ### Triplet data
 
 Each element of `cfd_triplets` is one participant’s trial data:
 
 ``` r
+
 head(cfd_triplets[[1]])
 #>   head winner loser worker_id   rt            Center              Left
 #> 1   15      6     0     78972 8728 CFD-BM-038-007-HO CFD-BF-002-004-HO
@@ -79,6 +81,7 @@ Each element of `cfd_embeddings` is a 36-row matrix of 2-D embedding
 coordinates, with row names equal to stimulus names:
 
 ``` r
+
 head(cfd_embeddings[[1]])
 #>                       dim_0       dim_1
 #> CFD-BF-002-004-HO 0.3947823  0.16756907
@@ -100,6 +103,7 @@ accuracy on *check trials* (easy triplets with an obvious answer used as
 an attention check), and mean log response time.
 
 ``` r
+
 psummary <- get.participant.summary(cfd_triplets)
 head(psummary)
 #>   tripfile worker_id ndat         lrt      cacc  keep
@@ -130,6 +134,7 @@ of participants who agreed with that majority.
 `make.vmat` computes this from the full triplet list:
 
 ``` r
+
 vmat <- make.vmat(cfd_triplets)
 
 # One row per unique validation triplet
@@ -155,6 +160,7 @@ the majority choice. Values near 1.0 indicate near-universal agreement;
 values near 0.5 indicate a closely split decision.
 
 ``` r
+
 hist(vmat$majority$pmaj,
      breaks = 10,
      main   = "Inter-subject agreement on validation trials",
@@ -174,6 +180,7 @@ did not see the triplet (NA). The mean across triplets gives each
 participant’s overall agreement rate:
 
 ``` r
+
 barplot(rowMeans(vmat$bysbj, na.rm = TRUE), 
         beside = T, 
         ylim = c(0, 1.0),
@@ -200,6 +207,7 @@ embedding coordinates. This gives an immediate visual impression of how
 the faces are organized in the learned similarity space.
 
 ``` r
+
 emb1 <- cfd_embeddings[[1]]
 
 plot_pics(emb1, cfd_pics,
@@ -231,6 +239,7 @@ the referent in the embedding space.
 embedding’s prediction matches the participant’s answer:
 
 ``` r
+
 acc1 <- get.hoacc(cfd_embeddings[[1]], cfd_triplets[[1]])
 cat("Hold-out prediction accuracy (participant 1):", round(acc1, 3), "\n")
 #> Hold-out prediction accuracy (participant 1): 0.828
@@ -243,6 +252,7 @@ generally considered reasonable for a 2-D embedding.
 specific errors or compute accuracy on any subset of trials:
 
 ``` r
+
 result     <- test.model(cfd_embeddings[[1]], cfd_triplets[[1]])
 test_rows  <- result$sampleSet == "test"
 mean(result$ModPred[test_rows] == result$Answer[test_rows], na.rm=TRUE)
@@ -267,6 +277,7 @@ of the stimuli, so we will illustrate using the embedding from
 Participant 1:
 
 ``` r
+
 # Validation trials for participant 1
 vtrips <- subset(cfd_triplets[[1]], sampleAlg == "validation")
 
@@ -296,6 +307,7 @@ trials.
 
 ``` r
 
+
 cat("Correlation:", round(cor(pstrength, pmaj, use = "complete.obs"), 3), "\n")
 #> Correlation: 0.561
 ```
@@ -320,6 +332,7 @@ their judgments better than another participant’s embedding does.
 `get.prediction.matrix` computes this for all pairs:
 
 ``` r
+
 pmat <- get.prediction.matrix(cfd_embeddings, cfd_triplets)
 ```
 
@@ -329,6 +342,7 @@ judgments. The diagonal contains each participant’s *self-prediction*
 accuracy.
 
 ``` r
+
 cat("Mean self-prediction accuracy:  ", round(mean(diag(pmat)), 3), "\n")
 #> Mean self-prediction accuracy:   0.773
 cat("Mean other-prediction accuracy: ", round(mean(pmat[row(pmat) != col(pmat)]), 3), "\n")
@@ -341,6 +355,7 @@ participant’s own embedding predicts their data compared to other
 participants’ embeddings:
 
 ``` r
+
 zscores <- z.pred.mat(pmat)
 
 cat("Mean z-score of self-prediction:", round(mean(zscores, na.rm = TRUE), 3), "\n")
@@ -364,6 +379,7 @@ distance; embeddings that remain dissimilar after alignment have a high
 distance.
 
 ``` r
+
 repdist <- get.rep.dist(cfd_embeddings)
 ```
 
@@ -371,6 +387,7 @@ We can cluster participants by their representational distances using
 standard hierarchical clustering:
 
 ``` r
+
 #Compute hierarchical cluster tree:
 hc     <- hclust(as.dist(repdist), method = "ward.D") 
 
@@ -396,6 +413,7 @@ Participants clustered by pairwise representational distance.
 returns a mean embedding for each group:
 
 ``` r
+
 mn_by_clust <- get.group.list.mean(cfd_embeddings, clusts)
 ```
 
@@ -403,10 +421,13 @@ Plotting each cluster’s mean embedding shows whether different groups of
 participants organized the faces in qualitatively different ways:
 
 ``` r
-plot_pics(mn_by_clust[[1]], cfd_pics, psize = 0.04,
+
+
+dmat <- mn_by_clust[[1]] #Copy data matrix
+dmat <- dmat / max(abs(dmat)) #Max scaling
+
+tripletTools::plot_pics(dmat, cfd_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
-          xlim = range(mn_by_clust[[1]][,1]),
-          ylim = range(mn_by_clust[[1]][,2]),
           main = "Cluster 1 – mean embedding")
 ```
 
@@ -416,10 +437,12 @@ plot_pics(mn_by_clust[[1]], cfd_pics, psize = 0.04,
 Mean 2-D embedding for cluster 1.
 
 ``` r
-plot_pics(mn_by_clust[[2]], cfd_pics, psize = 0.04,
+
+dmat <- mn_by_clust[[2]] #Copy data matrix
+dmat <- dmat / max(abs(dmat)) #Max scaling
+
+tripletTools::plot_pics(dmat, cfd_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
-          xlim = range(mn_by_clust[[2]][,1]),
-          ylim = range(mn_by_clust[[2]][,2]),
           main = "Cluster 2 – mean embedding")
 ```
 
@@ -429,10 +452,12 @@ plot_pics(mn_by_clust[[2]], cfd_pics, psize = 0.04,
 Mean 2-D embedding for cluster 2.
 
 ``` r
-plot_pics(mn_by_clust[[3]], cfd_pics, psize = 0.04,
+
+dmat <- mn_by_clust[[3]] #Copy data matrix
+dmat <- dmat / max(abs(dmat)) #Max scaling
+
+tripletTools::plot_pics(dmat, cfd_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
-          xlim = range(mn_by_clust[[3]][,1]),
-          ylim = range(mn_by_clust[[3]][,2]),
           main = "Cluster 3 – mean embedding")
 ```
 
@@ -452,6 +477,7 @@ clusters. `pacc.by.cluster` tests this directly using the prediction
 matrix:
 
 ``` r
+
 pbc <- pacc.by.cluster(pmat, clusts, samediff = TRUE)
 head(pbc)
 #>            self      same     other
@@ -468,6 +494,7 @@ from (1) their own embedding, (2) the mean of their cluster-mates’
 embeddings, and (3) the mean of participants outside their cluster.
 
 ``` r
+
 round(colMeans(pbc), 3)
 #>  self  same other 
 #> 0.773 0.675 0.594
@@ -477,6 +504,7 @@ We can show the mean and 95% confidence interval of these values across
 participants as a ribbon plot:
 
 ``` r
+
 plot_cis(pbc,
          xvals  = 1:3,
          main   = "Prediction accuracy by cluster membership",
@@ -508,6 +536,7 @@ coordinates of a phylogram plot, allowing `plot_pics` to place images at
 the correct positions.
 
 ``` r
+
 hc_emb <- hclust(dist(cfd_embeddings[[1]]), method = "ward.D")
 pt     <- ape::as.phylo(hc_emb)
 
@@ -532,15 +561,15 @@ Faces on nearby branches were judged as similar by this participant.
 The table below maps common analysis questions to the corresponding
 `tripletTools` functions:
 
-| Question                                                | Function(s)                           |
-|---------------------------------------------------------|---------------------------------------|
-| Did participants engage with the task?                  | `get.participant.summary`             |
-| How consistent are judgments across participants?       | `make.vmat`                           |
-| What does a participant’s embedding look like?          | `plot_pics`                           |
-| How well does the embedding predict held-out judgments? | `get.hoacc`, `test.model`             |
-| Does the embedding correctly rank triplet difficulty?   | `model.strength`                      |
-| Are individual differences in representation reliable?  | `get.prediction.matrix`, `z.pred.mat` |
-| How similar are two participants’ representations?      | `get.rep.dist`                        |
-| Are there subgroups with similar representations?       | `get.rep.dist`, `get.group.list.mean` |
-| Do cluster-mates predict each other’s data better?      | `pacc.by.cluster`, `plot_cis`         |
-| How to show a full similarity tree with images?         | `get.tip.coords`, `plot_pics`         |
+| Question | Function(s) |
+|----|----|
+| Did participants engage with the task? | `get.participant.summary` |
+| How consistent are judgments across participants? | `make.vmat` |
+| What does a participant’s embedding look like? | `plot_pics` |
+| How well does the embedding predict held-out judgments? | `get.hoacc`, `test.model` |
+| Does the embedding correctly rank triplet difficulty? | `model.strength` |
+| Are individual differences in representation reliable? | `get.prediction.matrix`, `z.pred.mat` |
+| How similar are two participants’ representations? | `get.rep.dist` |
+| Are there subgroups with similar representations? | `get.rep.dist`, `get.group.list.mean` |
+| Do cluster-mates predict each other’s data better? | `pacc.by.cluster`, `plot_cis` |
+| How to show a full similarity tree with images? | `get.tip.coords`, `plot_pics` |

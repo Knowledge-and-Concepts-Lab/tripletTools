@@ -49,6 +49,7 @@ distances.
 ## Examples
 
 ``` r
+
 m <- data.frame(
   x=c(1,1.1,2,2.1),
   y=c(1.25,1.75,1.25,1.75))

@@ -25,12 +25,22 @@ All functions are documented in `tripletTools_manual.pdf`
 
 - [`align.embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/align.embeddings.md)
   : Align embeddings across participants
+- [`assign_sample_alg()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_alg.md)
+  : Label each trial with its sampling algorithm
+- [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
+  : Assign trials to train or test sets
 - [`cfd_embeddings`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_embeddings.md)
   : Individual embedding data for 36 Chicago faces
 - [`cfd_pics`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_pics.md)
   : Chicago Face Dataset pictures
 - [`cfd_triplets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_triplets.md)
   : Triplet data for 36 items from Chicago Face Dataset
+- [`filter_failed_catch()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_failed_catch.md)
+  : Exclude participants who fail too many catch trials
+- [`filter_fast_responders()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_fast_responders.md)
+  : Exclude participants with suspiciously fast mean reaction times
+- [`filter_incomplete()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_incomplete.md)
+  : Exclude participants with too few trials
 - [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
   : Get combined data
 - [`get.group.list.mean()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.group.list.mean.md)
@@ -61,6 +71,12 @@ All functions are documented in `tripletTools_manual.pdf`
   : Plot column means and confidence intervals
 - [`plot_pics()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.md)
   : Plot pictures in a scatterplot
+- [`process_choices()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/process_choices.md)
+  : Clean raw choice strings from jsPsych CSV output
+- [`read_legacy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_legacy.md)
+  : Standardise a legacy triadic comparison dataset
+- [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
+  : Clean raw jsPsych triplet experiment data
 - [`strsplit1()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.md)
   : Split a string
 - [`test.model()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.md)

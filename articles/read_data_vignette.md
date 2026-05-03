@@ -1,6 +1,7 @@
 # Reading Triplet Data
 
 ``` r
+
 library(tripletTools)
 ```
 
@@ -57,6 +58,7 @@ by the subject identified. This package includes an example dataset in
 this format, `cfd_triplets`:
 
 ``` r
+
 head(cfd_triplets[[1]])
 #>   head winner loser worker_id   rt            Center              Left
 #> 1   15      6     0     78972 8728 CFD-BM-038-007-HO CFD-BF-002-004-HO
@@ -83,6 +85,7 @@ the elements are labeled by the `worker\_id` label in the raw data file.
 You can see all the subject labels as follows:
 
 ``` r
+
 names(cfd_triplets)
 #>  [1] "78972" "78103" "77827" "79088" "79377" "80900" "81492" "81753" "81157"
 #> [10] "78375" "79564" "81964" "79666" "79497" "79363" "77536" "81416" "82291"
@@ -135,6 +138,7 @@ elements are labeled by the participant id (`worker_id`). The
 function:
 
 ``` r
+
 head(cfd_embeddings[[1]])
 #>                       dim_0       dim_1
 #> CFD-BF-002-004-HO 0.3947823  0.16756907

@@ -8,9 +8,14 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/authors.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/index.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/align.embeddings.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_alg.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_embeddings.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_pics.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_triplets.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_failed_catch.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_fast_responders.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_incomplete.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.group.list.mean.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.html</loc></url>
@@ -27,6 +32,9 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/pacc.by.cluster.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_cis.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/process_choices.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_legacy.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/z.pred.mat.html</loc></url>

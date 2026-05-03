@@ -6,30 +6,30 @@
 
 ## Table of Contents
 
-| Function / Dataset                                | Title                                                           |
-|---------------------------------------------------|-----------------------------------------------------------------|
-| [align.embeddings](#alignembeddings)              | Align embeddings across participants                            |
-| [cfd_embeddings](#cfd_embeddings)                 | Individual embedding data for 36 Chicago faces *(dataset)*      |
-| [cfd_pics](#cfd_pics)                             | Chicago Face Dataset pictures *(dataset)*                       |
-| [cfd_triplets](#cfd_triplets)                     | Triplet data for 36 items from Chicago Face Dataset *(dataset)* |
-| [get.combined](#getcombined)                      | Get combined data                                               |
-| [get.group.list.mean](#getgrouplistmean)          | Get group list mean                                             |
-| [get.hoacc](#gethoacc)                            | Get hold-out prediction accuracy                                |
-| [get.nearest.k](#getnearestk)                     | Get nearest k                                                   |
-| [get.participant.summary](#getparticipantsummary) | Get participant summary                                         |
-| [get.prediction.matrix](#getpredictionmatrix)     | Get prediction matrix                                           |
-| [get.raster.from.png](#getrasterfrompng)          | Get raster from PNG                                             |
-| [get.rep.dist](#getrepdist)                       | Get representational distances                                  |
-| [get.tip.coords](#gettipcoords)                   | Get tip coordinates                                             |
-| [make.tripnames](#maketripnames)                  | Make triplet names                                              |
-| [make.vmat](#makevmat)                            | Make validation matrix                                          |
-| [model.strength](#modelstrength)                  | Get model strength                                              |
-| [pacc.by.cluster](#paccbycluster)                 | Prediction accuracy by cluster                                  |
-| [plot_cis](#plot_cis)                             | Plot column means and confidence intervals                      |
-| [plot_pics](#plot_pics)                           | Plot pictures in a scatterplot                                  |
-| [strsplit1](#strsplit1)                           | Split a string                                                  |
-| [test.model](#testmodel)                          | Test embedding model predictions                                |
-| [z.pred.mat](#zpredmat)                           | Z-score prediction matrix                                       |
+| Function / Dataset | Title |
+|----|----|
+| [align.embeddings](#alignembeddings) | Align embeddings across participants |
+| [cfd_embeddings](#cfd_embeddings) | Individual embedding data for 36 Chicago faces *(dataset)* |
+| [cfd_pics](#cfd_pics) | Chicago Face Dataset pictures *(dataset)* |
+| [cfd_triplets](#cfd_triplets) | Triplet data for 36 items from Chicago Face Dataset *(dataset)* |
+| [get.combined](#getcombined) | Get combined data |
+| [get.group.list.mean](#getgrouplistmean) | Get group list mean |
+| [get.hoacc](#gethoacc) | Get hold-out prediction accuracy |
+| [get.nearest.k](#getnearestk) | Get nearest k |
+| [get.participant.summary](#getparticipantsummary) | Get participant summary |
+| [get.prediction.matrix](#getpredictionmatrix) | Get prediction matrix |
+| [get.raster.from.png](#getrasterfrompng) | Get raster from PNG |
+| [get.rep.dist](#getrepdist) | Get representational distances |
+| [get.tip.coords](#gettipcoords) | Get tip coordinates |
+| [make.tripnames](#maketripnames) | Make triplet names |
+| [make.vmat](#makevmat) | Make validation matrix |
+| [model.strength](#modelstrength) | Get model strength |
+| [pacc.by.cluster](#paccbycluster) | Prediction accuracy by cluster |
+| [plot_cis](#plot_cis) | Plot column means and confidence intervals |
+| [plot_pics](#plot_pics) | Plot pictures in a scatterplot |
+| [strsplit1](#strsplit1) | Split a string |
+| [test.model](#testmodel) | Test embedding model predictions |
+| [z.pred.mat](#zpredmat) | Z-score prediction matrix |
 
 ------------------------------------------------------------------------
 
@@ -45,6 +45,7 @@ procrustes-aligns each to a reference embedding.
 ### Usage
 
 ``` r
+
 align.embeddings(emb, scl = TRUE, baseno = 1)
 ```
 
@@ -73,6 +74,7 @@ A list with each participant’s embedding aligned to the base embedding.
 ### Examples
 
 ``` r
+
 # Example data for subject 1
 s1 <- data.frame(
       x = c(1:10) + runif(10)/10,
@@ -105,6 +107,7 @@ each of 39 individual participants.
 ### Usage
 
 ``` r
+
 cfd_embeddings
 ```
 
@@ -145,6 +148,7 @@ as part of this package.
 ### Usage
 
 ``` r
+
 cfd_pics
 ```
 
@@ -179,6 +183,7 @@ object `cfd_embeddings`.
 ### Usage
 
 ``` r
+
 cfd_triplets
 ```
 
@@ -186,16 +191,16 @@ cfd_triplets
 
 A named list, each element containing a dataframe with 11 columns:
 
-| Column                    | Description                                       |
-|---------------------------|---------------------------------------------------|
-| `head`, `winner`, `loser` | Integer indices for items in a given triplet.     |
-| `worker_id`               | Random identifier for each participant.           |
-| `rt`                      | Response time on triplet (in milliseconds).       |
-| `Center`                  | The target item.                                  |
-| `Left`, `Right`           | The option items appearing on the left and right. |
-| `Answer`                  | The option item chosen by the participant.        |
-| `sampleAlg`               | The algorithm used to sample the item.            |
-| `sampleSet`               | Which set the sampled item belongs to.            |
+| Column | Description |
+|----|----|
+| `head`, `winner`, `loser` | Integer indices for items in a given triplet. |
+| `worker_id` | Random identifier for each participant. |
+| `rt` | Response time on triplet (in milliseconds). |
+| `Center` | The target item. |
+| `Left`, `Right` | The option items appearing on the left and right. |
+| `Answer` | The option item chosen by the participant. |
+| `sampleAlg` | The algorithm used to sample the item. |
+| `sampleSet` | Which set the sampled item belongs to. |
 
 ### Details
 
@@ -245,6 +250,7 @@ containing data from one participant.
 ### Usage
 
 ``` r
+
 get.combined(fname, eflag = FALSE)
 ```
 
@@ -277,6 +283,7 @@ participant’s data.
 ### Examples
 
 ``` r
+
 fpath <- system.file("extdata", "cfd36_embeddings_individual.csv", package = "tripletTools")
 
 embeddings <- get.combined(fpath, eflag = TRUE)
@@ -299,15 +306,16 @@ then computes the mean embedding across members of the group.
 ### Usage
 
 ``` r
+
 get.group.list.mean(elist, grps)
 ```
 
 ### Arguments
 
-| Argument | Description                                                                                                            |
-|----------|------------------------------------------------------------------------------------------------------------------------|
-| `elist`  | List of embeddings.                                                                                                    |
-| `grps`   | Vector indicating to which group each individual in `elist` belongs. Elements must be in the same order as in `elist`. |
+| Argument | Description |
+|----|----|
+| `elist` | List of embeddings. |
+| `grps` | Vector indicating to which group each individual in `elist` belongs. Elements must be in the same order as in `elist`. |
 
 ### Details
 
@@ -324,6 +332,7 @@ List containing mean embedding for each group.
 ### Examples
 
 ``` r
+
 repdist <- get.rep.dist(cfd_embeddings)         # Representational distances
 hc <- hclust(as.dist(repdist), method = "ward.D")  # Cluster tree
 clusts <- cutree(hc, 4)                          # Cut into 4 clusters
@@ -345,17 +354,18 @@ This function computes embedding prediction accuracy on held-out items.
 ### Usage
 
 ``` r
+
 get.hoacc(em, td, trialtype = "test", isemb = TRUE)
 ```
 
 ### Arguments
 
-| Argument    | Description                                                                                                  |
-|-------------|--------------------------------------------------------------------------------------------------------------|
-| `em`        | Embedding or distance matrix for generating predictions.                                                     |
-| `td`        | Dataframe containing triplet data to be evaluated.                                                           |
-| `trialtype` | Type of trial to be evaluated; defaults to `"test"`.                                                         |
-| `isemb`     | When `TRUE`, `em` is a matrix of embedding coordinates; when `FALSE`, it is assumed to be a distance matrix. |
+| Argument | Description |
+|----|----|
+| `em` | Embedding or distance matrix for generating predictions. |
+| `td` | Dataframe containing triplet data to be evaluated. |
+| `trialtype` | Type of trial to be evaluated; defaults to `"test"`. |
+| `isemb` | When `TRUE`, `em` is a matrix of embedding coordinates; when `FALSE`, it is assumed to be a distance matrix. |
 
 ### Details
 
@@ -379,6 +389,7 @@ indicated type) for which the prediction was correct.
 ### Examples
 
 ``` r
+
 m <- data.frame(
   x = c(1, 1.1, 2, 2.1),
   y = c(1.25, 1.75, 1.25, 1.75))
@@ -410,16 +421,17 @@ This function takes a distance matrix and an item name and returns the
 ### Usage
 
 ``` r
+
 get.nearest.k(dmat, item, k = 5)
 ```
 
 ### Arguments
 
-| Argument | Description                                                              |
-|----------|--------------------------------------------------------------------------|
-| `dmat`   | Data matrix; rows must be named.                                         |
-| `item`   | String indicating the item for which nearest neighbors will be returned. |
-| `k`      | How many neighbors to return.                                            |
+| Argument | Description |
+|----|----|
+| `dmat` | Data matrix; rows must be named. |
+| `item` | String indicating the item for which nearest neighbors will be returned. |
+| `k` | How many neighbors to return. |
 
 ### Details
 
@@ -438,6 +450,7 @@ proximity to the target item.
 ### Examples
 
 ``` r
+
 emb <- cfd_embeddings[[10]]         # Embedding for participant 10
 fdists <- as.matrix(dist(emb))       # Compute pairwise distance matrix
 target <- "CFD-BF-002-004-HO"       # Name of target item
@@ -461,18 +474,19 @@ about each participant in the study.
 ### Usage
 
 ``` r
+
 get.participant.summary(d, irange = NULL, mintrial = 1000, accthresh = 0.8, rtthresh = 0)
 ```
 
 ### Arguments
 
-| Argument    | Description                                                              |
-|-------------|--------------------------------------------------------------------------|
-| `d`         | List of triplet data. Each element is data from one participant.         |
-| `irange`    | Vector indicating which elements of the list to include. Default is all. |
-| `mintrial`  | Minimum number of trials needed to count as a complete record.           |
-| `accthresh` | Accuracy threshold for check trials to pass quality check.               |
-| `rtthresh`  | Threshold of log RT to pass quality check.                               |
+| Argument | Description |
+|----|----|
+| `d` | List of triplet data. Each element is data from one participant. |
+| `irange` | Vector indicating which elements of the list to include. Default is all. |
+| `mintrial` | Minimum number of trials needed to count as a complete record. |
+| `accthresh` | Accuracy threshold for check trials to pass quality check. |
+| `rtthresh` | Threshold of log RT to pass quality check. |
 
 ### Details
 
@@ -495,6 +509,7 @@ Data frame containing information about each participant in the study.
 ### Examples
 
 ``` r
+
 # Path to example triplet data
 fpath <- system.file("extdata", "cfd36_triplets_individual.csv", package = "tripletTools")
 
@@ -522,6 +537,7 @@ dataset, returning the mean accuracy as a matrix.
 ### Usage
 
 ``` r
+
 get.prediction.matrix(elist, tlist, ttype = "test")
 ```
 
@@ -558,6 +574,7 @@ for the trial type indicated.
 ### Examples
 
 ``` r
+
 embpath <- system.file("extdata", "cfd36_embeddings_individual.csv", package = "tripletTools")
 tripath <- system.file("extdata", "cfd36_triplets_individual.csv",   package = "tripletTools")
 
@@ -583,6 +600,7 @@ transparent background for plotting.
 ### Usage
 
 ``` r
+
 get.raster.from.png(f)
 ```
 
@@ -615,6 +633,7 @@ distance between each pair and returns this as a distance matrix.
 ### Usage
 
 ``` r
+
 get.rep.dist(elist, rootflag = TRUE)
 ```
 
@@ -643,6 +662,7 @@ A matrix of distances between each pair of embeddings.
 ### Examples
 
 ``` r
+
 # Subject 1 data
 s1 <- matrix(
       c(1,1, 2,2, 3,3, 4,4, 5,5), 5, 2, byrow = TRUE)
@@ -674,6 +694,7 @@ other symbols at the ends of the tree plot.
 ### Usage
 
 ``` r
+
 get.tip.coords()
 ```
 
@@ -692,6 +713,7 @@ phylogram.
 ### Examples
 
 ``` r
+
 # Make a distance matrix
 dmat <- matrix(
         c(1, 1, 1, 0, 0, 0,
@@ -726,13 +748,14 @@ triplet data frame.
 ### Usage
 
 ``` r
+
 make.tripnames(tripdat)
 ```
 
 ### Arguments
 
-| Argument  | Description                                                               |
-|-----------|---------------------------------------------------------------------------|
+| Argument | Description |
+|----|----|
 | `tripdat` | A data frame containing triplet data; must conform to naming conventions. |
 
 ### Details
@@ -749,6 +772,7 @@ the triplet dataframe.
 ### Examples
 
 ``` r
+
 trips  <- cfd_triplets[[10]]      # Triplet data for participant 10
 tnames <- make.tripnames(trips)   # Make triplet names
 tnames[1:5]                       # Names of first five triplets
@@ -768,13 +792,14 @@ a subject-by-trial matrix of judgments on these items.
 ### Usage
 
 ``` r
+
 make.vmat(triplist)
 ```
 
 ### Arguments
 
-| Argument   | Description                                                                                                                                       |
-|------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| Argument | Description |
+|----|----|
 | `triplist` | Named list whose elements each contain triplet data from one participant. Names should be participant identifiers, as returned by `get.combined`. |
 
 ### Details
@@ -802,6 +827,7 @@ participant made.
 ### Examples
 
 ``` r
+
 vmat <- make.vmat(cfd_triplets)
 vmat$majority
 ```
@@ -822,6 +848,7 @@ sum of both distances.
 ### Usage
 
 ``` r
+
 model.strength(model, vdat, eflag = TRUE)
 ```
 
@@ -861,6 +888,7 @@ Vector containing the prediction strength metric for each triplet in
 ### Examples
 
 ``` r
+
 emb   <- cfd_embeddings[[2]]   # Embedding for participant 2
 trips <- cfd_triplets[[2]]     # Triplets for participant 2
 
@@ -885,15 +913,16 @@ or other clusters.
 ### Usage
 
 ``` r
+
 pacc.by.cluster(pacc, clusts, samediff = TRUE)
 ```
 
 ### Arguments
 
-| Argument   | Description                                                                                                                                                                                                |
-|------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `pacc`     | Participant-by-participant matrix of predictive accuracies of the kind returned by `get.prediction.matrix`.                                                                                                |
-| `clusts`   | Vector indicating the cluster membership for each participant in `pacc`.                                                                                                                                   |
+| Argument | Description |
+|----|----|
+| `pacc` | Participant-by-participant matrix of predictive accuracies of the kind returned by `get.prediction.matrix`. |
+| `clusts` | Vector indicating the cluster membership for each participant in `pacc`. |
 | `samediff` | If `TRUE`, returns mean prediction accuracy for participants in the same cluster vs. mean from those in a different cluster. Otherwise returns mean prediction accuracy from participants in each cluster. |
 
 ### Details
@@ -924,6 +953,7 @@ each participant’s judgments from embeddings in each cluster.
 ### Examples
 
 ``` r
+
 repdist <- get.rep.dist(cfd_embeddings)                   # Representational distances
 hc      <- hclust(as.dist(repdist), method = "ward.D")
 clusts  <- cutree(hc, 3)                                  # Cut tree to yield 3 clusters
@@ -949,19 +979,20 @@ ribbon (default) or as a barplot.
 ### Usage
 
 ``` r
+
 plot_cis(d, barflag = FALSE, newflag = TRUE, xvals = NULL, rgbvec = c(0, 0, 1), ...)
 ```
 
 ### Arguments
 
-| Argument  | Description                                                         |
-|-----------|---------------------------------------------------------------------|
-| `d`       | A matrix of numerical data.                                         |
-| `barflag` | Flag indicating whether a barplot is desired.                       |
-| `newflag` | Should a new plot be generated? Default `TRUE`.                     |
-| `xvals`   | Vector of x values equal in length to the number of columns in `d`. |
-| `rgbvec`  | Vector of red, green, blue proportions.                             |
-| `...`     | Other graphical parameters.                                         |
+| Argument | Description |
+|----|----|
+| `d` | A matrix of numerical data. |
+| `barflag` | Flag indicating whether a barplot is desired. |
+| `newflag` | Should a new plot be generated? Default `TRUE`. |
+| `xvals` | Vector of x values equal in length to the number of columns in `d`. |
+| `rgbvec` | Vector of red, green, blue proportions. |
+| `...` | Other graphical parameters. |
 
 ### Value
 
@@ -970,6 +1001,7 @@ Invisibly returns a matrix of column means and 95% confidence intervals.
 ### Examples
 
 ``` r
+
 x <- matrix(c(1:12), 3, 4)
 plot_cis(x)
 ```
@@ -988,22 +1020,23 @@ scatterplot.
 ### Usage
 
 ``` r
+
 plot_pics(md, plist, x = 1, y = 2, pr = 1, pc = NULL, psize = 0.05, newplot = TRUE, ...)
 ```
 
 ### Arguments
 
-| Argument  | Description                                                                            |
-|-----------|----------------------------------------------------------------------------------------|
-| `md`      | Matrix of data indicating where each image is to be plotted.                           |
-| `plist`   | List of PNG or raster images.                                                          |
-| `x`       | Which column of the matrix should be used for x-axis position.                         |
-| `y`       | Which column of the matrix should be used for y-axis position.                         |
-| `pr`      | Proportion of items to be plotted, OR vector indicating which items should be plotted. |
-| `pc`      | If images are rasters, what color should they be plotted in?                           |
-| `psize`   | Plot size for each image as a proportion of the plotting surface.                      |
-| `newplot` | Should a new plot be generated? If `FALSE`, images are added to the current plot.      |
-| `...`     | Other graphical parameters.                                                            |
+| Argument | Description |
+|----|----|
+| `md` | Matrix of data indicating where each image is to be plotted. |
+| `plist` | List of PNG or raster images. |
+| `x` | Which column of the matrix should be used for x-axis position. |
+| `y` | Which column of the matrix should be used for y-axis position. |
+| `pr` | Proportion of items to be plotted, OR vector indicating which items should be plotted. |
+| `pc` | If images are rasters, what color should they be plotted in? |
+| `psize` | Plot size for each image as a proportion of the plotting surface. |
+| `newplot` | Should a new plot be generated? If `FALSE`, images are added to the current plot. |
+| `...` | Other graphical parameters. |
 
 ### Details
 
@@ -1036,6 +1069,7 @@ Generates a plot or adds images to an existing plot.
 ### Examples
 
 ``` r
+
 # Plot a 2D embedding as a scatterplot using images instead of points:
 emb <- cfd_embeddings[[1]]   # Get embedding from first participant
 plot_pics(emb, cfd_pics, psize = 0.03)
@@ -1062,6 +1096,7 @@ Split a string.
 ### Usage
 
 ``` r
+
 strsplit1(x, split)
 ```
 
@@ -1079,6 +1114,7 @@ A character vector.
 ### Examples
 
 ``` r
+
 x <- "alfa,bravo,charlie,delta"
 strsplit1(x, split = ",")
 ```
@@ -1098,16 +1134,17 @@ additional column named `ModPred` to the triplet data file.
 ### Usage
 
 ``` r
+
 test.model(m, vdat, isemb = TRUE)
 ```
 
 ### Arguments
 
-| Argument | Description                                                                                                                                 |
-|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `m`      | An embedding of the stimuli or matrix of distances among stimuli. Rows must have names that correspond with the triplet data.               |
-| `vdat`   | Data frame containing triplet data. Must include columns named `Center`, `Left`, and `Right`, and names here must match row names of model. |
-| `isemb`  | Is model an embedding? If `TRUE` (default), compute Euclidean distance matrix; otherwise treat model as the distance matrix.                |
+| Argument | Description |
+|----|----|
+| `m` | An embedding of the stimuli or matrix of distances among stimuli. Rows must have names that correspond with the triplet data. |
+| `vdat` | Data frame containing triplet data. Must include columns named `Center`, `Left`, and `Right`, and names here must match row names of model. |
+| `isemb` | Is model an embedding? If `TRUE` (default), compute Euclidean distance matrix; otherwise treat model as the distance matrix. |
 
 ### Details
 
@@ -1123,6 +1160,7 @@ model predictions can be easily converted to a proportion correct score
 as follows:
 
 ``` r
+
 mean(output$ModPred == output$Answer)
 ```
 
@@ -1137,6 +1175,7 @@ matrix.
 ### Examples
 
 ``` r
+
 m <- data.frame(
   x = c(1, 1.1, 2, 2.1),
   y = c(1.25, 1.75, 1.25, 2.75))
@@ -1168,14 +1207,15 @@ relates to those from other subjects.
 ### Usage
 
 ``` r
+
 z.pred.mat(pmat)
 ```
 
 ### Arguments
 
-| Argument | Description                                                                                |
-|----------|--------------------------------------------------------------------------------------------|
-| `pmat`   | An embedding-to-triplet prediction matrix of the kind returned by `get.prediction.matrix`. |
+| Argument | Description |
+|----|----|
+| `pmat` | An embedding-to-triplet prediction matrix of the kind returned by `get.prediction.matrix`. |
 
 ### Details
 
@@ -1201,6 +1241,7 @@ in the matrix, computed as a z-score.
 ### Examples
 
 ``` r
+
 # Random prediction matrix
 pmat <- matrix(runif(25), 5, 5)
 

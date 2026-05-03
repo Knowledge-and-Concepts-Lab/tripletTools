@@ -40,54 +40,54 @@
 <p><strong>Version 0.1.0</strong> <strong>Author:</strong> Timothy Rogers <strong>License:</strong> MIT</p>
 <hr><div class="section level2">
 <h2 id="table-of-contents">Table of Contents<a class="anchor" aria-label="anchor" href="#table-of-contents"></a></h2>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Function / Dataset</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Function / Dataset</th>
 <th>Title</th>
-</tr></thead><tbody><tr class="odd"><td><a href="#alignembeddings">align.embeddings</a></td>
+</tr></thead><tbody><tr><td><a href="#alignembeddings">align.embeddings</a></td>
 <td>Align embeddings across participants</td>
-</tr><tr class="even"><td><a href="#cfd_embeddings">cfd_embeddings</a></td>
+</tr><tr><td><a href="#cfd_embeddings">cfd_embeddings</a></td>
 <td>Individual embedding data for 36 Chicago faces <em>(dataset)</em>
 </td>
-</tr><tr class="odd"><td><a href="#cfd_pics">cfd_pics</a></td>
+</tr><tr><td><a href="#cfd_pics">cfd_pics</a></td>
 <td>Chicago Face Dataset pictures <em>(dataset)</em>
 </td>
-</tr><tr class="even"><td><a href="#cfd_triplets">cfd_triplets</a></td>
+</tr><tr><td><a href="#cfd_triplets">cfd_triplets</a></td>
 <td>Triplet data for 36 items from Chicago Face Dataset <em>(dataset)</em>
 </td>
-</tr><tr class="odd"><td><a href="#getcombined">get.combined</a></td>
+</tr><tr><td><a href="#getcombined">get.combined</a></td>
 <td>Get combined data</td>
-</tr><tr class="even"><td><a href="#getgrouplistmean">get.group.list.mean</a></td>
+</tr><tr><td><a href="#getgrouplistmean">get.group.list.mean</a></td>
 <td>Get group list mean</td>
-</tr><tr class="odd"><td><a href="#gethoacc">get.hoacc</a></td>
+</tr><tr><td><a href="#gethoacc">get.hoacc</a></td>
 <td>Get hold-out prediction accuracy</td>
-</tr><tr class="even"><td><a href="#getnearestk">get.nearest.k</a></td>
+</tr><tr><td><a href="#getnearestk">get.nearest.k</a></td>
 <td>Get nearest k</td>
-</tr><tr class="odd"><td><a href="#getparticipantsummary">get.participant.summary</a></td>
+</tr><tr><td><a href="#getparticipantsummary">get.participant.summary</a></td>
 <td>Get participant summary</td>
-</tr><tr class="even"><td><a href="#getpredictionmatrix">get.prediction.matrix</a></td>
+</tr><tr><td><a href="#getpredictionmatrix">get.prediction.matrix</a></td>
 <td>Get prediction matrix</td>
-</tr><tr class="odd"><td><a href="#getrasterfrompng">get.raster.from.png</a></td>
+</tr><tr><td><a href="#getrasterfrompng">get.raster.from.png</a></td>
 <td>Get raster from PNG</td>
-</tr><tr class="even"><td><a href="#getrepdist">get.rep.dist</a></td>
+</tr><tr><td><a href="#getrepdist">get.rep.dist</a></td>
 <td>Get representational distances</td>
-</tr><tr class="odd"><td><a href="#gettipcoords">get.tip.coords</a></td>
+</tr><tr><td><a href="#gettipcoords">get.tip.coords</a></td>
 <td>Get tip coordinates</td>
-</tr><tr class="even"><td><a href="#maketripnames">make.tripnames</a></td>
+</tr><tr><td><a href="#maketripnames">make.tripnames</a></td>
 <td>Make triplet names</td>
-</tr><tr class="odd"><td><a href="#makevmat">make.vmat</a></td>
+</tr><tr><td><a href="#makevmat">make.vmat</a></td>
 <td>Make validation matrix</td>
-</tr><tr class="even"><td><a href="#modelstrength">model.strength</a></td>
+</tr><tr><td><a href="#modelstrength">model.strength</a></td>
 <td>Get model strength</td>
-</tr><tr class="odd"><td><a href="#paccbycluster">pacc.by.cluster</a></td>
+</tr><tr><td><a href="#paccbycluster">pacc.by.cluster</a></td>
 <td>Prediction accuracy by cluster</td>
-</tr><tr class="even"><td><a href="#plot_cis">plot_cis</a></td>
+</tr><tr><td><a href="#plot_cis">plot_cis</a></td>
 <td>Plot column means and confidence intervals</td>
-</tr><tr class="odd"><td><a href="#plot_pics">plot_pics</a></td>
+</tr><tr><td><a href="#plot_pics">plot_pics</a></td>
 <td>Plot pictures in a scatterplot</td>
-</tr><tr class="even"><td><a href="#strsplit1">strsplit1</a></td>
+</tr><tr><td><a href="#strsplit1">strsplit1</a></td>
 <td>Split a string</td>
-</tr><tr class="odd"><td><a href="#testmodel">test.model</a></td>
+</tr><tr><td><a href="#testmodel">test.model</a></td>
 <td>Test embedding model predictions</td>
-</tr><tr class="even"><td><a href="#zpredmat">z.pred.mat</a></td>
+</tr><tr><td><a href="#zpredmat">z.pred.mat</a></td>
 <td>Z-score prediction matrix</td>
 </tr></tbody></table><hr></div>
 <div class="section level2">
@@ -104,13 +104,13 @@
 </div>
 <div class="section level3">
 <h3 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h3>
-<table class="table"><thead><tr class="header"><th>Argument</th>
+<table class="table"><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>emb</code></td>
+</tr></thead><tbody><tr><td><code>emb</code></td>
 <td>List of embeddings; each element is one participant.</td>
-</tr><tr class="even"><td><code>scl</code></td>
+</tr><tr><td><code>scl</code></td>
 <td>Flag indicating whether alignment should allow scaling.</td>
-</tr><tr class="odd"><td><code>baseno</code></td>
+</tr><tr><td><code>baseno</code></td>
 <td>Integer indicating which list element to use as the base.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -152,15 +152,15 @@
 <div class="section level3">
 <h3 id="format">Format<a class="anchor" aria-label="anchor" href="#format"></a></h3>
 <p>A data frame with 1,404 rows and 5 columns:</p>
-<table class="table"><thead><tr class="header"><th>Column</th>
+<table class="table"><thead><tr><th>Column</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td>
+</tr></thead><tbody><tr><td>
 <code>dim_0</code>, <code>dim_1</code>
 </td>
 <td>First and second dimensions of the embedding.</td>
-</tr><tr class="even"><td><code>worker_id</code></td>
+</tr><tr><td><code>worker_id</code></td>
 <td>Random code identifying each participant.</td>
-</tr><tr class="odd"><td><code>stimulus</code></td>
+</tr><tr><td><code>stimulus</code></td>
 <td>Name of the stimulus at that embedding location.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -212,27 +212,27 @@
 <div class="section level3">
 <h3 id="format-2">Format<a class="anchor" aria-label="anchor" href="#format-2"></a></h3>
 <p>A named list, each element containing a dataframe with 11 columns:</p>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Column</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Column</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td>
+</tr></thead><tbody><tr><td>
 <code>head</code>, <code>winner</code>, <code>loser</code>
 </td>
 <td>Integer indices for items in a given triplet.</td>
-</tr><tr class="even"><td><code>worker_id</code></td>
+</tr><tr><td><code>worker_id</code></td>
 <td>Random identifier for each participant.</td>
-</tr><tr class="odd"><td><code>rt</code></td>
+</tr><tr><td><code>rt</code></td>
 <td>Response time on triplet (in milliseconds).</td>
-</tr><tr class="even"><td><code>Center</code></td>
+</tr><tr><td><code>Center</code></td>
 <td>The target item.</td>
-</tr><tr class="odd"><td>
+</tr><tr><td>
 <code>Left</code>, <code>Right</code>
 </td>
 <td>The option items appearing on the left and right.</td>
-</tr><tr class="even"><td><code>Answer</code></td>
+</tr><tr><td><code>Answer</code></td>
 <td>The option item chosen by the participant.</td>
-</tr><tr class="odd"><td><code>sampleAlg</code></td>
+</tr><tr><td><code>sampleAlg</code></td>
 <td>The algorithm used to sample the item.</td>
-</tr><tr class="even"><td><code>sampleSet</code></td>
+</tr><tr><td><code>sampleSet</code></td>
 <td>Which set the sampled item belongs to.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -270,11 +270,11 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-1">Arguments<a class="anchor" aria-label="anchor" href="#arguments-1"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>fname</code></td>
+</tr></thead><tbody><tr><td><code>fname</code></td>
 <td>Path to and name of the data file.</td>
-</tr><tr class="even"><td><code>eflag</code></td>
+</tr><tr><td><code>eflag</code></td>
 <td>Flag indicating whether data are embeddings; default <code>FALSE</code>.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -310,11 +310,11 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-2">Arguments<a class="anchor" aria-label="anchor" href="#arguments-2"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>elist</code></td>
+</tr></thead><tbody><tr><td><code>elist</code></td>
 <td>List of embeddings.</td>
-</tr><tr class="even"><td><code>grps</code></td>
+</tr><tr><td><code>grps</code></td>
 <td>Vector indicating to which group each individual in <code>elist</code> belongs. Elements must be in the same order as in <code>elist</code>.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -350,15 +350,15 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-3">Arguments<a class="anchor" aria-label="anchor" href="#arguments-3"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>em</code></td>
+</tr></thead><tbody><tr><td><code>em</code></td>
 <td>Embedding or distance matrix for generating predictions.</td>
-</tr><tr class="even"><td><code>td</code></td>
+</tr><tr><td><code>td</code></td>
 <td>Dataframe containing triplet data to be evaluated.</td>
-</tr><tr class="odd"><td><code>trialtype</code></td>
+</tr><tr><td><code>trialtype</code></td>
 <td>Type of trial to be evaluated; defaults to <code>"test"</code>.</td>
-</tr><tr class="even"><td><code>isemb</code></td>
+</tr><tr><td><code>isemb</code></td>
 <td>When <code>TRUE</code>, <code>em</code> is a matrix of embedding coordinates; when <code>FALSE</code>, it is assumed to be a distance matrix.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -404,13 +404,13 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-4">Arguments<a class="anchor" aria-label="anchor" href="#arguments-4"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>dmat</code></td>
+</tr></thead><tbody><tr><td><code>dmat</code></td>
 <td>Data matrix; rows must be named.</td>
-</tr><tr class="even"><td><code>item</code></td>
+</tr><tr><td><code>item</code></td>
 <td>String indicating the item for which nearest neighbors will be returned.</td>
-</tr><tr class="odd"><td><code>k</code></td>
+</tr><tr><td><code>k</code></td>
 <td>How many neighbors to return.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -447,17 +447,17 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-5">Arguments<a class="anchor" aria-label="anchor" href="#arguments-5"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>d</code></td>
+</tr></thead><tbody><tr><td><code>d</code></td>
 <td>List of triplet data. Each element is data from one participant.</td>
-</tr><tr class="even"><td><code>irange</code></td>
+</tr><tr><td><code>irange</code></td>
 <td>Vector indicating which elements of the list to include. Default is all.</td>
-</tr><tr class="odd"><td><code>mintrial</code></td>
+</tr><tr><td><code>mintrial</code></td>
 <td>Minimum number of trials needed to count as a complete record.</td>
-</tr><tr class="even"><td><code>accthresh</code></td>
+</tr><tr><td><code>accthresh</code></td>
 <td>Accuracy threshold for check trials to pass quality check.</td>
-</tr><tr class="odd"><td><code>rtthresh</code></td>
+</tr><tr><td><code>rtthresh</code></td>
 <td>Threshold of log RT to pass quality check.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -498,13 +498,13 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-6">Arguments<a class="anchor" aria-label="anchor" href="#arguments-6"></a></h3>
-<table class="table"><thead><tr class="header"><th>Argument</th>
+<table class="table"><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>elist</code></td>
+</tr></thead><tbody><tr><td><code>elist</code></td>
 <td>Named list of embeddings.</td>
-</tr><tr class="even"><td><code>tlist</code></td>
+</tr><tr><td><code>tlist</code></td>
 <td>Named list of triplet data.</td>
-</tr><tr class="odd"><td><code>ttype</code></td>
+</tr><tr><td><code>ttype</code></td>
 <td>Type of trial to evaluate on; defaults to <code>"test"</code> trials.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -544,9 +544,9 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-7">Arguments<a class="anchor" aria-label="anchor" href="#arguments-7"></a></h3>
-<table class="table"><thead><tr class="header"><th>Argument</th>
+<table class="table"><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>f</code></td>
+</tr></thead><tbody><tr><td><code>f</code></td>
 <td>Filename for PNG image.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -568,11 +568,11 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-8">Arguments<a class="anchor" aria-label="anchor" href="#arguments-8"></a></h3>
-<table class="table"><thead><tr class="header"><th>Argument</th>
+<table class="table"><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>elist</code></td>
+</tr></thead><tbody><tr><td><code>elist</code></td>
 <td>List of embeddings.</td>
-</tr><tr class="even"><td><code>rootflag</code></td>
+</tr><tr><td><code>rootflag</code></td>
 <td>Compute square root of distance? Defaults to <code>TRUE</code>.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -660,9 +660,9 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-9">Arguments<a class="anchor" aria-label="anchor" href="#arguments-9"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>tripdat</code></td>
+</tr></thead><tbody><tr><td><code>tripdat</code></td>
 <td>A data frame containing triplet data; must conform to naming conventions.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -695,9 +695,9 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-10">Arguments<a class="anchor" aria-label="anchor" href="#arguments-10"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>triplist</code></td>
+</tr></thead><tbody><tr><td><code>triplist</code></td>
 <td>Named list whose elements each contain triplet data from one participant. Names should be participant identifiers, as returned by <code>get.combined</code>.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -730,13 +730,13 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-11">Arguments<a class="anchor" aria-label="anchor" href="#arguments-11"></a></h3>
-<table class="table"><thead><tr class="header"><th>Argument</th>
+<table class="table"><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>model</code></td>
+</tr></thead><tbody><tr><td><code>model</code></td>
 <td>An embedding model.</td>
-</tr><tr class="even"><td><code>vdat</code></td>
+</tr><tr><td><code>vdat</code></td>
 <td>A matrix of triplet data.</td>
-</tr><tr class="odd"><td><code>eflag</code></td>
+</tr><tr><td><code>eflag</code></td>
 <td>Flag indicating whether model is an embedding.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -775,13 +775,13 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-12">Arguments<a class="anchor" aria-label="anchor" href="#arguments-12"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>pacc</code></td>
+</tr></thead><tbody><tr><td><code>pacc</code></td>
 <td>Participant-by-participant matrix of predictive accuracies of the kind returned by <code>get.prediction.matrix</code>.</td>
-</tr><tr class="even"><td><code>clusts</code></td>
+</tr><tr><td><code>clusts</code></td>
 <td>Vector indicating the cluster membership for each participant in <code>pacc</code>.</td>
-</tr><tr class="odd"><td><code>samediff</code></td>
+</tr><tr><td><code>samediff</code></td>
 <td>If <code>TRUE</code>, returns mean prediction accuracy for participants in the same cluster vs. mean from those in a different cluster. Otherwise returns mean prediction accuracy from participants in each cluster.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -820,19 +820,19 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-13">Arguments<a class="anchor" aria-label="anchor" href="#arguments-13"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>d</code></td>
+</tr></thead><tbody><tr><td><code>d</code></td>
 <td>A matrix of numerical data.</td>
-</tr><tr class="even"><td><code>barflag</code></td>
+</tr><tr><td><code>barflag</code></td>
 <td>Flag indicating whether a barplot is desired.</td>
-</tr><tr class="odd"><td><code>newflag</code></td>
+</tr><tr><td><code>newflag</code></td>
 <td>Should a new plot be generated? Default <code>TRUE</code>.</td>
-</tr><tr class="even"><td><code>xvals</code></td>
+</tr><tr><td><code>xvals</code></td>
 <td>Vector of x values equal in length to the number of columns in <code>d</code>.</td>
-</tr><tr class="odd"><td><code>rgbvec</code></td>
+</tr><tr><td><code>rgbvec</code></td>
 <td>Vector of red, green, blue proportions.</td>
-</tr><tr class="even"><td><code>...</code></td>
+</tr><tr><td><code>...</code></td>
 <td>Other graphical parameters.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -860,25 +860,25 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-14">Arguments<a class="anchor" aria-label="anchor" href="#arguments-14"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>md</code></td>
+</tr></thead><tbody><tr><td><code>md</code></td>
 <td>Matrix of data indicating where each image is to be plotted.</td>
-</tr><tr class="even"><td><code>plist</code></td>
+</tr><tr><td><code>plist</code></td>
 <td>List of PNG or raster images.</td>
-</tr><tr class="odd"><td><code>x</code></td>
+</tr><tr><td><code>x</code></td>
 <td>Which column of the matrix should be used for x-axis position.</td>
-</tr><tr class="even"><td><code>y</code></td>
+</tr><tr><td><code>y</code></td>
 <td>Which column of the matrix should be used for y-axis position.</td>
-</tr><tr class="odd"><td><code>pr</code></td>
+</tr><tr><td><code>pr</code></td>
 <td>Proportion of items to be plotted, OR vector indicating which items should be plotted.</td>
-</tr><tr class="even"><td><code>pc</code></td>
+</tr><tr><td><code>pc</code></td>
 <td>If images are rasters, what color should they be plotted in?</td>
-</tr><tr class="odd"><td><code>psize</code></td>
+</tr><tr><td><code>psize</code></td>
 <td>Plot size for each image as a proportion of the plotting surface.</td>
-</tr><tr class="even"><td><code>newplot</code></td>
+</tr><tr><td><code>newplot</code></td>
 <td>Should a new plot be generated? If <code>FALSE</code>, images are added to the current plot.</td>
-</tr><tr class="odd"><td><code>...</code></td>
+</tr><tr><td><code>...</code></td>
 <td>Other graphical parameters.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -922,11 +922,11 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-15">Arguments<a class="anchor" aria-label="anchor" href="#arguments-15"></a></h3>
-<table class="table"><thead><tr class="header"><th>Argument</th>
+<table class="table"><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>x</code></td>
+</tr></thead><tbody><tr><td><code>x</code></td>
 <td>A character vector with one element.</td>
-</tr><tr class="even"><td><code>split</code></td>
+</tr><tr><td><code>split</code></td>
 <td>What to split on.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -954,13 +954,13 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-16">Arguments<a class="anchor" aria-label="anchor" href="#arguments-16"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>m</code></td>
+</tr></thead><tbody><tr><td><code>m</code></td>
 <td>An embedding of the stimuli or matrix of distances among stimuli. Rows must have names that correspond with the triplet data.</td>
-</tr><tr class="even"><td><code>vdat</code></td>
+</tr><tr><td><code>vdat</code></td>
 <td>Data frame containing triplet data. Must include columns named <code>Center</code>, <code>Left</code>, and <code>Right</code>, and names here must match row names of model.</td>
-</tr><tr class="odd"><td><code>isemb</code></td>
+</tr><tr><td><code>isemb</code></td>
 <td>Is model an embedding? If <code>TRUE</code> (default), compute Euclidean distance matrix; otherwise treat model as the distance matrix.</td>
 </tr></tbody></table></div>
 <div class="section level3">
@@ -1007,9 +1007,9 @@
 </div>
 <div class="section level3">
 <h3 id="arguments-17">Arguments<a class="anchor" aria-label="anchor" href="#arguments-17"></a></h3>
-<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr class="header"><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
-</tr></thead><tbody><tr class="odd"><td><code>pmat</code></td>
+</tr></thead><tbody><tr><td><code>pmat</code></td>
 <td>An embedding-to-triplet prediction matrix of the kind returned by <code>get.prediction.matrix</code>.</td>
 </tr></tbody></table></div>
 <div class="section level3">

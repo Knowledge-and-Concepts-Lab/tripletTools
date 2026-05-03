@@ -25,6 +25,7 @@ the tree.
 ## Examples
 
 ``` r
+
 #Make a matrix
 dmat <- matrix(
         c(1, 1, 1, 0, 0, 0,
