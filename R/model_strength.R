@@ -32,8 +32,8 @@
 #' @export
 #'
 #' @examples
-#' emb <- cfd_embeddings[[2]] #Embedding for participant 1
-#' trips <- cfd_triplets[[2]] #Triplets for participant 1
+#' emb <- icon_emb_ind[[1]] #Embedding for participant 1
+#' trips <- icon_triplets[[1]] #Triplets for participant 1
 #'
 #' #Get validation trials only
 #' vdat <- subset(trips, trips$sampleAlg=="validation")

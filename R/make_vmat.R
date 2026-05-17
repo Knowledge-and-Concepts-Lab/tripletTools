@@ -28,7 +28,7 @@
 #' @export
 #'
 #' @examples
-#' vmat <- make.vmat(cfd_triplets)
+#' vmat <- make.vmat(icon_triplets)
 #' vmat$majority
 
 make.vmat <- function(triplist){

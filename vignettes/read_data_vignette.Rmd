@@ -43,24 +43,24 @@ The data file can also contain any other fields. Often data will include an inte
 
 - _head_, _winner_, _loser_: Integer indices for each item appearing in the triplet
 
-Data in this format can be read into the current session using the function `get_combined(fname)` where `fname` is the path to the data file. This function returns a named list, where each element includes the triplet judgment data from a single subject, and elements are named by the subject identified. This package includes an example dataset in this format, `cfd_triplets`:
+Data in this format can be read into the current session using the function `get_combined(fname)` where `fname` is the path to the data file. This function returns a named list, where each element includes the triplet judgment data from a single subject, and elements are named by the subject identified. This package includes an example dataset in this format, `icon_triplets`:
 
 ```{r}
-head(cfd_triplets[[1]])
+head(icon_triplets[[1]])
 ```
-Here you can see the triplet judgment data for each trial for the first participant in the experiment. Participants viewed the trials in the same order they are listed in the matrix. 
+Here you can see the triplet judgment data for each trial for the first participant in the experiment. Participants viewed the trials in the same order they are listed in the matrix.
 
 The data from each participant is a separate element in the list, and the elements are labeled by the `worker\_id` label in the raw data file. You can see all the subject labels as follows:
 
 ```{r}
-names(cfd_triplets)
+names(icon_triplets)
 ```
 
-To learn more about this dataset, try `help(cfd_triplets)`.
+To learn more about this dataset, try `help(icon_triplets)`.
 
 ### Embedding data
 
-Embedding data are `.csv` files containing embedding coordinates for each stimulus item in the study. Depending on the study, there may be a single _group embedding_ computed from a group of participants, or _individual embeddings_ computed separately for each participant.
+Embedding data are `.csv` files containing embedding coordinates for each stimulus item in the study. Depending on the study, there may be a single _group embedding_ computed from a group of participants, or _individual embeddings_ computed separately for each participant, or both.
 
 In both cases the `.csv` file must contain columns with the following labels:
 
@@ -77,15 +77,15 @@ To read in a group-based single embedding file you can just use standard R:
 grpemb <- read.csv("filename.csv", row.names = "item", header = T)
 ```
 
-For studies with separate embeddings computed for each participant, use the `get.combined` function to read the data, setting the `eflag` flag to `TRUE`:
+For studies with separate embeddings computed for each participant, use the `get.combined` function to read the data, setting the `eflag` flag to `TRUE` to indicate these are embeddings:
 
 ```
 indemb <- get.combined("filename.csv", eflag = TRUE)
 ```
 
-As with triplet data, this will create a named list where each element contains the embedding information computed for one participant. The elements are labeled by the participant id (`worker_id`). The `cfd_embeddings` object contains a list of the kind returned by this function:
+As with triplet data, this will create a named list where each element contains the embedding information computed for one participant. The elements are labeled by the participant id (`worker_id`). The `icon_emb_ind` object contains a list of the kind returned by this function:
 
 ```{r}
-head(cfd_embeddings[[1]])
+head(icon_emb_ind[[1]])
 ```
-The row names indicate the stimulus identity and the entries indicate the coordinates of the stimulus along the first (dim_0) and second (dim_1) dimensions of the embedding.
+The row names indicate the stimulus identity and the entries indicate the coordinates of the stimulus along the first (dim_0), second (dim_1), and third (dim_2) dimensions of the embedding.

@@ -1,15 +1,13 @@
 test_that("prediction by cluster works", {
-  repdist <- get.rep.dist(cfd_embeddings) #Representational distances
+  pmat <- get.prediction.matrix(icon_emb_ind, icon_triplets) #Prediction matrix
 
-  #Hierarchical cluster
-  hc <- hclust(as.dist(repdist), method = "ward.D")
-  clusts <- cutree(hc, 3) #Cut tree to yield three clusters
+  #Manual cluster assignments (3 in cluster 1, 2 in cluster 2):
+  clusts <- c(1, 1, 1, 2, 2)
 
-  pacc <- get.prediction.matrix(cfd_embeddings, cfd_triplets) #Prediction matrix
-  pbc <- pacc.by.cluster(pacc, clusts, samediff=TRUE)
+  pbc <- pacc.by.cluster(pmat, clusts, samediff=TRUE)
 
   result <- round(colMeans(pbc),2)
-  expected <- c(.77, .67, .59)
+  expected <- c(.79, .72, .68)
   names(expected) <-c("self","same","other")
 
   expect_equal(result, expected)

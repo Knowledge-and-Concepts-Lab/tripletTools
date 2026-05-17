@@ -1,8 +1,8 @@
 test_that("making triplet names works", {
-  trips <- cfd_triplets[[10]] #Triplet data for participant 10
+  trips <- icon_triplets[[1]] #Triplet data for participant 1
   tnames <- make.tripnames(trips) #Make triplet names
 
   result <- tnames[1] #First triplet name
-  expected <- "CFD-WF-026-008-A_CFD-WM-023-012-A_CFD-WM-033-014-A"
+  expected <- "pnhns_pdcos_pncnb"
   expect_equal(result, expected)
 })

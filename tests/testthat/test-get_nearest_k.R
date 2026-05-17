@@ -1,12 +1,12 @@
 test_that("get nearest k works", {
 
-  emb <- cfd_embeddings[[10]] #Embedding for participant 10
+  emb <- icon_emb_ind[[1]] #Embedding for participant 1
   fdists <- as.matrix(dist(emb)) #Compute pairwise distance matrix
-  target <- "CFD-BF-002-004-HO"  #Name of target items
+  target <- "fdfob"  #Name of target item
 
   #Return 3 items nearest to target:
   result <- get.nearest.k(fdists, target, 3)[1]
-  expected <- "CFD-BM-009-003-HO"
+  expected <- "fdfyw"
 
   expect_equal(result, expected)
 })
