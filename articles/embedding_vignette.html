@@ -554,7 +554,114 @@ fit.</li>
 <code>d</code>. This is usually the right choice for selecting
 <code>d</code>, and it is faster than fitting per-participant
 models.</li>
+<li>Each (d, restart) pair is independent, so the function can be
+parallelised — see the next section.</li>
 </ul>
+<hr>
+</div>
+</div>
+<div class="section level2">
+<h2 id="running-in-parallel">Running in parallel<a class="anchor" aria-label="anchor" href="#running-in-parallel"></a>
+</h2>
+<p>Because every (d, restart) fit is completely independent,
+<code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code> can distribute work across
+multiple cores or a compute cluster with no changes to your analysis
+code. Parallelism is controlled via the <a href="https://future.futureverse.org/" class="external-link"><code>future</code></a>
+framework: you set a <em>plan</em> once before calling the function, and
+the function uses however many workers that plan provides.</p>
+<p>Install the required packages once:</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"future"</span>, <span class="st">"future.apply"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<div class="section level3">
+<h3 id="local-multicore">Local multicore<a class="anchor" aria-label="anchor" href="#local-multicore"></a>
+</h3>
+<p>Use all available cores on your workstation (or a subset):</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">multisession</span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>   <span class="co"># or: workers = parallel::detectCores() - 1</span></span>
+<span></span>
+<span><span class="va">dim_est</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_dimensionality.html">estimate_dimensionality</a></span><span class="op">(</span></span>
+<span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
+<span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">8</span>,</span>
+<span>  n_restarts   <span class="op">=</span> <span class="fl">10L</span>,</span>
+<span>  max_epochs   <span class="op">=</span> <span class="fl">50000L</span>,</span>
+<span>  seed         <span class="op">=</span> <span class="fl">42L</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">sequential</span><span class="op">)</span>   <span class="co"># restore serial execution when done</span></span></code></pre></div>
+<p>With 4 workers and 80 total fits (8 dims × 10 restarts), wall time
+drops to roughly one quarter of the serial time.</p>
+<p><code>multisession</code> launches separate R processes, so it works
+on Windows, macOS, and Linux. If you are on Linux or macOS and prefer
+lower overhead, <code>plan(multicore)</code> uses forked processes
+instead.</p>
+</div>
+<div class="section level3">
+<h3 id="htcondor-cluster">HTCondor cluster<a class="anchor" aria-label="anchor" href="#htcondor-cluster"></a>
+</h3>
+<p>If you have access to an HTCondor cluster (e.g. UW–Madison’s CHTC),
+install the <code>future.batchtools</code> package, which bridges
+<code>future</code> to HTCondor’s job scheduler:</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"future.batchtools"</span><span class="op">)</span></span></code></pre></div>
+<p>You also need a one-time cluster template file that tells
+<code>future.batchtools</code> how to construct HTCondor submit files
+for your site. Save the following as
+<code>~/.batchtools.condor.tmpl</code> (adjust
+<code>request_memory</code> and any site-specific lines for your
+cluster):</p>
+<pre><code>universe     = vanilla
+executable   = '/opt/R/4.6.0/lib/R/bin/Rscript'
+arguments    = -e 'batchtools::doJobCollection("$(job.collection)")'
+
+transfer_input_files  = $(job.collection)
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+
+request_cpus   = 1
+request_memory = 4GB
+request_disk   = 2GB
+
+log    = $(log)
+output = $(output)
+error  = $(error)
+
+queue</code></pre>
+<p>Then submit your dimensionality search exactly as before, just with a
+different plan:</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.batchtools.futureverse.org" class="external-link">future.batchtools</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">batchtools_condor</span>, workers <span class="op">=</span> <span class="fl">80</span><span class="op">)</span>   <span class="co"># up to 80 simultaneous jobs</span></span>
+<span></span>
+<span><span class="va">dim_est</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_dimensionality.html">estimate_dimensionality</a></span><span class="op">(</span></span>
+<span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
+<span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">8</span>,</span>
+<span>  n_restarts   <span class="op">=</span> <span class="fl">10L</span>,</span>
+<span>  max_epochs   <span class="op">=</span> <span class="fl">50000L</span>,</span>
+<span>  seed         <span class="op">=</span> <span class="fl">42L</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">sequential</span><span class="op">)</span></span></code></pre></div>
+<p><code>future.batchtools</code> handles job submission, monitors
+completion, retrieves results, and assembles them — you get back the
+same <code>dim_est</code> list as in the serial case.</p>
+<p><strong>Prerequisite:</strong> every worker node must have R,
+<code>tripletTools</code>, and the <code>triplet-embeddings</code> conda
+environment already installed. This is a one-time setup task; ask your
+cluster administrator or follow your site’s software installation
+guide.</p>
+</div>
+<div class="section level3">
+<h3 id="checking-the-active-plan">Checking the active plan<a class="anchor" aria-label="anchor" href="#checking-the-active-plan"></a>
+</h3>
+<p>At any point you can confirm which plan is in effect:</p>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># prints a description of the current plan</span></span></code></pre></div>
+<p><code>plan(sequential)</code> (the default) runs everything serially
+and requires neither <code>future</code> nor <code>future.apply</code> —
+all other <code>tripletTools</code> functions are unaffected.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

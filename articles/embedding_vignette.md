@@ -429,3 +429,128 @@ suggestions:
   trains only a **group** embedding (pooling all participants) at each
   `d`. This is usually the right choice for selecting `d`, and it is
   faster than fitting per-participant models.
+- Each (d, restart) pair is independent, so the function can be
+  parallelised — see the next section.
+
+------------------------------------------------------------------------
+
+## Running in parallel
+
+Because every (d, restart) fit is completely independent,
+[`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
+can distribute work across multiple cores or a compute cluster with no
+changes to your analysis code. Parallelism is controlled via the
+[`future`](https://future.futureverse.org/) framework: you set a *plan*
+once before calling the function, and the function uses however many
+workers that plan provides.
+
+Install the required packages once:
+
+``` r
+
+install.packages(c("future", "future.apply"))
+```
+
+### Local multicore
+
+Use all available cores on your workstation (or a subset):
+
+``` r
+
+library(future)
+plan(multisession, workers = 4)   # or: workers = parallel::detectCores() - 1
+
+dim_est <- estimate_dimensionality(
+  triplet_list = icon_triplets,
+  dims         = 1:8,
+  n_restarts   = 10L,
+  max_epochs   = 50000L,
+  seed         = 42L
+)
+
+plan(sequential)   # restore serial execution when done
+```
+
+With 4 workers and 80 total fits (8 dims × 10 restarts), wall time drops
+to roughly one quarter of the serial time.
+
+`multisession` launches separate R processes, so it works on Windows,
+macOS, and Linux. If you are on Linux or macOS and prefer lower
+overhead, `plan(multicore)` uses forked processes instead.
+
+### HTCondor cluster
+
+If you have access to an HTCondor cluster (e.g. UW–Madison’s CHTC),
+install the `future.batchtools` package, which bridges `future` to
+HTCondor’s job scheduler:
+
+``` r
+
+install.packages("future.batchtools")
+```
+
+You also need a one-time cluster template file that tells
+`future.batchtools` how to construct HTCondor submit files for your
+site. Save the following as `~/.batchtools.condor.tmpl` (adjust
+`request_memory` and any site-specific lines for your cluster):
+
+    universe     = vanilla
+    executable   = '/opt/R/4.6.0/lib/R/bin/Rscript'
+    arguments    = -e 'batchtools::doJobCollection("$(job.collection)")'
+
+    transfer_input_files  = $(job.collection)
+    should_transfer_files = YES
+    when_to_transfer_output = ON_EXIT
+
+    request_cpus   = 1
+    request_memory = 4GB
+    request_disk   = 2GB
+
+    log    = $(log)
+    output = $(output)
+    error  = $(error)
+
+    queue
+
+Then submit your dimensionality search exactly as before, just with a
+different plan:
+
+``` r
+
+library(future.batchtools)
+
+plan(batchtools_condor, workers = 80)   # up to 80 simultaneous jobs
+
+dim_est <- estimate_dimensionality(
+  triplet_list = icon_triplets,
+  dims         = 1:8,
+  n_restarts   = 10L,
+  max_epochs   = 50000L,
+  seed         = 42L
+)
+
+plan(sequential)
+```
+
+`future.batchtools` handles job submission, monitors completion,
+retrieves results, and assembles them — you get back the same `dim_est`
+list as in the serial case.
+
+**Prerequisite:** every worker node must have R, `tripletTools`, and the
+`triplet-embeddings` conda environment already installed. This is a
+one-time setup task; ask your cluster administrator or follow your
+site’s software installation guide.
+
+### Checking the active plan
+
+At any point you can confirm which plan is in effect:
+
+``` r
+
+library(future)
+plan()   # prints a description of the current plan
+```
+
+`plan(sequential)` (the default) runs everything serially and requires
+neither `future` nor `future.apply` — all other `tripletTools` functions
+are unaffected.

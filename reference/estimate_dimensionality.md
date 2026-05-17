@@ -67,7 +67,8 @@ estimate_dimensionality(
 - verbose:
 
   Logical. If `TRUE` (default), print a progress line before each
-  restart.
+  restart. Ignored when running in parallel (output from worker
+  processes is not forwarded to the main session).
 
 ## Value
 
@@ -83,6 +84,15 @@ A named list with two elements:
   Data frame with one row per dimension and columns `d`, `mean_loss`,
   `min_loss`, `sd_loss`. The logical column `best_d` marks the smallest
   `d` within one standard error of the global minimum mean loss.
+
+## Parallelism
+
+By default the function runs serially. If the future.apply package is
+installed, parallelism is controlled by setting a `future` plan before
+calling this function. Each (d, restart) pair becomes an independent
+future, so any backend supported by future works: local multicore,
+SLURM, HTCondor, etc. See the "Computing Triplet Embeddings" vignette
+for worked examples.
 
 ## Method
 
@@ -115,6 +125,7 @@ instead.
 
 ``` r
 if (FALSE) { # \dontrun{
+# Serial (default)
 dim_est <- estimate_dimensionality(
   triplet_list = icon_triplets,
   dims         = 1:6,
@@ -123,13 +134,16 @@ dim_est <- estimate_dimensionality(
   seed         = 42L
 )
 
-# Per-restart results
-dim_est$results
+# Parallel: use 4 local cores (requires future.apply)
+library(future)
+plan(multisession, workers = 4)
+dim_est <- estimate_dimensionality(icon_triplets, dims = 1:6, n_restarts = 10L)
+plan(sequential)  # restore serial execution afterwards
 
 # Summary with recommended dimensionality flagged
 dim_est$summary
 
-# Plot mean loss ± 1 SD by dimension
+# Plot mean loss +/- 1 SD by dimension
 s <- dim_est$summary
 plot(s$d, s$mean_loss, type = "b", pch = 19,
      xlab = "Dimensions", ylab = "Mean test loss")
