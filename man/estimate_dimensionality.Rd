@@ -44,7 +44,8 @@ receives a unique derived seed so all runs are independently replicable.
 Default \code{1L}.}
 
 \item{verbose}{Logical.  If \code{TRUE} (default), print a progress line
-before each restart.}
+before each restart.  Ignored when running in parallel (output from
+worker processes is not forwarded to the main session).}
 }
 \value{
 A named list with two elements:
@@ -63,6 +64,16 @@ random restarts, and returns the hold-out loss at every
 (dimension, restart) combination.  Use the results to select the smallest
 dimensionality that achieves near-minimum hold-out loss.
 }
+\section{Parallelism}{
+
+By default the function runs serially.  If the \pkg{future.apply} package
+is installed, parallelism is controlled by setting a \code{future} plan
+before calling this function.  Each (d, restart) pair becomes an
+independent future, so any backend supported by \pkg{future} works:
+local multicore, SLURM, HTCondor, etc.  See the "Computing Triplet
+Embeddings" vignette for worked examples.
+}
+
 \section{Method}{
 
 For each value of \code{d} in \code{dims} and each restart, an independent
@@ -95,6 +106,7 @@ If no \code{sampleSet} column is present or all values are \code{NA}, a
 
 \examples{
 \dontrun{
+# Serial (default)
 dim_est <- estimate_dimensionality(
   triplet_list = icon_triplets,
   dims         = 1:6,
@@ -103,13 +115,16 @@ dim_est <- estimate_dimensionality(
   seed         = 42L
 )
 
-# Per-restart results
-dim_est$results
+# Parallel: use 4 local cores (requires future.apply)
+library(future)
+plan(multisession, workers = 4)
+dim_est <- estimate_dimensionality(icon_triplets, dims = 1:6, n_restarts = 10L)
+plan(sequential)  # restore serial execution afterwards
 
 # Summary with recommended dimensionality flagged
 dim_est$summary
 
-# Plot mean loss ± 1 SD by dimension
+# Plot mean loss +/- 1 SD by dimension
 s <- dim_est$summary
 plot(s$d, s$mean_loss, type = "b", pch = 19,
      xlab = "Dimensions", ylab = "Mean test loss")

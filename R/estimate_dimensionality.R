@@ -5,6 +5,14 @@
 #' (dimension, restart) combination.  Use the results to select the smallest
 #' dimensionality that achieves near-minimum hold-out loss.
 #'
+#' @section Parallelism:
+#' By default the function runs serially.  If the \pkg{future.apply} package
+#' is installed, parallelism is controlled by setting a \code{future} plan
+#' before calling this function.  Each (d, restart) pair becomes an
+#' independent future, so any backend supported by \pkg{future} works:
+#' local multicore, SLURM, HTCondor, etc.  See the "Computing Triplet
+#' Embeddings" vignette for worked examples.
+#'
 #' @section Method:
 #' For each value of \code{d} in \code{dims} and each restart, an independent
 #' embedding is trained from a fresh random initialisation (controlled by a
@@ -48,7 +56,8 @@
 #'   receives a unique derived seed so all runs are independently replicable.
 #'   Default \code{1L}.
 #' @param verbose Logical.  If \code{TRUE} (default), print a progress line
-#'   before each restart.
+#'   before each restart.  Ignored when running in parallel (output from
+#'   worker processes is not forwarded to the main session).
 #'
 #' @return A named list with two elements:
 #' \describe{
@@ -64,6 +73,7 @@
 #'
 #' @examples
 #' \dontrun{
+#' # Serial (default)
 #' dim_est <- estimate_dimensionality(
 #'   triplet_list = icon_triplets,
 #'   dims         = 1:6,
@@ -72,13 +82,16 @@
 #'   seed         = 42L
 #' )
 #'
-#' # Per-restart results
-#' dim_est$results
+#' # Parallel: use 4 local cores (requires future.apply)
+#' library(future)
+#' plan(multisession, workers = 4)
+#' dim_est <- estimate_dimensionality(icon_triplets, dims = 1:6, n_restarts = 10L)
+#' plan(sequential)  # restore serial execution afterwards
 #'
 #' # Summary with recommended dimensionality flagged
 #' dim_est$summary
 #'
-#' # Plot mean loss ± 1 SD by dimension
+#' # Plot mean loss +/- 1 SD by dimension
 #' s <- dim_est$summary
 #' plot(s$d, s$mean_loss, type = "b", pch = 19,
 #'      xlab = "Dimensions", ylab = "Mean test loss")
@@ -128,40 +141,45 @@ estimate_dimensionality <- function(triplet_list,
     X_test  <- as.matrix(combined[test_rows,  c("head", "winner", "loser")])
   }
 
-  n_dims  <- length(dims)
-  rows    <- vector("list", n_dims * n_restarts)
-  row_idx <- 1L
+  # Build a flat list of all (d, restart) jobs
+  jobs <- do.call(rbind, lapply(dims, function(d) {
+    data.frame(d = d, restart = seq_len(n_restarts),
+               random_state = seed + (seq_len(n_restarts) - 1L) * 1000L + d,
+               stringsAsFactors = FALSE)
+  }))
 
-  for (d in dims) {
-    for (r in seq_len(n_restarts)) {
-      rs <- seed + (r - 1L) * 1000L + d
-      if (verbose) {
-        message(sprintf("[estimate_dimensionality] d = %d, restart %d/%d",
-                        d, r, n_restarts))
-      }
-      out <- train_embedding(
-        X_train      = X_train,
-        X_test       = X_test,
-        d            = d,
-        max_epochs   = max_epochs,
-        tolerance    = tolerance,
-        tol_window   = tol_window,
-        device       = device,
-        random_state = as.integer(rs),
-        print_every  = as.integer(max_epochs)  # one line per run, not per epoch
-      )
-      rows[[row_idx]] <- data.frame(
-        d       = d,
-        restart = r,
-        loss    = out$loss,
-        epoch   = out$epoch,
-        stringsAsFactors = FALSE
-      )
-      row_idx <- row_idx + 1L
+  fit_one <- function(job) {
+    if (verbose) {
+      message(sprintf("[estimate_dimensionality] d = %d, restart %d/%d",
+                      job$d, job$restart, n_restarts))
     }
+    out <- train_embedding(
+      X_train      = X_train,
+      X_test       = X_test,
+      d            = job$d,
+      max_epochs   = max_epochs,
+      tolerance    = tolerance,
+      tol_window   = tol_window,
+      device       = device,
+      random_state = as.integer(job$random_state),
+      print_every  = as.integer(max_epochs)
+    )
+    data.frame(d = job$d, restart = job$restart,
+               loss = out$loss, epoch = out$epoch,
+               stringsAsFactors = FALSE)
+  }
+
+  job_list <- split(jobs, seq_len(nrow(jobs)))
+
+  rows <- if (requireNamespace("future.apply", quietly = TRUE)) {
+    future.apply::future_lapply(job_list, fit_one, future.seed = NULL)
+  } else {
+    lapply(job_list, fit_one)
   }
 
   results_df <- do.call(rbind, rows)
+  results_df <- results_df[order(results_df$d, results_df$restart), ]
+  row.names(results_df) <- NULL
 
   summary_df <- do.call(rbind, lapply(dims, function(d) {
     sub <- results_df[results_df$d == d, ]
