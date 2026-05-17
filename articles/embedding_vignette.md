@@ -11,10 +11,11 @@ functions:
 | Function | What it does |
 |----|----|
 | [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md) | One-time installation of the Python environment |
+| [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) | Fits embeddings across a range of dimensions to help choose `d` |
 | [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) | Trains a single embedding on all participants’ data combined |
 | [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) | Trains one embedding per participant plus a group embedding |
 
-All three functions accept data in the named-list format used throughout
+All functions accept data in the named-list format used throughout
 `tripletTools` (e.g. `icon_triplets`).
 
 ``` r
@@ -318,3 +319,113 @@ legend("topright",
 A well-converged model shows test loss flattening well before
 `max_epochs`. If the loss is still falling at the end, increase
 `max_epochs`.
+
+------------------------------------------------------------------------
+
+## Choosing the number of dimensions
+
+The number of embedding dimensions `d` is a hyperparameter that must be
+set before fitting. Too few dimensions underfit the similarity
+structure; too many overfit noise. The right approach is to treat `d` as
+an unknown, fit embeddings at several values, and choose the smallest
+`d` whose hold-out loss is not meaningfully higher than the best.
+
+Because the optimizer is stochastic, hold-out loss varies across runs at
+the same `d`. A single fit per dimensionality is not reliable — a good
+run at `d = 3` might beat a bad run at `d = 4` by chance.
+[`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
+addresses this by fitting multiple independent random restarts at each
+`d` and recording the best hold-out loss from each restart.
+
+### Running the grid
+
+``` r
+
+dim_est <- estimate_dimensionality(
+  triplet_list = icon_triplets,
+  dims         = 1:8,       # dimensionalities to evaluate
+  n_restarts   = 10L,       # independent random restarts per d
+  max_epochs   = 50000L,
+  seed         = 42L
+)
+```
+
+Progress messages are printed as each restart completes. The function
+returns a named list with two elements.
+
+`$results` has one row per (dimension, restart):
+
+``` r
+
+head(dim_est$results)
+#>   d restart      loss epoch
+#> 1 1       1 0.6022...   ...
+#> 2 1       2 0.6019...   ...
+#> ...
+```
+
+`$summary` has one row per dimension, with the `best_d` flag identifying
+the recommended choice:
+
+``` r
+
+dim_est$summary
+#>   d mean_loss  min_loss    sd_loss best_d
+#> 1 1    0.601     0.601     0.001   FALSE
+#> 2 2    0.512     0.510     0.003   FALSE
+#> 3 3    0.448     0.445     0.004    TRUE   # <-- recommended
+#> 4 4    0.447     0.443     0.005   FALSE
+#> ...
+```
+
+### How `best_d` is determined
+
+The recommendation uses the **one-standard-error rule**: find the
+dimensionality with the lowest mean hold-out loss, compute one standard
+error of that mean (i.e. `sd_loss / sqrt(n_restarts)`), and then flag
+the *smallest* `d` whose mean loss falls within that margin. This
+favours parsimony — it selects the simplest model that is statistically
+indistinguishable from the best.
+
+### Visualizing the results
+
+A simple plot shows mean loss by dimension with ±1 SD error bars. The
+vertical dashed line marks the recommended `d`.
+
+``` r
+
+s <- dim_est$summary
+
+plot(s$d, s$mean_loss,
+     type = "b", pch = 19,
+     xlab = "Dimensions (d)",
+     ylab = "Mean test loss",
+     main = "Hold-out loss by dimensionality")
+
+arrows(s$d, s$mean_loss - s$sd_loss,
+       s$d, s$mean_loss + s$sd_loss,
+       angle = 90, code = 3, length = 0.05, col = "gray50")
+
+abline(v = s$d[s$best_d], lty = 2, col = "steelblue")
+```
+
+Look for an **elbow**: a point where increasing `d` no longer reduces
+loss substantially. The one-SE rule formalises this by returning the
+smallest `d` in the flat region of the curve.
+
+### Practical notes
+
+The function can be slow for large datasets or many restarts because it
+trains `length(dims) × n_restarts` independent models. A few
+suggestions:
+
+- Start with a coarse grid (e.g. `dims = c(1, 2, 3, 5, 8)`) and
+  `n_restarts = 5` to get a rough picture, then refine around the elbow.
+- Use `max_epochs` and `tol_window` values consistent with the values
+  you plan to use for the final embedding.
+- If a GPU is available, pass `device = "cuda"` (or `"mps"` on Apple
+  Silicon) to speed up each individual fit.
+- [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
+  trains only a **group** embedding (pooling all participants) at each
+  `d`. This is usually the right choice for selecting `d`, and it is
+  faster than fitting per-participant models.

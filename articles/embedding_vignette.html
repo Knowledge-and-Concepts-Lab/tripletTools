@@ -88,18 +88,23 @@ three functions:</p>
 <td>One-time installation of the Python environment</td>
 </tr>
 <tr class="even">
+<td><code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code></td>
+<td>Fits embeddings across a range of dimensions to help choose
+<code>d</code>
+</td>
+</tr>
+<tr class="odd">
 <td><code><a href="../reference/run_group_embedding_from_list.html">run_group_embedding_from_list()</a></code></td>
 <td>Trains a single embedding on all participants’ data combined</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code><a href="../reference/run_embeddings_from_list.html">run_embeddings_from_list()</a></code></td>
 <td>Trains one embedding per participant plus a group embedding</td>
 </tr>
 </tbody>
 </table>
-<p>All three functions accept data in the named-list format used
-throughout <code>tripletTools</code>
-(e.g. <code>icon_triplets</code>).</p>
+<p>All functions accept data in the named-list format used throughout
+<code>tripletTools</code> (e.g. <code>icon_triplets</code>).</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/">tripletTools</a></span><span class="op">)</span></span></code></pre></div>
 <hr>
@@ -444,6 +449,113 @@ convergence, especially with large datasets or high <code>d</code>.</p>
 <p>A well-converged model shows test loss flattening well before
 <code>max_epochs</code>. If the loss is still falling at the end,
 increase <code>max_epochs</code>.</p>
+<hr>
+</div>
+<div class="section level2">
+<h2 id="choosing-the-number-of-dimensions">Choosing the number of dimensions<a class="anchor" aria-label="anchor" href="#choosing-the-number-of-dimensions"></a>
+</h2>
+<p>The number of embedding dimensions <code>d</code> is a hyperparameter
+that must be set before fitting. Too few dimensions underfit the
+similarity structure; too many overfit noise. The right approach is to
+treat <code>d</code> as an unknown, fit embeddings at several values,
+and choose the smallest <code>d</code> whose hold-out loss is not
+meaningfully higher than the best.</p>
+<p>Because the optimizer is stochastic, hold-out loss varies across runs
+at the same <code>d</code>. A single fit per dimensionality is not
+reliable — a good run at <code>d = 3</code> might beat a bad run at
+<code>d = 4</code> by chance. <code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code>
+addresses this by fitting multiple independent random restarts at each
+<code>d</code> and recording the best hold-out loss from each
+restart.</p>
+<div class="section level3">
+<h3 id="running-the-grid">Running the grid<a class="anchor" aria-label="anchor" href="#running-the-grid"></a>
+</h3>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dim_est</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_dimensionality.html">estimate_dimensionality</a></span><span class="op">(</span></span>
+<span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
+<span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">8</span>,       <span class="co"># dimensionalities to evaluate</span></span>
+<span>  n_restarts   <span class="op">=</span> <span class="fl">10L</span>,       <span class="co"># independent random restarts per d</span></span>
+<span>  max_epochs   <span class="op">=</span> <span class="fl">50000L</span>,</span>
+<span>  seed         <span class="op">=</span> <span class="fl">42L</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Progress messages are printed as each restart completes. The function
+returns a named list with two elements.</p>
+<p><code>$results</code> has one row per (dimension, restart):</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">dim_est</span><span class="op">$</span><span class="va">results</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   d restart      loss epoch</span></span>
+<span><span class="co">#&gt; 1 1       1 0.6022...   ...</span></span>
+<span><span class="co">#&gt; 2 1       2 0.6019...   ...</span></span>
+<span><span class="co">#&gt; ...</span></span></code></pre></div>
+<p><code>$summary</code> has one row per dimension, with the
+<code>best_d</code> flag identifying the recommended choice:</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dim_est</span><span class="op">$</span><span class="va">summary</span></span>
+<span><span class="co">#&gt;   d mean_loss  min_loss    sd_loss best_d</span></span>
+<span><span class="co">#&gt; 1 1    0.601     0.601     0.001   FALSE</span></span>
+<span><span class="co">#&gt; 2 2    0.512     0.510     0.003   FALSE</span></span>
+<span><span class="co">#&gt; 3 3    0.448     0.445     0.004    TRUE   # &lt;-- recommended</span></span>
+<span><span class="co">#&gt; 4 4    0.447     0.443     0.005   FALSE</span></span>
+<span><span class="co">#&gt; ...</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="how-best_d-is-determined">How <code>best_d</code> is determined<a class="anchor" aria-label="anchor" href="#how-best_d-is-determined"></a>
+</h3>
+<p>The recommendation uses the <strong>one-standard-error rule</strong>:
+find the dimensionality with the lowest mean hold-out loss, compute one
+standard error of that mean
+(i.e. <code>sd_loss / sqrt(n_restarts)</code>), and then flag the
+<em>smallest</em> <code>d</code> whose mean loss falls within that
+margin. This favours parsimony — it selects the simplest model that is
+statistically indistinguishable from the best.</p>
+</div>
+<div class="section level3">
+<h3 id="visualizing-the-results">Visualizing the results<a class="anchor" aria-label="anchor" href="#visualizing-the-results"></a>
+</h3>
+<p>A simple plot shows mean loss by dimension with ±1 SD error bars. The
+vertical dashed line marks the recommended <code>d</code>.</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="va">dim_est</span><span class="op">$</span><span class="va">summary</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">s</span><span class="op">$</span><span class="va">d</span>, <span class="va">s</span><span class="op">$</span><span class="va">mean_loss</span>,</span>
+<span>     type <span class="op">=</span> <span class="st">"b"</span>, pch <span class="op">=</span> <span class="fl">19</span>,</span>
+<span>     xlab <span class="op">=</span> <span class="st">"Dimensions (d)"</span>,</span>
+<span>     ylab <span class="op">=</span> <span class="st">"Mean test loss"</span>,</span>
+<span>     main <span class="op">=</span> <span class="st">"Hold-out loss by dimensionality"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/arrows.html" class="external-link">arrows</a></span><span class="op">(</span><span class="va">s</span><span class="op">$</span><span class="va">d</span>, <span class="va">s</span><span class="op">$</span><span class="va">mean_loss</span> <span class="op">-</span> <span class="va">s</span><span class="op">$</span><span class="va">sd_loss</span>,</span>
+<span>       <span class="va">s</span><span class="op">$</span><span class="va">d</span>, <span class="va">s</span><span class="op">$</span><span class="va">mean_loss</span> <span class="op">+</span> <span class="va">s</span><span class="op">$</span><span class="va">sd_loss</span>,</span>
+<span>       angle <span class="op">=</span> <span class="fl">90</span>, code <span class="op">=</span> <span class="fl">3</span>, length <span class="op">=</span> <span class="fl">0.05</span>, col <span class="op">=</span> <span class="st">"gray50"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span>v <span class="op">=</span> <span class="va">s</span><span class="op">$</span><span class="va">d</span><span class="op">[</span><span class="va">s</span><span class="op">$</span><span class="va">best_d</span><span class="op">]</span>, lty <span class="op">=</span> <span class="fl">2</span>, col <span class="op">=</span> <span class="st">"steelblue"</span><span class="op">)</span></span></code></pre></div>
+<p>Look for an <strong>elbow</strong>: a point where increasing
+<code>d</code> no longer reduces loss substantially. The one-SE rule
+formalises this by returning the smallest <code>d</code> in the flat
+region of the curve.</p>
+</div>
+<div class="section level3">
+<h3 id="practical-notes">Practical notes<a class="anchor" aria-label="anchor" href="#practical-notes"></a>
+</h3>
+<p>The function can be slow for large datasets or many restarts because
+it trains <code>length(dims) × n_restarts</code> independent models. A
+few suggestions:</p>
+<ul>
+<li>Start with a coarse grid (e.g. <code>dims = c(1, 2, 3, 5, 8)</code>)
+and <code>n_restarts = 5</code> to get a rough picture, then refine
+around the elbow.</li>
+<li>Use <code>max_epochs</code> and <code>tol_window</code> values
+consistent with the values you plan to use for the final embedding.</li>
+<li>If a GPU is available, pass <code>device = "cuda"</code> (or
+<code>"mps"</code> on Apple Silicon) to speed up each individual
+fit.</li>
+<li>
+<code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code> trains only a
+<strong>group</strong> embedding (pooling all participants) at each
+<code>d</code>. This is usually the right choice for selecting
+<code>d</code>, and it is faster than fitting per-participant
+models.</li>
+</ul>
+</div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

@@ -60,7 +60,8 @@ embedding on a single subset of responses.</p>
 <span>  tolerance <span class="op">=</span> <span class="fl">1e-04</span>,</span>
 <span>  tol_window <span class="op">=</span> <span class="fl">10000L</span>,</span>
 <span>  print_every <span class="op">=</span> <span class="fl">100L</span>,</span>
-<span>  device <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  device <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  random_state <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -108,6 +109,13 @@ Default <code>100</code>.  Increase to reduce console output; set to
 <dd><p>PyTorch device string, or <code>NULL</code> (default) to
 auto-select: CUDA GPU if available, then Apple MPS, then CPU.
 Pass <code>"cpu"</code> to force CPU even on a GPU machine.</p></dd>
+
+
+<dt id="arg-random-state">random_state<a class="anchor" aria-label="anchor" href="#arg-random-state"></a></dt>
+<dd><p>Integer seed passed to both NumPy and PyTorch before
+training begins.  <code>NULL</code> (default) leaves the global random state
+unchanged.  Set this when you need reproducible embeddings, e.g. when
+comparing multiple random restarts.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -8,6 +8,8 @@
   : Label each trial with its sampling algorithm
 - [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
   : Assign trials to train or test sets
+- [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
+  : Estimate the latent dimensionality of a triplet dataset
 - [`filter_failed_catch()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_failed_catch.md)
   : Exclude participants who fail too many catch trials
 - [`filter_fast_responders()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_fast_responders.md)

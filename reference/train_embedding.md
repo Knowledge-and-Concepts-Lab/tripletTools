@@ -16,7 +16,8 @@ train_embedding(
   tolerance = 1e-04,
   tol_window = 10000L,
   print_every = 100L,
-  device = NULL
+  device = NULL,
+  random_state = NULL
 )
 ```
 
@@ -62,6 +63,13 @@ train_embedding(
   PyTorch device string, or `NULL` (default) to auto-select: CUDA GPU if
   available, then Apple MPS, then CPU. Pass `"cpu"` to force CPU even on
   a GPU machine.
+
+- random_state:
+
+  Integer seed passed to both NumPy and PyTorch before training begins.
+  `NULL` (default) leaves the global random state unchanged. Set this
+  when you need reproducible embeddings, e.g. when comparing multiple
+  random restarts.
 
 ## Value
 
