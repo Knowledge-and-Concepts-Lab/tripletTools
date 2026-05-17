@@ -1,6 +1,6 @@
 # tripletTools: Reference Manual
 
-**Version 0.1.0**
+**Version 0.2.0**
 **Author:** Timothy Rogers
 **License:** MIT
 
@@ -11,9 +11,6 @@
 | Function / Dataset | Title |
 |---|---|
 | [align.embeddings](#alignembeddings) | Align embeddings across participants |
-| [cfd_embeddings](#cfd_embeddings) | Individual embedding data for 36 Chicago faces *(dataset)* |
-| [cfd_pics](#cfd_pics) | Chicago Face Dataset pictures *(dataset)* |
-| [cfd_triplets](#cfd_triplets) | Triplet data for 36 items from Chicago Face Dataset *(dataset)* |
 | [get.combined](#getcombined) | Get combined data |
 | [get.group.list.mean](#getgrouplistmean) | Get group list mean |
 | [get.hoacc](#gethoacc) | Get hold-out prediction accuracy |
@@ -23,14 +20,23 @@
 | [get.raster.from.png](#getrasterfrompng) | Get raster from PNG |
 | [get.rep.dist](#getrepdist) | Get representational distances |
 | [get.tip.coords](#gettipcoords) | Get tip coordinates |
+| [icon_emb_group](#icon_emb_group) | Group embedding data for 32 icon images *(dataset)* |
+| [icon_emb_ind](#icon_emb_ind) | Individual embedding data for 32 icon images *(dataset)* |
+| [icon_pics](#icon_pics) | Face and place icon pictures *(dataset)* |
+| [icon_triplets](#icon_triplets) | Triplet data for 32 icons of faces and places *(dataset)* |
 | [make.tripnames](#maketripnames) | Make triplet names |
 | [make.vmat](#makevmat) | Make validation matrix |
 | [model.strength](#modelstrength) | Get model strength |
 | [pacc.by.cluster](#paccbycluster) | Prediction accuracy by cluster |
 | [plot_cis](#plot_cis) | Plot column means and confidence intervals |
 | [plot_pics](#plot_pics) | Plot pictures in a scatterplot |
+| [run_embeddings](#run_embeddings) | Run the full embedding pipeline for all workers |
+| [run_embeddings_from_list](#run_embeddings_from_list) | Run the embedding pipeline from a triplet data list |
+| [run_group_embedding_from_list](#run_group_embedding_from_list) | Compute a group-level embedding from a triplet data list |
+| [setup_python_env](#setup_python_env) | Set up the Python environment for triplet embeddings |
 | [strsplit1](#strsplit1) | Split a string |
 | [test.model](#testmodel) | Test embedding model predictions |
+| [train_embedding](#train_embedding) | Train a single triplet embedding model |
 | [z.pred.mat](#zpredmat) | Z-score prediction matrix |
 
 ---
@@ -83,118 +89,6 @@ aligned <- align.embeddings(unaligned)
 
 ---
 
-## cfd_embeddings
-
-**Individual embedding data for 36 Chicago faces** *(dataset)*
-
-### Description
-
-This dataset contains embedding coordinates from a triplet study using 36 face images from the Chicago Face Dataset. The faces varied in perceived gender (male/female), race (Black/White) and emotional expression (happy, fearful, angry). Participants were asked to judge which option face was more similar to the target face without further instruction. Two-dimensional embeddings were computed separately for each of 39 individual participants.
-
-### Usage
-
-```r
-cfd_embeddings
-```
-
-### Format
-
-A data frame with 1,404 rows and 5 columns:
-
-| Column | Description |
-|---|---|
-| `dim_0`, `dim_1` | First and second dimensions of the embedding. |
-| `worker_id` | Random code identifying each participant. |
-| `stimulus` | Name of the stimulus at that embedding location. |
-
-### Details
-
-The letters in the stimulus identifier indicate features of the corresponding face image. The first two letters indicate race (B/W for Black/White) and perceived gender (M/F for male/female). The last two letters indicate emotion (HO: Happy with open mouth, A: Angry, F: Fearful).
-
-### Source
-
-Colon et al., in preparation.
-
----
-
-## cfd_pics
-
-**Chicago Face Dataset pictures** *(dataset)*
-
-### Description
-
-This dataset contains PNG format images of 36 items from the Chicago Face Dataset. These are the stimuli used in the demo experiment included as part of this package.
-
-### Usage
-
-```r
-cfd_pics
-```
-
-### Format
-
-A named list with 36 elements, each containing one face image.
-
-### Details
-
-Each item is named with the corresponding image file name. The first two letters of the name indicate the perceived gender (F/M) and race (B/W), respectively. The final letter(s) indicate the intended emotional expression (HO: Happy open-mouth, F: Fearful, A: Angry).
-
-### Source
-
-https://www.chicagofaces.org/
-
----
-
-## cfd_triplets
-
-**Triplet data for 36 items from Chicago Face Dataset** *(dataset)*
-
-### Description
-
-A list containing triplet judgments for 39 participants on a subset of 36 face images from the Chicago Face Dataset. These triplets were used to compute embeddings of the 36 items, which appear in the accompanying object `cfd_embeddings`.
-
-### Usage
-
-```r
-cfd_triplets
-```
-
-### Format
-
-A named list, each element containing a dataframe with 11 columns:
-
-| Column | Description |
-|---|---|
-| `head`, `winner`, `loser` | Integer indices for items in a given triplet. |
-| `worker_id` | Random identifier for each participant. |
-| `rt` | Response time on triplet (in milliseconds). |
-| `Center` | The target item. |
-| `Left`, `Right` | The option items appearing on the left and right. |
-| `Answer` | The option item chosen by the participant. |
-| `sampleAlg` | The algorithm used to sample the item. |
-| `sampleSet` | Which set the sampled item belongs to. |
-
-### Details
-
-Each element of the list contains the triplet data for one participant in the study. Rows of a dataframe correspond to a single trial. The elements of the full list are named by the random participant ID number.
-
-Each triplet can be sampled in one of four ways indicated by `sampleAlg`:
-
-1. *random*: Sampled randomly with uniform probability from all triplets.
-2. *validation*: Sampled randomly from a fixed, pre-specified set of possible triplets.
-3. *check*: Sampled from a small set of items where the answer is obvious, used to check attention and data quality.
-4. *adaptive*: Sampled according to some adaptive sampling algorithm.
-
-The column `sampleSet` indicates how the triplet is to be used in computing and evaluating embeddings:
-
-1. *train*: Triplets used to fit embedding.
-2. *test*: Triplets held out from training, used to evaluate embedding quality.
-3. NA: Triplets used for checking attention / data quality.
-
-Validation trials can be used to measure the extent of inter-subject agreement: since these are drawn from a common pool, these triplets will appear repeatedly across participants. Thus for each such triplet one can compute the majority vote across participants who received the triplet, and the proportion of those participants who agree with the majority vote. This gives an estimate of how consistent judgments are across participants.
-
----
-
 ## get.combined
 
 **Get combined data**
@@ -229,7 +123,7 @@ A named list, each element being a dataframe containing one participant's data.
 ### Examples
 
 ```r
-fpath <- system.file("extdata", "cfd36_embeddings_individual.csv", package = "tripletTools")
+fpath <- system.file("extdata", "icon_embeddings_individual.csv", package = "tripletTools")
 
 embeddings <- get.combined(fpath, eflag = TRUE)
 
@@ -270,12 +164,12 @@ List containing mean embedding for each group.
 ### Examples
 
 ```r
-repdist <- get.rep.dist(cfd_embeddings)         # Representational distances
-hc <- hclust(as.dist(repdist), method = "ward.D")  # Cluster tree
-clusts <- cutree(hc, 4)                          # Cut into 4 clusters
+repdist <- get.rep.dist(icon_emb_ind)
+hc      <- hclust(as.dist(repdist), method = "ward.D")
+clusts  <- cutree(hc, k = 2)
 
-mn.by.clust <- get.group.list.mean(cfd_embeddings, clusts)
-plot_pics(mn.by.clust[[1]], cfd_pics)
+mn.by.clust <- get.group.list.mean(icon_emb_ind, clusts)
+plot_pics(mn.by.clust[[1]][, 1:2], icon_pics)
 ```
 
 ---
@@ -370,9 +264,9 @@ A character vector containing the `k` nearest neighbors in order of proximity to
 ### Examples
 
 ```r
-emb <- cfd_embeddings[[10]]         # Embedding for participant 10
-fdists <- as.matrix(dist(emb))       # Compute pairwise distance matrix
-target <- "CFD-BF-002-004-HO"       # Name of target item
+emb    <- icon_emb_ind[[1]]            # Embedding for participant 1
+fdists <- as.matrix(dist(emb))         # Compute pairwise distance matrix
+target <- "fdfob"                      # Name of target item
 
 # Return 5 items nearest to target:
 get.nearest.k(fdists, target, 5)
@@ -417,16 +311,8 @@ Data frame containing information about each participant in the study.
 ### Examples
 
 ```r
-# Path to example triplet data
-fpath <- system.file("extdata", "cfd36_triplets_individual.csv", package = "tripletTools")
-
-# Read the data
-trips <- get.combined(fpath)
-
-# Compute summary
-part.summary <- get.participant.summary(trips)
-
-head(part.summary)
+psummary <- get.participant.summary(icon_triplets, mintrial = 230)
+head(psummary)
 ```
 
 ---
@@ -466,14 +352,7 @@ A matrix. Each row is an embedding, each column a triplet dataset. Entries indic
 ### Examples
 
 ```r
-embpath <- system.file("extdata", "cfd36_embeddings_individual.csv", package = "tripletTools")
-tripath <- system.file("extdata", "cfd36_triplets_individual.csv",   package = "tripletTools")
-
-# Get first five participants
-embs  <- get.combined(embpath, eflag = TRUE)[1:5]
-trips <- get.combined(tripath, eflag = FALSE)[1:5]
-
-pmat <- get.prediction.matrix(embs, trips, ttype = "test")
+pmat <- get.prediction.matrix(icon_emb_ind, icon_triplets, ttype = "test")
 pmat
 ```
 
@@ -604,6 +483,149 @@ points(get.tip.coords(), pch = 16, col = c("orange", "blue")[clusts])
 
 ---
 
+## icon_emb_group
+
+**Group embedding data for 32 icon images of faces and buildings** *(dataset)*
+
+### Description
+
+This dataset contains a single group-level embedding computed from the training trials of all participants in a triplet study using 32 icon images showing faces and buildings. All stimuli vary in age (old/young) and time (day/night). Faces also vary in gender and race; places vary in size and kind (house/church).
+
+### Usage
+
+```r
+icon_emb_group
+```
+
+### Format
+
+A data frame with 32 rows (items) and the following columns:
+
+| Column | Description |
+|---|---|
+| `dim_0`, `dim_1`, `dim_2` | First, second, and third dimensions of the embedding. |
+| `worker_id` | Set to `"group"` since this is a group-level embedding. |
+| `item` | Name of the stimulus item at that embedding location. |
+| `path` | Path to the stimulus image file. |
+
+### Details
+
+The letters in each stimulus identifier indicate features of the corresponding icon: face/place, day/night, female/male/church/house, old/young, black/white/big/small.
+
+### Source
+
+Colon et al., in preparation.
+
+---
+
+## icon_emb_ind
+
+**Individual embedding data for 32 icon images of faces and buildings** *(dataset)*
+
+### Description
+
+This dataset contains 3-D embedding coordinates computed separately for each of 5 participants in a triplet study using 32 icon images showing faces and buildings. All stimuli vary in age (old/young) and time (day/night). Faces also vary in gender and race; places vary in size and kind (house/church).
+
+### Usage
+
+```r
+icon_emb_ind
+```
+
+### Format
+
+A named list with 5 elements, one per participant. Each element is a matrix with 32 rows (items, named by stimulus) and 3 columns:
+
+| Column | Description |
+|---|---|
+| `dim_0`, `dim_1`, `dim_2` | First, second, and third dimensions of the embedding. |
+
+### Details
+
+The letters in each stimulus identifier indicate features of the corresponding icon: face/place, day/night, female/male/church/house, old/young, black/white/big/small.
+
+### Source
+
+Colon et al., in preparation.
+
+---
+
+## icon_pics
+
+**Face and place icon pictures** *(dataset)*
+
+### Description
+
+This dataset contains PNG format images of 32 icon images showing faces and buildings. These are the stimuli used in the demo experiment included as part of this package.
+
+### Usage
+
+```r
+icon_pics
+```
+
+### Format
+
+A named list with 32 elements, each containing one PNG image.
+
+### Details
+
+The letters in each stimulus identifier indicate features of the corresponding icon: face/place, day/night, female/male/church/house, old/young, black/white/big/small.
+
+---
+
+## icon_triplets
+
+**Triplet data for 32 icons of faces and places** *(dataset)*
+
+### Description
+
+A list containing triplet judgments for 5 participants on 32 icons showing faces and buildings. These triplets were used to compute embeddings of the 32 items separately for each participant (`icon_emb_ind`) as well as a single group embedding (`icon_emb_group`).
+
+### Usage
+
+```r
+icon_triplets
+```
+
+### Format
+
+A named list, each element containing a dataframe with 11 columns:
+
+| Column | Description |
+|---|---|
+| `head`, `winner`, `loser` | Integer indices for items in a given triplet. |
+| `worker_id` | Random identifier for each participant. |
+| `rt` | Response time on triplet (in milliseconds). |
+| `Center` | The target item. |
+| `Left`, `Right` | The option items appearing on the left and right. |
+| `Answer` | The option item chosen by the participant. |
+| `sampleAlg` | The algorithm used to sample the item. |
+| `sampleSet` | Which set the sampled item belongs to. |
+
+### Details
+
+Each element of the list contains the triplet data for one participant in the study. Rows of a dataframe correspond to a single trial. The elements of the full list are named by the random participant ID.
+
+Each triplet is sampled in one of the following ways (`sampleAlg`):
+
+1. *random*: Sampled randomly with uniform probability.
+2. *validation*: Sampled from a fixed pre-specified pool shared across participants.
+3. *check*: A trial with an obvious answer, used to check attention.
+4. *adaptive*: Sampled according to an adaptive algorithm.
+
+The `sampleSet` column indicates the triplet's role in embedding computation:
+
+1. *train*: Used to fit the embedding.
+2. *test*: Held out to evaluate embedding quality.
+3. NA: Attention-check trials not used for embedding.
+
+### Source
+
+Colon et al., in prep.
+
+---
+
 ## make.tripnames
 
 **Make triplet names**
@@ -635,7 +657,7 @@ A character vector containing the unique triplet name for each trial in the trip
 ### Examples
 
 ```r
-trips  <- cfd_triplets[[10]]      # Triplet data for participant 10
+trips  <- icon_triplets[[1]]      # Triplet data for participant 1
 tnames <- make.tripnames(trips)   # Make triplet names
 tnames[1:5]                       # Names of first five triplets
 ```
@@ -675,7 +697,7 @@ Named list with two elements. `majority` is a matrix with one row per validation
 ### Examples
 
 ```r
-vmat <- make.vmat(cfd_triplets)
+vmat <- make.vmat(icon_triplets)
 vmat$majority
 ```
 
@@ -718,8 +740,8 @@ Vector containing the prediction strength metric for each triplet in `vdat`.
 ### Examples
 
 ```r
-emb   <- cfd_embeddings[[2]]   # Embedding for participant 2
-trips <- cfd_triplets[[2]]     # Triplets for participant 2
+emb   <- icon_emb_ind[[1]]   # Embedding for participant 1
+trips <- icon_triplets[[1]]  # Triplets for participant 1
 
 # Get validation trials only
 vdat <- subset(trips, trips$sampleAlg == "validation")
@@ -764,14 +786,14 @@ A participant-by-cluster matrix indicating the mean accuracy predicting each par
 ### Examples
 
 ```r
-repdist <- get.rep.dist(cfd_embeddings)                   # Representational distances
+repdist <- get.rep.dist(icon_emb_ind)
 hc      <- hclust(as.dist(repdist), method = "ward.D")
-clusts  <- cutree(hc, 3)                                  # Cut tree to yield 3 clusters
+clusts  <- cutree(hc, k = 2)
 
-pacc <- get.prediction.matrix(cfd_embeddings, cfd_triplets)  # Prediction matrix
-pbc  <- pacc.by.cluster(pacc, clusts, samediff = TRUE)
+pmat <- get.prediction.matrix(icon_emb_ind, icon_triplets)
+pbc  <- pacc.by.cluster(pmat, clusts, samediff = TRUE)
 
-colMeans(pbc)
+colMeans(pbc, na.rm = TRUE)
 ```
 
 ---
@@ -860,8 +882,8 @@ Generates a plot or adds images to an existing plot.
 
 ```r
 # Plot a 2D embedding as a scatterplot using images instead of points:
-emb <- cfd_embeddings[[1]]   # Get embedding from first participant
-plot_pics(emb, cfd_pics, psize = 0.03)
+emb <- icon_emb_ind[[1]]
+plot_pics(emb[, 1:2], icon_pics, psize = 0.04)
 
 # Plot the same data as a hierarchical cluster plot with images as leaves:
 hc <- stats::hclust(dist(emb), method = "ward.D")
@@ -869,7 +891,227 @@ pt <- ape::as.phylo(hc)
 
 plot(pt, type = "fan", show.tip.label = FALSE)
 tip_coords <- get.tip.coords()
-plot_pics(tip_coords, cfd_pics, newplot = FALSE)
+plot_pics(tip_coords, icon_pics, newplot = FALSE)
+```
+
+---
+
+## run_embeddings
+
+**Run the full embedding pipeline for all workers**
+
+### Description
+
+Reads triplet comparison data from a CSV file, trains a separate embedding model with early stopping for each worker, and then trains a combined group-level embedding across all workers. Output CSV files are written to `output_dir` and the results are also returned as R data frames.
+
+For a higher-level interface that accepts triplet data already loaded into R as a named list, see `run_embeddings_from_list`.
+
+### Usage
+
+```r
+run_embeddings(input_file, additional_data_file, output_dir,
+               d = 5L, max_epochs = 50000L, tolerance = 1e-4,
+               tol_window = 10000L, seed = 222L)
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `input_file` | Path to the CSV file containing all triplets. Must include columns `worker_id`, `head`, `winner`, `loser` (zero-based integer indices), and `sampleSet`. |
+| `additional_data_file` | Path to a CSV with item metadata to append to embedding output. Row count must match the number of unique items. |
+| `output_dir` | Directory for output CSV files. Created automatically if needed. |
+| `d` | Number of embedding dimensions. Default `5`. |
+| `max_epochs` | Maximum training epochs. Default `50000`. |
+| `tolerance` | Loss tolerance for early stopping. Default `1e-4`. |
+| `tol_window` | Epochs without improvement before stopping. Default `10000`. |
+| `seed` | Integer random seed. Default `222`. |
+
+### Output files
+
+Three CSV files are written to `output_dir`:
+
+| File | Contents |
+|---|---|
+| `model_history.csv` | Training history per worker. |
+| `embeddings_group.csv` | Group-level embedding only. |
+| `embeddings.csv` | All per-worker and group embeddings concatenated. |
+
+### Value
+
+A named list with two elements:
+
+- `history`: Data frame with one row per worker (plus one for the group) containing `worker_id`, `lowest_loss`, `epoch`, `counter_from_last_update`, `n_train_triplets`, `n_test_triplets`.
+- `embeddings`: Data frame of all embeddings concatenated, with dimension columns (`dim_0`, `dim_1`, …), a `worker_id` column, and any columns from `additional_data_file`.
+
+### Examples
+
+```r
+# Not run — requires Python environment (see setup_python_env)
+results <- run_embeddings(
+  input_file           = "triplets.csv",
+  additional_data_file = "item_labels.csv",
+  output_dir           = "embeddings_output",
+  d                    = 5L,
+  max_epochs           = 50000L
+)
+head(results$history)
+```
+
+---
+
+## run_embeddings_from_list
+
+**Run the embedding pipeline from a triplet data list**
+
+### Description
+
+A convenience wrapper around `run_embeddings` that accepts triplet data already loaded into R as a named list (the format returned by `get.combined`) rather than reading from CSV files. Trains one embedding per participant plus a group embedding on all participants combined.
+
+### Usage
+
+```r
+run_embeddings_from_list(triplet_list, output_dir,
+                         d = 5L, max_epochs = 50000L, tolerance = 1e-4,
+                         tol_window = 10000L, seed = 222L)
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `triplet_list` | Named list of data frames, one per participant, as returned by `get.combined`. Each data frame must contain columns `worker_id`, `Center`, `Left`, `Right`, `Answer`, `sampleAlg`, and `sampleSet`. |
+| `output_dir` | Directory for output CSV files. Created automatically if needed. |
+| `d` | Number of embedding dimensions. Default `5`. |
+| `max_epochs` | Maximum training epochs. Default `50000`. |
+| `tolerance` | Loss tolerance for early stopping. Default `1e-4`. |
+| `tol_window` | Epochs without improvement before stopping. Default `10000`. |
+| `seed` | Integer random seed. Default `222`. |
+
+### Details
+
+All unique item names are collected across participants and sorted alphabetically to form consistent zero-based integer indices. Trials with `sampleAlg == "check"` are excluded. Output CSV files are written to `output_dir` as a side-effect.
+
+### Value
+
+A named list with three elements:
+
+- `individual`: Named list of numeric matrices, one per participant. Each matrix has item names as row names and `d` columns (`dim_0`, `dim_1`, …).
+- `group`: Numeric matrix of the group-level embedding with item names as row names.
+- `history`: Data frame with one row per worker (plus `"group"`) containing training diagnostics.
+
+### Examples
+
+```r
+# Not run — requires Python environment (see setup_python_env)
+results <- run_embeddings_from_list(
+  triplet_list = icon_triplets,
+  output_dir   = "embeddings_output",
+  d            = 3L,
+  max_epochs   = 50000L
+)
+
+head(results$group)             # Group embedding
+head(results$individual[[1]])  # First participant's embedding
+results$history                 # Training diagnostics
+```
+
+---
+
+## run_group_embedding_from_list
+
+**Compute a group-level embedding from a triplet data list**
+
+### Description
+
+Trains a single embedding on the combined triplet judgments from all participants. Individual per-participant embeddings are not computed. Use this function when you only need a group summary of the similarity structure, which is faster than `run_embeddings_from_list`.
+
+### Usage
+
+```r
+run_group_embedding_from_list(triplet_list,
+                              d = 5L, max_epochs = 50000L, tolerance = 1e-4,
+                              tol_window = 10000L, seed = 222L)
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `triplet_list` | Named list of data frames, one per participant, as returned by `get.combined`. Each data frame must contain columns `Center`, `Left`, `Right`, `Answer`, `sampleAlg`, and `sampleSet`. |
+| `d` | Number of embedding dimensions. Default `5`. |
+| `max_epochs` | Maximum training epochs. Default `50000`. |
+| `tolerance` | Loss tolerance for early stopping. Default `1e-4`. |
+| `tol_window` | Epochs without improvement before stopping. Default `10000`. |
+| `seed` | Integer random seed. Default `222`. |
+
+### Details
+
+All unique item names are collected and sorted alphabetically for consistent zero-based indexing. Trials with `sampleAlg == "check"` are excluded. The `sampleSet` column must be present and is used to split data for early stopping. Unlike `run_embeddings_from_list`, no files are written to disk.
+
+### Value
+
+A named list with three elements:
+
+- `embedding`: Numeric matrix with item names as row names and `d` columns (`dim_0`, `dim_1`, …).
+- `loss`: Best test loss achieved during training.
+- `history`: Data frame with one row per epoch and columns `epoch`, `train_loss`, `test_loss`, `train_acc`, `test_acc`.
+
+### Examples
+
+```r
+# Not run — requires Python environment (see setup_python_env)
+grp <- run_group_embedding_from_list(
+  triplet_list = icon_triplets,
+  d            = 3L,
+  max_epochs   = 50000L
+)
+
+head(grp$embedding)   # Embedding matrix (items x dimensions)
+grp$loss              # Best test loss
+```
+
+---
+
+## setup_python_env
+
+**Set up the Python environment for triplet embeddings**
+
+### Description
+
+Call this function once the very first time you use the embedding pipeline. It checks for a conda installation, creates a self-contained conda environment, installs the required Python packages, and activates the environment for the current R session. On future sessions the environment is detected and activated automatically when the package is loaded.
+
+### Usage
+
+```r
+setup_python_env(envname = NULL, requirements = NULL)
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `envname` | Name of the conda environment to create. Defaults to `"triplet-embeddings"`. |
+| `requirements` | Path to a `requirements.txt` file. Defaults to the copy bundled with the package. |
+
+### Details
+
+The following Python packages are installed: `numpy`, `pandas`, `torch`, `scikit-learn`, `scipy`, and `skorch`. PyTorch is installed via the pytorch conda channel (not pip) to ensure DLL compatibility on Windows. PyTorch is a large download (~300–800 MB), so first-time installation may take several minutes.
+
+Conda (Miniconda or Anaconda) must be installed on the system before calling this function. If conda is not found, the function stops with an error pointing to the Miniconda installation page.
+
+### Value
+
+The environment name, invisibly.
+
+### Examples
+
+```r
+# Run once after installing the package:
+setup_python_env()
+
+# On all subsequent sessions just load the package as normal:
+library(tripletTools)
 ```
 
 ---
@@ -966,6 +1208,70 @@ test.model(m, tr, isemb = TRUE)
 
 ---
 
+## train_embedding
+
+**Train a single triplet embedding model**
+
+### Description
+
+A lower-level interface to the embedding pipeline. Use this function when you want to manage the train/test split in R rather than relying on the `sampleSet` column in your data, or when you want to train an embedding on a single subset of responses. For processing all workers at once, see `run_embeddings_from_list`.
+
+### Usage
+
+```r
+train_embedding(X_train, X_test,
+                d = 5L, max_epochs = 50000L, tolerance = 1e-4,
+                tol_window = 10000L, print_every = 100L)
+```
+
+### Arguments
+
+| Argument | Description |
+|---|---|
+| `X_train` | Integer matrix of shape n_triplets × 3. Columns must be `head`, `winner`, `loser` with zero-based integer item indices. |
+| `X_test` | Integer matrix in the same format as `X_train`, used for validation and early stopping. |
+| `d` | Number of embedding dimensions. Default `5`. |
+| `max_epochs` | Maximum training epochs. Default `50000`. |
+| `tolerance` | Loss tolerance for early stopping. Default `1e-4`. |
+| `tol_window` | Epochs without improvement before stopping. Default `10000`. |
+| `print_every` | Print a progress line every this many epochs. Default `100`. |
+
+### Details
+
+Training uses the crowd kernel (CKL) noise model optimized with Adadelta via PyTorch. The best embedding (lowest test loss) observed during training is returned, not necessarily the final-epoch embedding.
+
+Items must be identified by zero-based integer indices. If your data uses one-based R indices, subtract 1 from the `head`, `winner`, and `loser` columns before passing them to this function.
+
+### Value
+
+A named list with five elements:
+
+- `embedding`: Numeric matrix of shape n_items × d. Rows correspond to items in index order.
+- `loss`: Best test loss achieved during training.
+- `epoch`: Epoch number at which training stopped.
+- `counter`: Epochs since the last meaningful improvement when training stopped.
+- `history`: Data frame with one row per epoch and columns `epoch`, `train_loss`, `test_loss`, `train_acc`, `test_acc`.
+
+### Examples
+
+```r
+# Not run — requires Python environment (see setup_python_env)
+triplets <- read.csv("triplets.csv")
+
+is_train <- triplets$sampleSet == "train"
+X_train  <- as.matrix(triplets[is_train,  c("head", "winner", "loser")])
+X_test   <- as.matrix(triplets[!is_train, c("head", "winner", "loser")])
+
+out <- train_embedding(X_train, X_test, d = 5L, max_epochs = 50000L)
+
+dim(out$embedding)
+cat("Best loss:", out$loss, "\n")
+plot(out$history$epoch, out$history$test_loss, type = "l",
+     xlab = "Epoch", ylab = "Test loss")
+```
+
+---
+
 ## z.pred.mat
 
 **Z-score prediction matrix**
@@ -1011,4 +1317,4 @@ z.pred.mat(pmat)
 
 ---
 
-*Generated from tripletTools v0.1.0 .Rd documentation files.*
+*Generated from tripletTools v0.2.0 .Rd documentation files.*

@@ -1,7 +1,7 @@
 Package: tripletTools
 Type: Package
 Title: Tools for working with triadic comparisons data
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: c(
     person(
       "Timothy", "Rogers",
@@ -15,9 +15,10 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.2
-Suggests: 
+Suggests:
     knitr,
     rmarkdown,
+    reticulate,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)

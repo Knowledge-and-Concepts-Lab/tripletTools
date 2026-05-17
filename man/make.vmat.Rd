@@ -34,6 +34,6 @@ trials are repeated to evaluate self-consistency). Where a participant did not j
 a given triplet, the entry in \code{bysbj}will be NA.
 }
 \examples{
-vmat <- make.vmat(cfd_triplets)
+vmat <- make.vmat(icon_triplets)
 vmat$majority
 }

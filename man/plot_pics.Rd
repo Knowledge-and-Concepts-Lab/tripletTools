@@ -68,9 +68,9 @@ drawing.
 \examples{
 #Plot a 2D embedding as a scatterplot using images instead of points:
 
-emb <- cfd_embeddings[[1]] #Get embedding from first participant
+emb <- icon_emb_ind[[1]] #Get embedding from first participant
 
-plot_pics(emb, cfd_pics, psize = 0.03)
+plot_pics(emb, icon_pics, psize = 0.03)
 
 #Plot the same data as a hierarchical cluster plot with images as leaves.
 hc <- stats::hclust(dist(emb), method = "ward.D")
@@ -78,5 +78,5 @@ pt <- ape::as.phylo(hc)
 
 plot(pt, type = "fan", show.tip.label=FALSE)
 tip_coords <- get.tip.coords()
-plot_pics(tip_coords, cfd_pics, newplot = FALSE)
+plot_pics(tip_coords, icon_pics, newplot = FALSE)
 }

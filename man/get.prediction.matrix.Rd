@@ -39,15 +39,7 @@ predicts their decisions on the test items (typically hold-out items not
 used to compute the embedding).
 }
 \examples{
-embpath <- system.file("extdata", "cfd36_embeddings_individual.csv", package = "tripletTools")
-tripath <- system.file("extdata", "cfd36_triplets_individual.csv", package = "tripletTools")
-
-#Get first five participants
-embs <- get.combined(embpath, eflag=TRUE)[1:5]
-trips <- get.combined(tripath, eflag = FALSE)[1:5]
-
-pmat <- get.prediction.matrix(embs, trips, ttype="test")
-
+pmat <- get.prediction.matrix(icon_emb_ind, icon_triplets)
 pmat
 
 }

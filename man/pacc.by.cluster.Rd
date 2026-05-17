@@ -44,13 +44,13 @@ matrix will include one column per cluster, and entries will indicate
 mean prediction accuracy from the embeddings in that cluster.
 }
 \examples{
-repdist <- get.rep.dist(cfd_embeddings) #Representational distances
+repdist <- get.rep.dist(icon_emb_ind) #Representational distances
 
 #Hierarchical cluster
 hc <- hclust(as.dist(repdist), method = "ward.D")
-clusts <- cutree(hc, 3) #Cut tree to yield three clusters
+clusts <- cutree(hc, 2) #Cut tree to yield two clusters
 
-pacc <- get.prediction.matrix(cfd_embeddings, cfd_triplets) #Prediction matrix
+pacc <- get.prediction.matrix(icon_emb_ind, icon_triplets) #Prediction matrix
 pbc <- pacc.by.cluster(pacc, clusts, samediff=TRUE)
 
 colMeans(pbc)

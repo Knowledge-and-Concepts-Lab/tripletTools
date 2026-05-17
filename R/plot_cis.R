@@ -64,14 +64,16 @@ plot_cis <- function(
   if(!is.null(colnames(d))) colnames(o) <- colnames(d)
 
   for(i1 in c(1:nitems)){
-    #If numbers are constant:
-    if(stats::var(d[,i1])==0){
-      o[,i1] <- mean(d[,i1])
-      } else{
-      #Otherwise compute mean and CI
-      t <- stats::t.test(d[,i1])
-      o[1,i1] <- t$estimate
-      o[2:3,i1] <- t$conf.int[1:2]
+    vals <- d[, i1]
+    vals <- vals[!is.na(vals)]
+    if(length(vals) == 0){
+      o[, i1] <- NA
+    } else if(length(vals) == 1 || stats::var(vals) == 0){
+      o[, i1] <- mean(vals)
+    } else{
+      t <- stats::t.test(vals)
+      o[1, i1] <- t$estimate
+      o[2:3, i1] <- t$conf.int[1:2]
     }
   }
 

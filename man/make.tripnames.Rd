@@ -24,7 +24,7 @@ which is especially important when computing within and between-participant
 consistency on validation trials.
 }
 \examples{
-trips <- cfd_triplets[[10]] #Triplet data for participant 10
+trips <- icon_triplets[[1]] #Triplet data for participant 1
 tnames <- make.tripnames(trips) #Make triplet names
 tnames[1:5] #Names of first five triplets
 }
