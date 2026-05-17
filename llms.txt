@@ -29,12 +29,6 @@ All functions are documented in `tripletTools_manual.pdf`
   : Label each trial with its sampling algorithm
 - [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
   : Assign trials to train or test sets
-- [`cfd_embeddings`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_embeddings.md)
-  : Individual embedding data for 36 Chicago faces
-- [`cfd_pics`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_pics.md)
-  : Chicago Face Dataset pictures
-- [`cfd_triplets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_triplets.md)
-  : Triplet data for 36 items from Chicago Face Dataset
 - [`filter_failed_catch()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_failed_catch.md)
   : Exclude participants who fail too many catch trials
 - [`filter_fast_responders()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_fast_responders.md)
@@ -59,6 +53,14 @@ All functions are documented in `tripletTools_manual.pdf`
   : Get representational distances
 - [`get.tip.coords()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.tip.coords.md)
   : Get tip coordinates
+- [`icon_emb_group`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_emb_group.md)
+  : Group embedding data for 32 icon images of faces and buildings
+- [`icon_emb_ind`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_emb_ind.md)
+  : Individual embedding data for 32 icon images of faces and buildings
+- [`icon_pics`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_pics.md)
+  : Face and Place icon pictures
+- [`icon_triplets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_triplets.md)
+  : Triplet data for 32 icons of faces and places
 - [`make.tripnames()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.tripnames.md)
   : Make triplet names
 - [`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md)
@@ -77,10 +79,20 @@ All functions are documented in `tripletTools_manual.pdf`
   : Standardise a legacy triadic comparison dataset
 - [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
   : Clean raw jsPsych triplet experiment data
+- [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)
+  : Run the full embedding pipeline for all workers
+- [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)
+  : Run the embedding pipeline from a triplet data list
+- [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
+  : Compute a group-level embedding from a triplet data list
+- [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md)
+  : Set up the Python environment for triplet embeddings
 - [`strsplit1()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.md)
   : Split a string
 - [`test.model()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.md)
   : Test embedding model predictions.
+- [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
+  : Train a single triplet embedding model
 - [`z.pred.mat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/z.pred.mat.md)
   : Z-score prediction matrix
 
@@ -88,6 +100,8 @@ All functions are documented in `tripletTools_manual.pdf`
 
 ### All vignettes
 
+- [Computing Triplet
+  Embeddings](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/embedding_vignette.md):
 - [tripletTools
   Overview](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/overview_vignette.md):
 - [Reading Triplet

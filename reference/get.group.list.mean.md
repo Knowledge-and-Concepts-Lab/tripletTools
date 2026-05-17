@@ -36,10 +36,10 @@ computed from scratch from the same participants.
 ## Examples
 
 ``` r
-repdist <- get.rep.dist(cfd_embeddings) #Representational distances
+repdist <- get.rep.dist(icon_emb_ind) #Representational distances
 hc <- hclust(as.dist(repdist), method = "ward.D") #Cluster tree
-clusts <- cutree(hc, 4) #Cut into 4 clusters
+clusts <- cutree(hc, 2) #Cut into 2 clusters
 
-mn.by.clust <- get.group.list.mean(cfd_embeddings, clusts)
-plot_pics(mn.by.clust[[1]], cfd_pics)
+mn.by.clust <- get.group.list.mean(icon_emb_ind, clusts)
+plot_pics(mn.by.clust[[1]], icon_pics)
 ```

@@ -42,32 +42,47 @@ triplet, the entry in `bysbj`will be NA.
 ## Examples
 
 ``` r
-vmat <- make.vmat(cfd_triplets)
+vmat <- make.vmat(icon_triplets)
 vmat$majority
-#>                                                  triplet          majority
-#> 1    CFD-BF-002-004-HO_CFD-BF-005-020-A_CFD-BF-050-036-F  CFD-BF-050-036-F
-#> 2     CFD-BF-002-022-F_CFD-WF-001-027-F_CFD-WF-020-027-F  CFD-WF-020-027-F
-#> 3     CFD-BF-005-022-F_CFD-BM-002-002-F_CFD-BM-009-009-F  CFD-BM-009-009-F
-#> 4    CFD-BM-002-002-F_CFD-BM-009-008-A_CFD-BM-038-007-HO  CFD-BM-009-008-A
-#> 5     CFD-BM-002-016-A_CFD-WM-023-012-A_CFD-WM-038-011-A  CFD-WM-023-012-A
-#> 6  CFD-BM-038-007-HO_CFD-BF-002-004-HO_CFD-BF-050-004-HO CFD-BF-050-004-HO
-#> 7    CFD-WF-001-009-HO_CFD-WF-020-012-A_CFD-WF-026-024-F  CFD-WF-026-024-F
-#> 8     CFD-WF-001-016-A_CFD-BF-002-018-A_CFD-BF-050-012-A  CFD-BF-050-012-A
-#> 9     CFD-WF-026-008-A_CFD-WM-023-012-A_CFD-WM-033-014-A  CFD-WM-033-014-A
-#> 10   CFD-WM-023-015-F_CFD-WM-033-014-A_CFD-WM-038-005-HO  CFD-WM-033-014-A
-#> 11    CFD-WM-033-053-F_CFD-BM-009-009-F_CFD-BM-038-017-F  CFD-BM-009-009-F
-#> 12    CFD-WM-038-018-F_CFD-WF-020-027-F_CFD-WF-026-024-F  CFD-WF-020-027-F
-#>         pmaj
-#> 1  0.5897436
-#> 2  0.6666667
-#> 3  0.7692308
-#> 4  0.6153846
-#> 5  0.7179487
-#> 6  0.5897436
-#> 7  0.6153846
-#> 8  0.5641026
-#> 9  0.5384615
-#> 10 0.6666667
-#> 11 0.7179487
-#> 12 0.8974359
+#>              triplet majority pmaj
+#> 1  fdfow_fnmyb_pdhos    fnmyb 1.00
+#> 2  fdmob_fdfow_pnhob    fdfow 1.00
+#> 3  fdmob_fdmow_fdmyb    fdmyb 0.75
+#> 4  fdmob_fnmob_pdcos    fnmob 1.00
+#> 5  fdmow_fdmyw_fnfyw    fdmyw 1.00
+#> 6  fdmow_fnfyw_pncnb    fnfyw 1.00
+#> 7  fdmow_fnmyw_pdhnb    fnmyw 0.50
+#> 8  fdmyb_fdfob_pdhos    fdfob 1.00
+#> 9  fdmyb_fnfyb_pdcns    fnfyb 0.75
+#> 10 fdmyb_fnmyb_fnmyw    fnmyb 1.00
+#> 11 fdmyw_fdfow_fnfyw    fnfyw 1.00
+#> 12 fdmyw_fnfob_fnmyw    fnmyw 1.00
+#> 13 fdmyw_pncns_pnhns    pnhns 1.00
+#> 14 fnfyb_fdmyb_pdcnb    fdmyb 1.00
+#> 15 fnmob_fdmob_fnmyb    fdmob 0.75
+#> 16 fnmob_fdmow_pdcns    fdmow 1.00
+#> 17 fnmyb_fdfob_pdcns    fdfob 0.75
+#> 18 fnmyb_pnhnb_pnhos    pnhnb 1.00
+#> 19 fnmyw_pdcnb_pnhos    pdcnb 0.50
+#> 20 pdcnb_fdmob_pdhnb    pdhnb 1.00
+#> 21 pdcnb_pncos_pnhnb    pncos 1.00
+#> 22 pdcns_fnmob_fnmow    fnmob 0.75
+#> 23 pdcns_pdcnb_pdcob    pdcnb 1.00
+#> 24 pdcns_pdcob_pdcos    pdcos 1.00
+#> 25 pdcob_fdfob_pnhos    pnhos 0.75
+#> 26 pdcob_fnfob_pnhob    pnhob 1.00
+#> 27 pdcos_fnfow_pdcnb    pdcnb 1.00
+#> 28 pdcos_fnmob_pncnb    pncnb 1.00
+#> 29 pdhnb_fdfow_pdhos    pdhos 1.00
+#> 30 pdhnb_fdmob_pdcnb    pdcnb 1.00
+#> 31 pdhnb_pdcos_pnhos    pnhos 1.00
+#> 32 pdhob_fdfow_fnmob    fdfow 1.00
+#> 33 pdhob_fdfyb_pnhob    pnhob 1.00
+#> 34 pdhob_pdcob_pnhns    pdcob 1.00
+#> 35 pdhos_fnmow_pncnb    pncnb 1.00
+#> 36 pncnb_fdmyb_pdcos    pdcos 1.00
+#> 37 pncnb_fnmow_pdhob    pdhob 0.75
+#> 38 pncob_fnmow_pdcos    pdcos 1.00
+#> 39 pnhnb_fnmow_pncos    pncos 1.00
+#> 40 pnhos_fnfob_pdhos    pdhos 1.00
 ```

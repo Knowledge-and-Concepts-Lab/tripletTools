@@ -45,13 +45,9 @@ files (with `eflag=FALSE`) or embedding files (with `eflag=TRUE`)
 fpath <- system.file("extdata", "cfd36_embeddings_individual.csv", package="tripletTools")
 
 embeddings <- get.combined(fpath, eflag=TRUE)
+#> Warning: file("") only supports open = "w+" and open = "w+b": using the former
+#> Error in read.table(file = file, header = header, sep = sep, quote = quote,     dec = dec, fill = fill, comment.char = comment.char, ...): no lines available in input
 
 head(embeddings[[1]])
-#>                       dim_0       dim_1
-#> CFD-BF-002-004-HO 0.3947823  0.16756907
-#> CFD-BF-002-018-A  0.4886511  0.08649993
-#> CFD-BF-002-022-F  0.2059984  0.10942531
-#> CFD-BF-005-005-HO 0.3141250  0.12844554
-#> CFD-BF-005-020-A  0.1804924 -0.31689260
-#> CFD-BF-005-022-F  0.1909470 -0.32095847
+#> Error: object 'embeddings' not found
 ```

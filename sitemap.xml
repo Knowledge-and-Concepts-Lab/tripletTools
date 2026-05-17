@@ -2,6 +2,7 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/404.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/LICENSE-text.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/LICENSE.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/articles/embedding_vignette.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/articles/index.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/articles/overview_vignette.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/articles/read_data_vignette.html</loc></url>
@@ -10,9 +11,6 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/align.embeddings.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_alg.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.html</loc></url>
-<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_embeddings.html</loc></url>
-<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_pics.html</loc></url>
-<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_triplets.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_failed_catch.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_fast_responders.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_incomplete.html</loc></url>
@@ -25,6 +23,10 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.raster.from.png.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.tip.coords.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_emb_group.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_emb_ind.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_pics.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_triplets.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/index.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.tripnames.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.html</loc></url>
@@ -35,8 +37,13 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/process_choices.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_legacy.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/z.pred.mat.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/tripletTools_manual.html</loc></url>
 </urlset>

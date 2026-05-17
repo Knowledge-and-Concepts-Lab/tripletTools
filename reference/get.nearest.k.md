@@ -42,12 +42,11 @@ graph of such structure.
 
 ``` r
 
-emb <- cfd_embeddings[[10]] #Embedding for participant 10
+emb <- icon_emb_ind[[1]] #Embedding for participant 1
 fdists <- as.matrix(dist(emb)) #Compute pairwise distance matrix
-target <- "CFD-BF-002-004-HO"  #Name of target items
+target <- "fdfob"  #Name of target item
 
 #Return 5 items nearest to target:
 get.nearest.k(fdists, target, 5)
-#> [1] "CFD-BM-009-003-HO" "CFD-WF-001-009-HO" "CFD-BM-002-007-HO"
-#> [4] "CFD-BF-005-005-HO" "CFD-BM-038-007-HO"
+#> [1] "fdfyw" "fdfow" "fdmob" "fdmyb" "fnmob"
 ```

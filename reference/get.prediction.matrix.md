@@ -49,20 +49,12 @@ used to compute the embedding).
 ## Examples
 
 ``` r
-embpath <- system.file("extdata", "cfd36_embeddings_individual.csv", package = "tripletTools")
-tripath <- system.file("extdata", "cfd36_triplets_individual.csv", package = "tripletTools")
-
-#Get first five participants
-embs <- get.combined(embpath, eflag=TRUE)[1:5]
-trips <- get.combined(tripath, eflag = FALSE)[1:5]
-
-pmat <- get.prediction.matrix(embs, trips, ttype="test")
-
+pmat <- get.prediction.matrix(icon_emb_ind, icon_triplets)
 pmat
-#>           78972     78103     77827     79088     79377
-#> 78972 0.8277512 0.5916230 0.4787234 0.5485437 0.6648045
-#> 78103 0.5119617 0.7905759 0.7659574 0.8058252 0.6759777
-#> 77827 0.5167464 0.7277487 0.7978723 0.8252427 0.5642458
-#> 79088 0.5215311 0.7172775 0.7765957 0.8689320 0.5977654
-#> 79377 0.6363636 0.6858639 0.5904255 0.6456311 0.7318436
+#>          3n7ggxph b5wma4no  d8mmm1qn  jn7bbjc0  pbby694o
+#> 3n7ggxph   0.6875     0.84 0.9230769 0.6521739 0.5757576
+#> b5wma4no   0.6875     0.84 0.7692308 0.8260870 0.6363636
+#> d8mmm1qn   0.7500     0.76 0.8461538 0.6086957 0.6363636
+#> jn7bbjc0   0.8125     0.80 0.6923077 0.7391304 0.6666667
+#> pbby694o   0.6875     0.68 0.6153846 0.5652174 0.8181818
 ```

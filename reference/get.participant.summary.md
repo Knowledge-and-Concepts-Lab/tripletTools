@@ -66,16 +66,13 @@ fpath <- system.file("extdata", "cfd36_triplets_individual.csv", package = "trip
 
 #Read the data
 trips <- get.combined(fpath)
+#> Warning: file("") only supports open = "w+" and open = "w+b": using the former
+#> Error in read.table(file = file, header = header, sep = sep, quote = quote,     dec = dec, fill = fill, comment.char = comment.char, ...): no lines available in input
 
 #Compute summary
 part.summary <- get.participant.summary(trips)
+#> Error: object 'trips' not found
 
 head(part.summary)
-#>   tripfile worker_id ndat         lrt      cacc  keep
-#> 1    78972     78972 1012  0.77807851 1.0000000  TRUE
-#> 2    78103     78103 1012  0.54139779 1.0000000  TRUE
-#> 3    77827     77827 1012  0.58263855 0.9818182  TRUE
-#> 4    79088     79088 1012  0.84922012 1.0000000  TRUE
-#> 5    79377     79377 1012  0.27563052 0.9242424  TRUE
-#> 6    80900     80900 1012 -0.09235084 0.8181818 FALSE
+#> Error: object 'part.summary' not found
 ```

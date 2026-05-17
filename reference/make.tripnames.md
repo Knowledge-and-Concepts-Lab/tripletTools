@@ -30,12 +30,9 @@ consistency on validation trials.
 ## Examples
 
 ``` r
-trips <- cfd_triplets[[10]] #Triplet data for participant 10
+trips <- icon_triplets[[1]] #Triplet data for participant 1
 tnames <- make.tripnames(trips) #Make triplet names
 tnames[1:5] #Names of first five triplets
-#> [1] "CFD-WF-026-008-A_CFD-WM-023-012-A_CFD-WM-033-014-A"   
-#> [2] "CFD-BM-002-016-A_CFD-WM-023-012-A_CFD-WM-038-011-A"   
-#> [3] "CFD-BM-038-007-HO_CFD-BF-002-004-HO_CFD-BF-050-004-HO"
-#> [4] "CFD-WM-038-018-F_CFD-WF-020-027-F_CFD-WF-026-024-F"   
-#> [5] "CFD-BM-002-002-F_CFD-BM-009-008-A_CFD-BM-038-007-HO"  
+#> [1] "pnhns_pdcos_pncnb" "fnmyb_fdfob_pncnb" "pnhob_pdcos_pncnb"
+#> [4] "pdcns_fnmob_fnmow" "pnhns_fnfob_fnfow"
 ```

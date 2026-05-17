@@ -34,39 +34,40 @@ library(tripletTools)
 
 ## The example dataset
 
-The package includes three objects from a triplet study on 36 face
-images drawn from the Chicago Face Dataset. The faces varied in
-perceived gender (male/female), race (Black/White), and emotional
-expression (happy, fearful, angry). Thirty-nine participants each judged
-approximately 1,000 triplets online.
+The package includes objects from a triplet study on 32 icon images of
+faces and buildings. The icons varied in category (face/building), time
+of day (day/night), and additional features (gender and race for faces;
+size and kind for buildings). Five participants each judged
+approximately 230 triplets online.
 
 | Object | Description |
 |----|----|
-| `cfd_triplets` | Named list of 39 data frames, one per participant, containing trial-by-trial judgments |
-| `cfd_embeddings` | Named list of 39 matrices, one per participant, containing 2-D embedding coordinates |
-| `cfd_pics` | Named list of 36 PNG images, one per stimulus face |
+| `icon_triplets` | Named list of 5 data frames, one per participant, containing trial-by-trial judgments |
+| `icon_emb_ind` | Named list of 5 matrices, one per participant, containing 3-D embedding coordinates |
+| `icon_emb_group` | Single data frame containing a 3-D group embedding |
+| `icon_pics` | Named list of 32 PNG images, one per stimulus icon |
 
 ### Triplet data
 
-Each element of `cfd_triplets` is one participant’s trial data:
+Each element of `icon_triplets` is one participant’s trial data:
 
 ``` r
 
-head(cfd_triplets[[1]])
-#>   head winner loser worker_id   rt            Center              Left
-#> 1   15      6     0     78972 8728 CFD-BM-038-007-HO CFD-BF-002-004-HO
-#> 2   29     31    33     78972 9946  CFD-WM-023-015-F  CFD-WM-033-014-A
-#> 3   11     28    34     78972 6598  CFD-BM-002-016-A  CFD-WM-023-012-A
-#> 4   32     14    16     78972 4908  CFD-WM-033-053-F  CFD-BM-009-009-F
-#> 5   24     31    28     78972 8271  CFD-WF-026-008-A  CFD-WM-033-014-A
-#> 6    2     23    20     78972 8812  CFD-BF-002-022-F  CFD-WF-001-027-F
-#>               Right            Answer  sampleAlg sampleSet
-#> 1 CFD-BF-050-004-HO CFD-BF-050-004-HO validation     train
-#> 2 CFD-WM-038-005-HO  CFD-WM-033-014-A validation     train
-#> 3  CFD-WM-038-011-A  CFD-WM-023-012-A validation     train
-#> 4  CFD-BM-038-017-F  CFD-BM-009-009-F validation     train
-#> 5  CFD-WM-023-012-A  CFD-WM-033-014-A validation     train
-#> 6  CFD-WF-020-027-F  CFD-WF-020-027-F validation     train
+head(icon_triplets[[1]])
+#>   X head winner loser worker_id   rt Center  Left Right Answer  sampleAlg
+#> 1 1   29     24    19  3n7ggxph 3096  pnhns pncnb pdcos  pncnb     random
+#> 2 2   14      0    24  3n7ggxph 1100  fnmyb fdfob pncnb  fdfob     random
+#> 3 3   30     19    24  3n7ggxph 2616  pnhob pncnb pdcos  pdcos     random
+#> 4 4   17     12    13  3n7ggxph 2629  pdcns fnmow fnmob  fnmob validation
+#> 5 5   29      9     8  3n7ggxph 2011  pnhns fnfow fnfob  fnfow     random
+#> 6 6   25     23    12  3n7ggxph 1498  pncns fnmob pdhos  pdhos     random
+#>   sampleSet
+#> 1     train
+#> 2     train
+#> 3     train
+#> 4     train
+#> 5     train
+#> 6     train
 ```
 
 The key columns are `Center` (the referent item), `Left` and `Right`
@@ -77,19 +78,19 @@ or held out for testing — `test`).
 
 ### Embedding data
 
-Each element of `cfd_embeddings` is a 36-row matrix of 2-D embedding
+Each element of `icon_emb_ind` is a 32-row matrix of 3-D embedding
 coordinates, with row names equal to stimulus names:
 
 ``` r
 
-head(cfd_embeddings[[1]])
-#>                       dim_0       dim_1
-#> CFD-BF-002-004-HO 0.3947823  0.16756907
-#> CFD-BF-002-018-A  0.4886511  0.08649993
-#> CFD-BF-002-022-F  0.2059984  0.10942531
-#> CFD-BF-005-005-HO 0.3141250  0.12844554
-#> CFD-BF-005-020-A  0.1804924 -0.31689260
-#> CFD-BF-005-022-F  0.1909470 -0.32095847
+head(icon_emb_ind[[1]])
+#>           dim_0     dim_1      dim_2
+#> fdfob 0.6411938 0.9710717 -0.9336048
+#> fdfow 0.5504593 0.9558654 -0.9130039
+#> fdfyb 0.2907846 0.6866032 -0.6360701
+#> fdfyw 0.5820549 0.9266087 -0.8992642
+#> fdmob 0.5776460 1.0081034 -0.8230091
+#> fdmow 0.7911357 0.4666237 -0.4759873
 ```
 
 ------------------------------------------------------------------------
@@ -104,21 +105,21 @@ an attention check), and mean log response time.
 
 ``` r
 
-psummary <- get.participant.summary(cfd_triplets)
+psummary <- get.participant.summary(icon_triplets, mintrial = 230)
 head(psummary)
-#>   tripfile worker_id ndat         lrt      cacc  keep
-#> 1    78972     78972 1012  0.77807851 1.0000000  TRUE
-#> 2    78103     78103 1012  0.54139779 1.0000000  TRUE
-#> 3    77827     77827 1012  0.58263855 0.9818182  TRUE
-#> 4    79088     79088 1012  0.84922012 1.0000000  TRUE
-#> 5    79377     79377 1012  0.27563052 0.9242424  TRUE
-#> 6    80900     80900 1012 -0.09235084 0.8181818 FALSE
+#>   tripfile worker_id ndat       lrt cacc keep
+#> 1 3n7ggxph  3n7ggxph  230 0.4961625    1 TRUE
+#> 2 b5wma4no  b5wma4no  230 0.9026607    1 TRUE
+#> 3 d8mmm1qn  d8mmm1qn  230 0.5051381    1 TRUE
+#> 4 jn7bbjc0  jn7bbjc0  230 0.6958144    1 TRUE
+#> 5 pbby694o  pbby694o  230 0.6679493    1 TRUE
 ```
 
-The output includes a `pass` column flagging participants who fall below
-the specified thresholds (by default: at least 1,000 trials, check-trial
-accuracy ≥ 0.80, mean log RT \> 0). Participants failing these criteria
-should be reviewed before including their data in downstream analyses.
+The output includes a `keep` column flagging participants who fall below
+the specified thresholds (the specified minimum number of trials,
+check-trial accuracy ≥ 0.80, mean log RT \> 0). Participants failing
+these criteria should be reviewed before including their data in
+downstream analyses.
 
 ------------------------------------------------------------------------
 
@@ -135,24 +136,17 @@ of participants who agreed with that majority.
 
 ``` r
 
-vmat <- make.vmat(cfd_triplets)
+vmat <- make.vmat(icon_triplets)
 
 # One row per unique validation triplet
 head(vmat$majority)
-#>                                                 triplet          majority
-#> 1   CFD-BF-002-004-HO_CFD-BF-005-020-A_CFD-BF-050-036-F  CFD-BF-050-036-F
-#> 2    CFD-BF-002-022-F_CFD-WF-001-027-F_CFD-WF-020-027-F  CFD-WF-020-027-F
-#> 3    CFD-BF-005-022-F_CFD-BM-002-002-F_CFD-BM-009-009-F  CFD-BM-009-009-F
-#> 4   CFD-BM-002-002-F_CFD-BM-009-008-A_CFD-BM-038-007-HO  CFD-BM-009-008-A
-#> 5    CFD-BM-002-016-A_CFD-WM-023-012-A_CFD-WM-038-011-A  CFD-WM-023-012-A
-#> 6 CFD-BM-038-007-HO_CFD-BF-002-004-HO_CFD-BF-050-004-HO CFD-BF-050-004-HO
-#>        pmaj
-#> 1 0.5897436
-#> 2 0.6666667
-#> 3 0.7692308
-#> 4 0.6153846
-#> 5 0.7179487
-#> 6 0.5897436
+#>             triplet majority pmaj
+#> 1 fdfow_fnmyb_pdhos    fnmyb 1.00
+#> 2 fdmob_fdfow_pnhob    fdfow 1.00
+#> 3 fdmob_fdmow_fdmyb    fdmyb 0.75
+#> 4 fdmob_fnmob_pdcos    fnmob 1.00
+#> 5 fdmow_fdmyw_fnfyw    fdmyw 1.00
+#> 6 fdmow_fnfyw_pncnb    fnfyw 1.00
 ```
 
 The `pmaj` column shows the proportion of participants who agreed with
@@ -194,7 +188,7 @@ abline(h = 0.5, lty = 2)
 
 ![](overview_vignette_files/figure-html/vmat-mean-1.png)
 
-Participants vary quite a bit as to how well they agree with the
+Participants can vary quite a bit as to how well they agree with the
 majority vote, indicating potential individual differences in how people
 view these stimuli.
 
@@ -208,21 +202,22 @@ the faces are organized in the learned similarity space.
 
 ``` r
 
-emb1 <- cfd_embeddings[[1]]
+emb1 <- icon_emb_ind[[1]]
 
-plot_pics(emb1, cfd_pics,
+plot_pics(emb1[,1:2], icon_pics,
           psize = 0.04,
           xlab  = "Dimension 1",
           ylab  = "Dimension 2",
           main  = "Embedding – participant 1")
 ```
 
-![2-D embedding for participant 1, with face images as
-points.](overview_vignette_files/figure-html/plot-emb-1.png)
+![3-D embedding for participant 1, with icon images as points (first two
+dimensions shown).](overview_vignette_files/figure-html/plot-emb-1.png)
 
-2-D embedding for participant 1, with face images as points.
+3-D embedding for participant 1, with icon images as points (first two
+dimensions shown).
 
-Faces that appear close together were frequently judged as similar to
+Icons that appear close together were frequently judged as similar to
 one another by this participant.
 
 ------------------------------------------------------------------------
@@ -240,9 +235,9 @@ embedding’s prediction matches the participant’s answer:
 
 ``` r
 
-acc1 <- get.hoacc(cfd_embeddings[[1]], cfd_triplets[[1]])
+acc1 <- get.hoacc(icon_emb_ind[[1]], icon_triplets[[1]])
 cat("Hold-out prediction accuracy (participant 1):", round(acc1, 3), "\n")
-#> Hold-out prediction accuracy (participant 1): 0.828
+#> Hold-out prediction accuracy (participant 1): 0.688
 ```
 
 Chance performance is 0.50. Values above approximately 0.60 are
@@ -253,10 +248,10 @@ specific errors or compute accuracy on any subset of trials:
 
 ``` r
 
-result     <- test.model(cfd_embeddings[[1]], cfd_triplets[[1]])
+result     <- test.model(icon_emb_ind[[1]], icon_triplets[[1]])
 test_rows  <- result$sampleSet == "test"
 mean(result$ModPred[test_rows] == result$Answer[test_rows], na.rm=TRUE)
-#> [1] 0.8277512
+#> [1] 0.6875
 ```
 
 ### Prediction strength
@@ -272,17 +267,17 @@ should also be the trials where participants agree most strongly. We can
 test this using the validation trials, for which we have an
 inter-subject agreement measure. *NOTE*: typically one would evaluate
 this for a group embedding, since validation statistics are computed
-across the whole group. This release does not contain a group embedding
-of the stimuli, so we will illustrate using the embedding from
-Participant 1:
+across the whole group. Here we illustrate using the individual
+embedding from Participant 1; see `icon_emb_group` for the group
+embedding of these stimuli:
 
 ``` r
 
 # Validation trials for participant 1
-vtrips <- subset(cfd_triplets[[1]], sampleAlg == "validation")
+vtrips <- subset(icon_triplets[[1]], sampleAlg == "validation")
 
 # Prediction strength from participant 1's embedding
-pstrength <- model.strength(cfd_embeddings[[1]], vtrips)
+pstrength <- model.strength(icon_emb_ind[[1]], vtrips)
 
 # Locate matching inter-subject agreement values
 tnames  <- make.tripnames(vtrips)
@@ -296,6 +291,8 @@ plot(pstrength, pmaj,
      pch  = 16, col = rgb(0, 0, 0.8, 0.4),
      main = "Strength vs. inter-subject agreement")
 abline(lm(pmaj ~ pstrength), col = "red")
+
+text(.5, .96, paste("r =", round(cor(pstrength, pmaj, use = "complete.obs"), 3)), adj = 0)
 ```
 
 ![Embedding prediction strength vs. inter-subject agreement on
@@ -305,18 +302,8 @@ trials.](overview_vignette_files/figure-html/model-strength-1.png)
 Embedding prediction strength vs. inter-subject agreement on validation
 trials.
 
-``` r
-
-
-cat("Correlation:", round(cor(pstrength, pmaj, use = "complete.obs"), 3), "\n")
-#> Correlation: 0.561
-```
-
 A positive correlation indicates that the embedding correctly identifies
-which triplets have clearer, more consistent answers. Note though that
-there are 2 items with low agreement where Participant 1’s embedding
-suggests a clear answer. These may be items where Participant 1’s mental
-representations differ from the group.
+which triplets have clearer, more consistent answers.
 
 ------------------------------------------------------------------------
 
@@ -333,20 +320,19 @@ their judgments better than another participant’s embedding does.
 
 ``` r
 
-pmat <- get.prediction.matrix(cfd_embeddings, cfd_triplets)
+pmat <- get.prediction.matrix(icon_emb_ind, icon_triplets)
 ```
 
-The result is a 39 × 39 matrix. Entry \[i, j\] is the accuracy with
-which participant i’s embedding predicts participant j’s held-out
-judgments. The diagonal contains each participant’s *self-prediction*
-accuracy.
+The result is a 5 × 5 matrix. Entry \[i, j\] is the accuracy with which
+participant i’s embedding predicts participant j’s held-out judgments.
+The diagonal contains each participant’s *self-prediction* accuracy.
 
 ``` r
 
 cat("Mean self-prediction accuracy:  ", round(mean(diag(pmat)), 3), "\n")
-#> Mean self-prediction accuracy:   0.773
+#> Mean self-prediction accuracy:   0.786
 cat("Mean other-prediction accuracy: ", round(mean(pmat[row(pmat) != col(pmat)]), 3), "\n")
-#> Mean other-prediction accuracy:  0.645
+#> Mean other-prediction accuracy:  0.709
 ```
 
 `z.pred.mat` converts each diagonal entry to a z-score relative to the
@@ -359,9 +345,9 @@ participants’ embeddings:
 zscores <- z.pred.mat(pmat)
 
 cat("Mean z-score of self-prediction:", round(mean(zscores, na.rm = TRUE), 3), "\n")
-#> Mean z-score of self-prediction: 1.94
+#> Mean z-score of self-prediction: 1.21
 cat("Proportion with positive z-score:", round(mean(zscores > 0, na.rm = TRUE), 3), "\n")
-#> Proportion with positive z-score: 1
+#> Proportion with positive z-score: 0.6
 ```
 
 If z-scores are reliably positive across participants, this is evidence
@@ -380,7 +366,7 @@ distance.
 
 ``` r
 
-repdist <- get.rep.dist(cfd_embeddings)
+repdist <- get.rep.dist(icon_emb_ind)
 ```
 
 We can cluster participants by their representational distances using
@@ -391,15 +377,15 @@ standard hierarchical clustering:
 #Compute hierarchical cluster tree:
 hc     <- hclust(as.dist(repdist), method = "ward.D") 
 
-#Cut tree into 3 clusters:
-clusts <- cutree(hc, k = 3)
+#Cut tree into 2 clusters:
+clusts <- cutree(hc, k = 2)
 
 #Plot tree and highlight groups created by cutting:
 plot(hc,
      labels = FALSE,
      main   = "Participant clustering by representational distance",
      xlab   = "", sub = "")
-rect.hclust(hc, k = 3, border = c("tomato", "steelblue", "seagreen"))
+rect.hclust(hc, k = 2, border = c("tomato", "steelblue"))
 ```
 
 ![Participants clustered by pairwise representational
@@ -414,11 +400,11 @@ returns a mean embedding for each group:
 
 ``` r
 
-mn_by_clust <- get.group.list.mean(cfd_embeddings, clusts)
+mn_by_clust <- get.group.list.mean(icon_emb_ind, clusts)
 ```
 
 Plotting each cluster’s mean embedding shows whether different groups of
-participants organized the faces in qualitatively different ways:
+participants organized the icons in qualitatively different ways:
 
 ``` r
 
@@ -426,45 +412,30 @@ participants organized the faces in qualitatively different ways:
 dmat <- mn_by_clust[[1]] #Copy data matrix
 dmat <- dmat / max(abs(dmat)) #Max scaling
 
-tripletTools::plot_pics(dmat, cfd_pics, psize = 0.04,
+tripletTools::plot_pics(dmat, icon_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
           main = "Cluster 1 – mean embedding")
 ```
 
-![Mean 2-D embedding for cluster
-1.](overview_vignette_files/figure-html/plot-cluster-1-1.png)
+![Mean embedding for cluster 1 (first two
+dimensions).](overview_vignette_files/figure-html/plot-cluster-1-1.png)
 
-Mean 2-D embedding for cluster 1.
+Mean embedding for cluster 1 (first two dimensions).
 
 ``` r
 
 dmat <- mn_by_clust[[2]] #Copy data matrix
 dmat <- dmat / max(abs(dmat)) #Max scaling
 
-tripletTools::plot_pics(dmat, cfd_pics, psize = 0.04,
+tripletTools::plot_pics(dmat, icon_pics, psize = 0.04,
           xlab = "Dimension 1", ylab = "Dimension 2",
           main = "Cluster 2 – mean embedding")
 ```
 
-![Mean 2-D embedding for cluster
-2.](overview_vignette_files/figure-html/plot-cluster-2-1.png)
+![Mean embedding for cluster 2 (first two
+dimensions).](overview_vignette_files/figure-html/plot-cluster-2-1.png)
 
-Mean 2-D embedding for cluster 2.
-
-``` r
-
-dmat <- mn_by_clust[[3]] #Copy data matrix
-dmat <- dmat / max(abs(dmat)) #Max scaling
-
-tripletTools::plot_pics(dmat, cfd_pics, psize = 0.04,
-          xlab = "Dimension 1", ylab = "Dimension 2",
-          main = "Cluster 3 – mean embedding")
-```
-
-![Mean 2-D embedding for cluster
-3.](overview_vignette_files/figure-html/plot-cluster-3-1.png)
-
-Mean 2-D embedding for cluster 3.
+Mean embedding for cluster 2 (first two dimensions).
 
 ------------------------------------------------------------------------
 
@@ -480,13 +451,12 @@ matrix:
 
 pbc <- pacc.by.cluster(pmat, clusts, samediff = TRUE)
 head(pbc)
-#>            self      same     other
-#> 78972 0.8277512 0.6378537 0.5655075
-#> 78103 0.7905759 0.7171650 0.6191163
-#> 77827 0.7978723 0.7125801 0.5680150
-#> 79088 0.8689320 0.7015275 0.5672868
-#> 79377 0.7318436 0.6550033 0.6279852
-#> 80900 0.6415929 0.6588715 0.5804772
+#>               self      same     other
+#> 3n7ggxph 0.6875000 0.8050836 0.5757576
+#> b5wma4no 0.8400000 0.7609392 0.6363636
+#> d8mmm1qn 0.8461538 0.7062319 0.6363636
+#> jn7bbjc0 0.7391304 0.7682692 0.6666667
+#> pbby694o 0.8181818       NaN 0.6370255
 ```
 
 Each row is one participant. The three columns give prediction accuracy
@@ -497,7 +467,7 @@ embeddings, and (3) the mean of participants outside their cluster.
 
 round(colMeans(pbc), 3)
 #>  self  same other 
-#> 0.773 0.675 0.585
+#> 0.786   NaN 0.630
 ```
 
 We can show the mean and 95% confidence interval of these values across
@@ -533,26 +503,28 @@ embedding, a hierarchical cluster tree with face images at the leaves
 can be more informative than a 2-D scatterplot — especially for
 higher-dimensional embeddings. `get.tip.coords` retrieves the tip
 coordinates of a phylogram plot, allowing `plot_pics` to place images at
-the correct positions.
+the correct positions. In this case we will visualize the hierarchical
+cluster plot of the single embedding computed from the full group of
+participants (icon_emb_group).
 
 ``` r
 
-hc_emb <- hclust(dist(cfd_embeddings[[1]]), method = "ward.D")
+hc_emb <- hclust(dist(icon_emb_group[,1:3]), method = "ward.D2")
 pt     <- ape::as.phylo(hc_emb)
 
 plot(pt, type = "fan", show.tip.label = FALSE,
-     main = "Face similarity tree – participant 1")
+     main = "Icon similarity tree – group")
 
 tip_coords <- get.tip.coords()
-plot_pics(tip_coords, cfd_pics, newplot = FALSE, psize = 0.04)
+plot_pics(tip_coords, icon_pics, newplot = FALSE, psize = 0.04)
 ```
 
-![Similarity tree for participant 1, with face images at the
+![Similarity tree for participant 1, with icon images at the
 leaves.](overview_vignette_files/figure-html/tree-plot-1.png)
 
-Similarity tree for participant 1, with face images at the leaves.
+Similarity tree for participant 1, with icon images at the leaves.
 
-Faces on nearby branches were judged as similar by this participant.
+Icons on nearby branches were judged as similar by this participant.
 
 ------------------------------------------------------------------------
 

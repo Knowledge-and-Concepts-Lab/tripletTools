@@ -55,25 +55,25 @@ function `get_combined(fname)` where `fname` is the path to the data
 file. This function returns a named list, where each element includes
 the triplet judgment data from a single subject, and elements are named
 by the subject identified. This package includes an example dataset in
-this format, `cfd_triplets`:
+this format, `icon_triplets`:
 
 ``` r
 
-head(cfd_triplets[[1]])
-#>   head winner loser worker_id   rt            Center              Left
-#> 1   15      6     0     78972 8728 CFD-BM-038-007-HO CFD-BF-002-004-HO
-#> 2   29     31    33     78972 9946  CFD-WM-023-015-F  CFD-WM-033-014-A
-#> 3   11     28    34     78972 6598  CFD-BM-002-016-A  CFD-WM-023-012-A
-#> 4   32     14    16     78972 4908  CFD-WM-033-053-F  CFD-BM-009-009-F
-#> 5   24     31    28     78972 8271  CFD-WF-026-008-A  CFD-WM-033-014-A
-#> 6    2     23    20     78972 8812  CFD-BF-002-022-F  CFD-WF-001-027-F
-#>               Right            Answer  sampleAlg sampleSet
-#> 1 CFD-BF-050-004-HO CFD-BF-050-004-HO validation     train
-#> 2 CFD-WM-038-005-HO  CFD-WM-033-014-A validation     train
-#> 3  CFD-WM-038-011-A  CFD-WM-023-012-A validation     train
-#> 4  CFD-BM-038-017-F  CFD-BM-009-009-F validation     train
-#> 5  CFD-WM-023-012-A  CFD-WM-033-014-A validation     train
-#> 6  CFD-WF-020-027-F  CFD-WF-020-027-F validation     train
+head(icon_triplets[[1]])
+#>   X head winner loser worker_id   rt Center  Left Right Answer  sampleAlg
+#> 1 1   29     24    19  3n7ggxph 3096  pnhns pncnb pdcos  pncnb     random
+#> 2 2   14      0    24  3n7ggxph 1100  fnmyb fdfob pncnb  fdfob     random
+#> 3 3   30     19    24  3n7ggxph 2616  pnhob pncnb pdcos  pdcos     random
+#> 4 4   17     12    13  3n7ggxph 2629  pdcns fnmow fnmob  fnmob validation
+#> 5 5   29      9     8  3n7ggxph 2011  pnhns fnfow fnfob  fnfow     random
+#> 6 6   25     23    12  3n7ggxph 1498  pncns fnmob pdhos  pdhos     random
+#>   sampleSet
+#> 1     train
+#> 2     train
+#> 3     train
+#> 4     train
+#> 5     train
+#> 6     train
 ```
 
 Here you can see the triplet judgment data for each trial for the first
@@ -86,23 +86,20 @@ You can see all the subject labels as follows:
 
 ``` r
 
-names(cfd_triplets)
-#>  [1] "78972" "78103" "77827" "79088" "79377" "80900" "81492" "81753" "81157"
-#> [10] "78375" "79564" "81964" "79666" "79497" "79363" "77536" "81416" "82291"
-#> [19] "78399" "78416" "81182" "82531" "79471" "81233" "82327" "79457" "79996"
-#> [28] "77641" "78808" "80093" "81270" "79549" "78864" "79882" "79672" "79060"
-#> [37] "78383" "78332" "79028"
+names(icon_triplets)
+#> [1] "3n7ggxph" "b5wma4no" "d8mmm1qn" "jn7bbjc0" "pbby694o"
 ```
 
 To learn more about this dataset, try
-[`help(cfd_triplets)`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/cfd_triplets.md).
+[`help(icon_triplets)`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_triplets.md).
 
 ### Embedding data
 
 Embedding data are `.csv` files containing embedding coordinates for
 each stimulus item in the study. Depending on the study, there may be a
 single *group embedding* computed from a group of participants, or
-*individual embeddings* computed separately for each participant.
+*individual embeddings* computed separately for each participant, or
+both.
 
 In both cases the `.csv` file must contain columns with the following
 labels:
@@ -127,28 +124,28 @@ R:
 
 For studies with separate embeddings computed for each participant, use
 the `get.combined` function to read the data, setting the `eflag` flag
-to `TRUE`:
+to `TRUE` to indicate these are embeddings:
 
     indemb <- get.combined("filename.csv", eflag = TRUE)
 
 As with triplet data, this will create a named list where each element
 contains the embedding information computed for one participant. The
 elements are labeled by the participant id (`worker_id`). The
-`cfd_embeddings` object contains a list of the kind returned by this
+`icon_emb_ind` object contains a list of the kind returned by this
 function:
 
 ``` r
 
-head(cfd_embeddings[[1]])
-#>                       dim_0       dim_1
-#> CFD-BF-002-004-HO 0.3947823  0.16756907
-#> CFD-BF-002-018-A  0.4886511  0.08649993
-#> CFD-BF-002-022-F  0.2059984  0.10942531
-#> CFD-BF-005-005-HO 0.3141250  0.12844554
-#> CFD-BF-005-020-A  0.1804924 -0.31689260
-#> CFD-BF-005-022-F  0.1909470 -0.32095847
+head(icon_emb_ind[[1]])
+#>           dim_0     dim_1      dim_2
+#> fdfob 0.6411938 0.9710717 -0.9336048
+#> fdfow 0.5504593 0.9558654 -0.9130039
+#> fdfyb 0.2907846 0.6866032 -0.6360701
+#> fdfyw 0.5820549 0.9266087 -0.8992642
+#> fdmob 0.5776460 1.0081034 -0.8230091
+#> fdmow 0.7911357 0.4666237 -0.4759873
 ```
 
 The row names indicate the stimulus identity and the entries indicate
-the coordinates of the stimulus along the first (dim_0) and second
-(dim_1) dimensions of the embedding.
+the coordinates of the stimulus along the first (dim_0), second (dim_1),
+and third (dim_2) dimensions of the embedding.
