@@ -66,5 +66,5 @@ pbc <- pacc.by.cluster(pacc, clusts, samediff=TRUE)
 
 colMeans(pbc)
 #>      self      same     other 
-#> 0.7732426 0.6747763 0.5941669 
+#> 0.7732426 0.6747763 0.5845730 
 ```

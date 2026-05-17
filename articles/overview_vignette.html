@@ -396,7 +396,7 @@ other participants’ embeddings:</p>
 <code class="sourceCode R"><span><span class="va">zscores</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/z.pred.mat.html">z.pred.mat</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Mean z-score of self-prediction:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">zscores</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Mean z-score of self-prediction: 2.358</span></span>
+<span><span class="co">#&gt; Mean z-score of self-prediction: 1.94</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Proportion with positive z-score:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">zscores</span> <span class="op">&gt;</span> <span class="fl">0</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Proportion with positive z-score: 1</span></span></code></pre></div>
 <p>If z-scores are reliably positive across participants, this is
@@ -495,12 +495,12 @@ prediction matrix:</p>
 <code class="sourceCode R"><span><span class="va">pbc</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/pacc.by.cluster.html">pacc.by.cluster</a></span><span class="op">(</span><span class="va">pmat</span>, <span class="va">clusts</span>, samediff <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">pbc</span><span class="op">)</span></span>
 <span><span class="co">#&gt;            self      same     other</span></span>
-<span><span class="co">#&gt; 78972 0.8277512 0.6842105 0.5259171</span></span>
-<span><span class="co">#&gt; 78103 0.7905759 0.6862250 0.6387435</span></span>
-<span><span class="co">#&gt; 77827 0.7978723 0.7329420 0.5638298</span></span>
-<span><span class="co">#&gt; 79088 0.8689320 0.7566120 0.5943905</span></span>
-<span><span class="co">#&gt; 79377 0.7318436 0.6636872 0.6084307</span></span>
-<span><span class="co">#&gt; 80900 0.6415929 0.6109246 0.5373648</span></span></code></pre></div>
+<span><span class="co">#&gt; 78972 0.8277512 0.6378537 0.5655075</span></span>
+<span><span class="co">#&gt; 78103 0.7905759 0.7171650 0.6191163</span></span>
+<span><span class="co">#&gt; 77827 0.7978723 0.7125801 0.5680150</span></span>
+<span><span class="co">#&gt; 79088 0.8689320 0.7015275 0.5672868</span></span>
+<span><span class="co">#&gt; 79377 0.7318436 0.6550033 0.6279852</span></span>
+<span><span class="co">#&gt; 80900 0.6415929 0.6588715 0.5804772</span></span></code></pre></div>
 <p>Each row is one participant. The three columns give prediction
 accuracy from (1) their own embedding, (2) the mean of their
 cluster-mates’ embeddings, and (3) the mean of participants outside
@@ -508,7 +508,7 @@ their cluster.</p>
 <div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="va">pbc</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  self  same other </span></span>
-<span><span class="co">#&gt; 0.773 0.675 0.594</span></span></code></pre></div>
+<span><span class="co">#&gt; 0.773 0.675 0.585</span></span></code></pre></div>
 <p>We can show the mean and 95% confidence interval of these values
 across participants as a ribbon plot:</p>
 <div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">

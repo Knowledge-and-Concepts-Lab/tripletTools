@@ -359,7 +359,7 @@ participants’ embeddings:
 zscores <- z.pred.mat(pmat)
 
 cat("Mean z-score of self-prediction:", round(mean(zscores, na.rm = TRUE), 3), "\n")
-#> Mean z-score of self-prediction: 2.358
+#> Mean z-score of self-prediction: 1.94
 cat("Proportion with positive z-score:", round(mean(zscores > 0, na.rm = TRUE), 3), "\n")
 #> Proportion with positive z-score: 1
 ```
@@ -481,12 +481,12 @@ matrix:
 pbc <- pacc.by.cluster(pmat, clusts, samediff = TRUE)
 head(pbc)
 #>            self      same     other
-#> 78972 0.8277512 0.6842105 0.5259171
-#> 78103 0.7905759 0.6862250 0.6387435
-#> 77827 0.7978723 0.7329420 0.5638298
-#> 79088 0.8689320 0.7566120 0.5943905
-#> 79377 0.7318436 0.6636872 0.6084307
-#> 80900 0.6415929 0.6109246 0.5373648
+#> 78972 0.8277512 0.6378537 0.5655075
+#> 78103 0.7905759 0.7171650 0.6191163
+#> 77827 0.7978723 0.7125801 0.5680150
+#> 79088 0.8689320 0.7015275 0.5672868
+#> 79377 0.7318436 0.6550033 0.6279852
+#> 80900 0.6415929 0.6588715 0.5804772
 ```
 
 Each row is one participant. The three columns give prediction accuracy
@@ -497,7 +497,7 @@ embeddings, and (3) the mean of participants outside their cluster.
 
 round(colMeans(pbc), 3)
 #>  self  same other 
-#> 0.773 0.675 0.594
+#> 0.773 0.675 0.585
 ```
 
 We can show the mean and 95% confidence interval of these values across
