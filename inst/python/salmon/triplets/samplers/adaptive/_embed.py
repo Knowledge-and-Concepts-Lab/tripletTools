@@ -19,6 +19,17 @@ from salmon.utils import get_logger
 logger = get_logger(__name__)
 
 
+def _auto_device(device=None):
+    """Return the best available device when device is None."""
+    if device is not None:
+        return device
+    if torch.cuda.is_available():
+        return "cuda"
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
 class Reduce:
     def __call__(self, input: torch.Tensor, target=None) -> torch.Tensor:
         return torch.sum(input)
@@ -44,6 +55,7 @@ class Embedding(BaseEstimator):
         warm_start=True,
         max_epochs=100,
         initial_batch_size=512,
+        device=None,
         **kwargs,
     ):
         """
@@ -74,6 +86,7 @@ class Embedding(BaseEstimator):
         self.warm_start = warm_start
         self.max_epochs = max_epochs
         self.initial_batch_size = initial_batch_size
+        self.device = device
         self.kwargs = kwargs
 
     def initialize(self, embedding: Optional[np.ndarray] = None):
@@ -84,6 +97,8 @@ class Embedding(BaseEstimator):
         self.initialized_ = True
         self.answers_ = np.zeros((1000, 3), dtype="uint16")
 
+        device = _auto_device(self.device)
+        self.device_ = device
         self.net_ = NeuralNet(
             module=self.module,
             module__n=self.module__n,
@@ -97,6 +112,7 @@ class Embedding(BaseEstimator):
             max_epochs=self.max_epochs,
             train_split=None,
             dataset=NumpyDataset,
+            device=device,
         ).initialize()
         if embedding is not None:
             if not isinstance(embedding, np.ndarray):
@@ -175,7 +191,7 @@ class Embedding(BaseEstimator):
             sample_weight = torch.from_numpy(sample_weight)
         while True:
             idx_train = self.get_train_idx(self.meta_["num_answers"])
-            train_ans = torch.from_numpy(answers[idx_train].astype("int64"))
+            train_ans = torch.from_numpy(answers[idx_train].astype("int64")).to(self.device_)
             losses = self.module_.forward(train_ans)
 
             if sample_weight is not None:
@@ -224,7 +240,7 @@ class Embedding(BaseEstimator):
     def _score(self, answers, y=None):
         with torch.no_grad():
             win2, lose2 = self.module_._get_dists(answers)
-            acc = (win2 < lose2).numpy().astype("float32").mean().item()
+            acc = (win2 < lose2).cpu().numpy().astype("float32").mean().item()
         return acc
 
     def fit(self, X, y=None):
@@ -239,7 +255,7 @@ class Embedding(BaseEstimator):
         return self
 
     def embedding(self) -> np.ndarray:
-        return self.net_.module_._embedding.detach().numpy()
+        return self.net_.module_._embedding.detach().cpu().numpy()
 
     @property
     def embedding_(self) -> np.ndarray:
@@ -265,10 +281,10 @@ class GD(Embedding):
 
 
 class OGD(Embedding):
-    def __init__(self, dwell=None, initial_batch_size=128, factor=2.0, **kwargs):
+    def __init__(self, dwell=None, initial_batch_size=128, factor=2.0, device=None, **kwargs):
         self.dwell = dwell
         self.factor = factor
-        super().__init__(initial_batch_size=initial_batch_size, **kwargs)
+        super().__init__(initial_batch_size=initial_batch_size, device=device, **kwargs)
 
     def get_train_idx(self, n_ans):
         bs = int(self.initial_batch_size)

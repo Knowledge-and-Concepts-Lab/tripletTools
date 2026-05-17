@@ -12,7 +12,8 @@ run_embeddings(
   max_epochs = 50000L,
   tolerance = 1e-04,
   tol_window = 10000L,
-  seed = 222L
+  seed = 222L,
+  device = NULL
 )
 }
 \arguments{
@@ -36,6 +37,10 @@ saved.  Created automatically if it does not already exist.}
 Default \code{10000}.}
 
 \item{seed}{Integer random seed for reproducibility.  Default \code{222}.}
+
+\item{device}{PyTorch device string, or \code{NULL} (default) to
+auto-select: CUDA GPU if available, then Apple MPS, then CPU.
+Pass \code{"cpu"} to force CPU even on a GPU machine.}
 }
 \value{
 A named list with two elements:

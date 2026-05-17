@@ -78,6 +78,7 @@ class TripletDist(nn.Module):
     def _get_dists(self, h_w_l):
         if isinstance(h_w_l, np.ndarray):
             h_w_l = torch.from_numpy(h_w_l.copy())
+        h_w_l = h_w_l.to(self._embedding.device)
         H_W_L = h_w_l.long().T
         h, w, l = H_W_L[0], H_W_L[1], H_W_L[2]
         heads = self._embedding[h]
@@ -146,7 +147,7 @@ class GNMDS(TripletDist):
     """
 
     def losses(self, win2, lose2):
-        zeros = torch.zeros(len(win2))
+        zeros = torch.zeros(len(win2), device=win2.device)
         return torch.max(zeros, win2 - lose2 + 1)
 
     def _probs(self, win2, lose2):
@@ -155,7 +156,7 @@ class GNMDS(TripletDist):
 
 class SOE(GNMDS):
     def losses(self, win2, lose2):
-        zeros = torch.zeros(len(win2))
+        zeros = torch.zeros(len(win2), device=win2.device)
         return torch.max(zeros, torch.sqrt(win2) - torch.sqrt(lose2) + 1)
 
 
@@ -167,6 +168,6 @@ class Logistic(GNMDS):
     """
 
     def losses(self, win2: torch.Tensor, lose2: torch.Tensor) -> torch.Tensor:
-        _pwrs = torch.cat((torch.tensor([0]), win2 - lose2))
-        loss = torch.logsumexp(_pwrs)
+        _pwrs = torch.cat((torch.tensor([0.0], device=win2.device), win2 - lose2))
+        loss = torch.logsumexp(_pwrs, dim=0)
         return loss

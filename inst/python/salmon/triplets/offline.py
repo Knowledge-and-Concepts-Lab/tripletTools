@@ -77,6 +77,7 @@ class OfflineEmbedding(BaseEstimator):
         ident="",
         noise_model="CKL",
         random_state=None,
+        device=None,
         **kwargs,
     ):
         self.opt = opt
@@ -87,6 +88,7 @@ class OfflineEmbedding(BaseEstimator):
         self.ident = ident
         self.noise_model = noise_model
         self.random_state = random_state
+        self.device = device
         self.kwargs = kwargs
 
     @property
@@ -140,6 +142,7 @@ class OfflineEmbedding(BaseEstimator):
                 module__random_state=self.random_state,
                 optimizer=optim.Adadelta,
                 max_epochs=self.max_epochs,
+                device=self.device,
             )
             kwargs.update(self.kwargs)
             opt = OGD(**kwargs)

@@ -26,6 +26,9 @@
 #' @param tol_window Epochs without improvement before early stopping triggers.
 #'   Default \code{10000}.
 #' @param seed Integer random seed for reproducibility.  Default \code{222}.
+#' @param device PyTorch device string, or \code{NULL} (default) to
+#'   auto-select: CUDA GPU if available, then Apple MPS, then CPU.
+#'   Pass \code{"cpu"} to force CPU even on a GPU machine.
 #'
 #' @return A named list with three elements:
 #' \describe{
@@ -58,7 +61,8 @@ run_group_embedding_from_list <- function(triplet_list,
                                           max_epochs = 50000L,
                                           tolerance  = 1e-4,
                                           tol_window = 10000L,
-                                          seed       = 222L) {
+                                          seed       = 222L,
+                                          device     = NULL) {
   set.seed(seed)
 
   # Collect and sort all item names for consistent zero-based indexing
@@ -101,7 +105,8 @@ run_group_embedding_from_list <- function(triplet_list,
     d          = d,
     max_epochs = max_epochs,
     tolerance  = tolerance,
-    tol_window = tol_window
+    tol_window = tol_window,
+    device     = device
   )
 
   colnames(out$embedding) <- paste0("dim_", seq_len(ncol(out$embedding)) - 1L)
@@ -163,6 +168,9 @@ run_group_embedding_from_list <- function(triplet_list,
 #' @param tol_window Epochs without improvement before early stopping triggers.
 #'   Default \code{10000}.
 #' @param seed Integer random seed for reproducibility.  Default \code{222}.
+#' @param device PyTorch device string, or \code{NULL} (default) to
+#'   auto-select: CUDA GPU if available, then Apple MPS, then CPU.
+#'   Pass \code{"cpu"} to force CPU even on a GPU machine.
 #'
 #' @return A named list with two elements:
 #' \describe{
@@ -197,7 +205,8 @@ run_embeddings <- function(input_file,
                            max_epochs = 50000L,
                            tolerance  = 1e-4,
                            tol_window = 10000L,
-                           seed       = 222L) {
+                           seed       = 222L,
+                           device     = NULL) {
   compute_py <- .get_compute_py()
 
   random <- reticulate::import("random")
@@ -210,7 +219,8 @@ run_embeddings <- function(input_file,
     d                    = as.integer(d),
     max_epochs           = as.integer(max_epochs),
     tolerance            = tolerance,
-    tol_window           = as.integer(tol_window)
+    tol_window           = as.integer(tol_window),
+    device               = device
   )
 
   list(
@@ -257,6 +267,9 @@ run_embeddings <- function(input_file,
 #' @param tol_window Epochs without improvement before early stopping triggers.
 #'   Default \code{10000}.
 #' @param seed Integer random seed for reproducibility.  Default \code{222}.
+#' @param device PyTorch device string, or \code{NULL} (default) to
+#'   auto-select: CUDA GPU if available, then Apple MPS, then CPU.
+#'   Pass \code{"cpu"} to force CPU even on a GPU machine.
 #'
 #' @return A named list with three elements:
 #' \describe{
@@ -297,7 +310,8 @@ run_embeddings_from_list <- function(triplet_list,
                                      max_epochs = 50000L,
                                      tolerance  = 1e-4,
                                      tol_window = 10000L,
-                                     seed       = 222L) {
+                                     seed       = 222L,
+                                     device     = NULL) {
   # Collect all item names across all participants and sort alphabetically
   all_items <- sort(unique(unlist(lapply(triplet_list, function(df) {
     c(df$Center, df$Left, df$Right)
@@ -336,7 +350,8 @@ run_embeddings_from_list <- function(triplet_list,
     max_epochs           = max_epochs,
     tolerance            = tolerance,
     tol_window           = tol_window,
-    seed                 = seed
+    seed                 = seed,
+    device               = device
   )
 
   emb_df <- result$embeddings

@@ -5,7 +5,7 @@ from salmon.triplets.offline import OfflineEmbedding
 import os
 
 
-def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000, print_every=100):
+def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000, print_every=100, device=None):
     """
     Train embedding model with early stopping based on test loss.
 
@@ -25,7 +25,7 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
     """
     n = int(max(X_train.max(), X_test.max()) + 1)  # number of targets
 
-    model = OfflineEmbedding(n=n, d=d, max_epochs=max_epochs, verbose=100)
+    model = OfflineEmbedding(n=n, d=d, max_epochs=max_epochs, verbose=100, device=device)
     model.partial_fit(X_train)
 
     current_lowest_loss = 1
@@ -69,7 +69,7 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
 
 
 def process_all_workers(input_file, additional_data_file, output_dir,
-                        d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000):
+                        d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000, device=None):
     """
     Process triplets for all workers from a single CSV file and append additional data.
 
@@ -116,7 +116,7 @@ def process_all_workers(input_file, additional_data_file, output_dir,
 
         embedding, loss, epoch, counter, _ = train_embedding_model(
             X_train, X_test, d=d, max_epochs=max_epochs,
-            tolerance=tolerance, tol_window=tol_window
+            tolerance=tolerance, tol_window=tol_window, device=device
         )
 
         emb_df = pd.DataFrame(embedding, columns=[f'dim_{i}' for i in range(embedding.shape[1])])
@@ -157,7 +157,7 @@ def process_all_workers(input_file, additional_data_file, output_dir,
 
         emb_group, loss_group, epoch_group, counter_group, _ = train_embedding_model(
             X_train_group, X_test_group, d=d, max_epochs=max_epochs,
-            tolerance=tolerance, tol_window=tol_window
+            tolerance=tolerance, tol_window=tol_window, device=device
         )
 
         emb_group_df = pd.DataFrame(emb_group, columns=[f'dim_{i}' for i in range(emb_group.shape[1])])

@@ -42,6 +42,9 @@
 #' @param print_every Print a progress line every this many epochs.
 #'   Default \code{100}.  Increase to reduce console output; set to
 #'   \code{max_epochs} to suppress mid-training output entirely.
+#' @param device PyTorch device string, or \code{NULL} (default) to
+#'   auto-select: CUDA GPU if available, then Apple MPS, then CPU.
+#'   Pass \code{"cpu"} to force CPU even on a GPU machine.
 #'
 #' @return A named list with five elements:
 #' \describe{
@@ -84,7 +87,8 @@ train_embedding <- function(X_train,
                             max_epochs  = 50000L,
                             tolerance   = 1e-4,
                             tol_window  = 10000L,
-                            print_every = 100L) {
+                            print_every = 100L,
+                            device      = NULL) {
   compute_py <- .get_compute_py()
   np <- reticulate::import("numpy")
 
@@ -98,7 +102,8 @@ train_embedding <- function(X_train,
     max_epochs  = as.integer(max_epochs),
     tolerance   = tolerance,
     tol_window  = as.integer(tol_window),
-    print_every = as.integer(print_every)
+    print_every = as.integer(print_every),
+    device      = device
   )
 
   list(
