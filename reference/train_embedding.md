@@ -15,7 +15,8 @@ train_embedding(
   max_epochs = 50000L,
   tolerance = 1e-04,
   tol_window = 10000L,
-  print_every = 100L
+  print_every = 100L,
+  device = NULL
 )
 ```
 
@@ -55,6 +56,12 @@ train_embedding(
   Print a progress line every this many epochs. Default `100`. Increase
   to reduce console output; set to `max_epochs` to suppress mid-training
   output entirely.
+
+- device:
+
+  PyTorch device string, or `NULL` (default) to auto-select: CUDA GPU if
+  available, then Apple MPS, then CPU. Pass `"cpu"` to force CPU even on
+  a GPU machine.
 
 ## Value
 

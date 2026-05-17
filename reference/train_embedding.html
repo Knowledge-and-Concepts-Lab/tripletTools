@@ -59,7 +59,8 @@ embedding on a single subset of responses.</p>
 <span>  max_epochs <span class="op">=</span> <span class="fl">50000L</span>,</span>
 <span>  tolerance <span class="op">=</span> <span class="fl">1e-04</span>,</span>
 <span>  tol_window <span class="op">=</span> <span class="fl">10000L</span>,</span>
-<span>  print_every <span class="op">=</span> <span class="fl">100L</span></span>
+<span>  print_every <span class="op">=</span> <span class="fl">100L</span>,</span>
+<span>  device <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -101,6 +102,12 @@ Default <code>10000</code>.</p></dd>
 <dd><p>Print a progress line every this many epochs.
 Default <code>100</code>.  Increase to reduce console output; set to
 <code>max_epochs</code> to suppress mid-training output entirely.</p></dd>
+
+
+<dt id="arg-device">device<a class="anchor" aria-label="anchor" href="#arg-device"></a></dt>
+<dd><p>PyTorch device string, or <code>NULL</code> (default) to
+auto-select: CUDA GPU if available, then Apple MPS, then CPU.
+Pass <code>"cpu"</code> to force CPU even on a GPU machine.</p></dd>
 
 </dl></div>
     <div class="section level2">

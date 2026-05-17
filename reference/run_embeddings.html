@@ -63,7 +63,8 @@ frames.</p>
 <span>  max_epochs <span class="op">=</span> <span class="fl">50000L</span>,</span>
 <span>  tolerance <span class="op">=</span> <span class="fl">1e-04</span>,</span>
 <span>  tol_window <span class="op">=</span> <span class="fl">10000L</span>,</span>
-<span>  seed <span class="op">=</span> <span class="fl">222L</span></span>
+<span>  seed <span class="op">=</span> <span class="fl">222L</span>,</span>
+<span>  device <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -106,6 +107,12 @@ Default <code>10000</code>.</p></dd>
 
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
 <dd><p>Integer random seed for reproducibility.  Default <code>222</code>.</p></dd>
+
+
+<dt id="arg-device">device<a class="anchor" aria-label="anchor" href="#arg-device"></a></dt>
+<dd><p>PyTorch device string, or <code>NULL</code> (default) to
+auto-select: CUDA GPU if available, then Apple MPS, then CPU.
+Pass <code>"cpu"</code> to force CPU even on a GPU machine.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -15,7 +15,8 @@ run_group_embedding_from_list(
   max_epochs = 50000L,
   tolerance = 1e-04,
   tol_window = 10000L,
-  seed = 222L
+  seed = 222L,
+  device = NULL
 )
 ```
 
@@ -48,6 +49,12 @@ run_group_embedding_from_list(
 - seed:
 
   Integer random seed for reproducibility. Default `222`.
+
+- device:
+
+  PyTorch device string, or `NULL` (default) to auto-select: CUDA GPU if
+  available, then Apple MPS, then CPU. Pass `"cpu"` to force CPU even on
+  a GPU machine.
 
 ## Value
 
