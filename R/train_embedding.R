@@ -45,6 +45,10 @@
 #' @param device PyTorch device string, or \code{NULL} (default) to
 #'   auto-select: CUDA GPU if available, then Apple MPS, then CPU.
 #'   Pass \code{"cpu"} to force CPU even on a GPU machine.
+#' @param random_state Integer seed passed to both NumPy and PyTorch before
+#'   training begins.  \code{NULL} (default) leaves the global random state
+#'   unchanged.  Set this when you need reproducible embeddings, e.g. when
+#'   comparing multiple random restarts.
 #'
 #' @return A named list with five elements:
 #' \describe{
@@ -83,12 +87,13 @@
 #' }
 train_embedding <- function(X_train,
                             X_test,
-                            d           = 5L,
-                            max_epochs  = 50000L,
-                            tolerance   = 1e-4,
-                            tol_window  = 10000L,
-                            print_every = 100L,
-                            device      = NULL) {
+                            d            = 5L,
+                            max_epochs   = 50000L,
+                            tolerance    = 1e-4,
+                            tol_window   = 10000L,
+                            print_every  = 100L,
+                            device       = NULL,
+                            random_state = NULL) {
   compute_py <- .get_compute_py()
   np <- reticulate::import("numpy")
 
@@ -96,14 +101,15 @@ train_embedding <- function(X_train,
   X_test_np  <- np$array(X_test,  dtype = np$int32)
 
   result <- compute_py$train_embedding_model(
-    X_train     = X_train_np,
-    X_test      = X_test_np,
-    d           = as.integer(d),
-    max_epochs  = as.integer(max_epochs),
-    tolerance   = tolerance,
-    tol_window  = as.integer(tol_window),
-    print_every = as.integer(print_every),
-    device      = device
+    X_train      = X_train_np,
+    X_test       = X_test_np,
+    d            = as.integer(d),
+    max_epochs   = as.integer(max_epochs),
+    tolerance    = tolerance,
+    tol_window   = as.integer(tol_window),
+    print_every  = as.integer(print_every),
+    device       = device,
+    random_state = if (is.null(random_state)) NULL else as.integer(random_state)
   )
 
   list(

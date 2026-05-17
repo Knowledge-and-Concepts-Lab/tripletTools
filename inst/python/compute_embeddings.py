@@ -1,11 +1,12 @@
 import pandas as pd
 import numpy as np
 import random
+import torch
 from salmon.triplets.offline import OfflineEmbedding
 import os
 
 
-def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000, print_every=100, device=None):
+def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000, print_every=100, device=None, random_state=None):
     """
     Train embedding model with early stopping based on test loss.
 
@@ -23,9 +24,14 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
     where history is a DataFrame with columns:
         epoch, train_loss, test_loss, train_acc, test_acc
     """
+    if random_state is not None:
+        np.random.seed(random_state)
+        torch.manual_seed(random_state)
+
     n = int(max(X_train.max(), X_test.max()) + 1)  # number of targets
 
-    model = OfflineEmbedding(n=n, d=d, max_epochs=max_epochs, verbose=100, device=device)
+    model = OfflineEmbedding(n=n, d=d, max_epochs=max_epochs, verbose=100, device=device,
+                              random_state=random_state)
     model.partial_fit(X_train)
 
     current_lowest_loss = 1
@@ -63,6 +69,8 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
             break
         else:
             counter_since_update += 1
+    else:
+        print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  {test_acc:>10.4f}  [max epochs]")
 
     history = pd.DataFrame(epoch_history)
     return current_best_embedding, current_lowest_loss, epoch, counter_since_update, history
