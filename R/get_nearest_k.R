@@ -21,9 +21,9 @@
 #'
 #' @examples
 #'
-#' emb <- cfd_embeddings[[10]] #Embedding for participant 10
+#' emb <- icon_emb_ind[[1]] #Embedding for participant 1
 #' fdists <- as.matrix(dist(emb)) #Compute pairwise distance matrix
-#' target <- "CFD-BF-002-004-HO"  #Name of target items
+#' target <- "fdfob"  #Name of target item
 #'
 #' #Return 5 items nearest to target:
 #' get.nearest.k(fdists, target, 5)

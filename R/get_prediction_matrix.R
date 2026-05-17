@@ -30,15 +30,7 @@
 #' @export
 #'
 #' @examples
-#' embpath <- system.file("extdata", "cfd36_embeddings_individual.csv", package = "tripletTools")
-#' tripath <- system.file("extdata", "cfd36_triplets_individual.csv", package = "tripletTools")
-#'
-#' #Get first five participants
-#' embs <- get.combined(embpath, eflag=TRUE)[1:5]
-#' trips <- get.combined(tripath, eflag = FALSE)[1:5]
-#'
-#' pmat <- get.prediction.matrix(embs, trips, ttype="test")
-#'
+#' pmat <- get.prediction.matrix(icon_emb_ind, icon_triplets)
 #' pmat
 #'
 
@@ -56,7 +48,7 @@ get.prediction.matrix <- function(elist, tlist, ttype = "test"){
     thisemb <- elist[[i]]
     for(j in c(1:ntrip)){
       thistrip <- subset(tlist[[j]], tlist[[j]]$sampleSet==ttype)
-      o[j,i] <- get.hoacc(thisemb, thistrip, ttype)
+      o[i,j] <- get.hoacc(thisemb, thistrip, ttype)
     }
   }
   o

@@ -1,11 +1,12 @@
-#' Triplet data for 36 items from Chicago Face Dataset
+#' Triplet data for 32 icons of faces and places
 #'
-#' A list containing triplet judgments for 39 participants on
-#' a subset of 36 face images from the Chicago Face Dataset. These
-#' triplets were used to compute embeddings of the 36 items, which
-#' appear in the accompanying object `cfd_embeddings`.
+#' A list containing triplet judgments for 5 participants on
+#' 32 icons showing faces and buildings. These
+#' triplets were used to compute embeddings of the 32 items separately
+#' for each participant (`icon_emb_ind`) as well as a single group embedding
+#' (`icon_emb_group`).
 #'
-#' @format ## `cfd_triplets`
+#' @format ## `icon_triplets`
 #' A named list, each containing a dataframe with 11 columns:
 #' \describe{
 #'   \item{head, winner, loser}{Integer indices for items in a given triplet.}
@@ -44,5 +45,5 @@
 #' participants who agree with the majority vote. This gives an estimate of how
 #' consistent judgments are across participants.
 #'
-#' @source <https://www.chicagofaces.org/>
-"cfd_triplets"
+#' @source Colon et al., in prep
+"icon_triplets"
