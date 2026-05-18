@@ -40,12 +40,12 @@ library(tripletTools)
 
 ## The example dataset
 
-The package includes objects from a triplet study on 32 icon images of faces and buildings. The icons varied in category (face/building), time of day (day/night), and additional features (gender and race for faces; size and kind for buildings). Five participants each judged approximately 230 triplets online.
+The package includes objects from a triplet study on 32 icon images of faces and buildings. The icons varied in category (face/building), time of day (day/night), and additional features (gender and race for faces; size and kind for buildings). Six participants each judged approximately 230 triplets online.
 
 | Object | Description |
 |---|---|
-| `icon_triplets` | Named list of 5 data frames, one per participant, containing trial-by-trial judgments |
-| `icon_emb_ind` | Named list of 5 matrices, one per participant, containing 3-D embedding coordinates |
+| `icon_triplets` | Named list of 6 data frames, one per participant, containing trial-by-trial judgments |
+| `icon_emb_ind` | Named list of 6 matrices, one per participant, containing 3-D embedding coordinates |
 | `icon_emb_group` | Single data frame containing a 3-D group embedding |
 | `icon_pics` | Named list of 32 PNG images, one per stimulus icon |
 
@@ -207,7 +207,7 @@ A central question in many triplet studies is whether participants differ reliab
 pmat <- get.prediction.matrix(icon_emb_ind, icon_triplets)
 ```
 
-The result is a 5 × 5 matrix. Entry [i, j] is the accuracy with which participant i's embedding predicts participant j's held-out judgments. The diagonal contains each participant's *self-prediction* accuracy.
+The result is a 6 × 6 matrix. Entry [i, j] is the accuracy with which participant i's embedding predicts participant j's held-out judgments. The diagonal contains each participant's *self-prediction* accuracy.
 
 ```{r predmat-compare}
 cat("Mean self-prediction accuracy:  ", round(mean(diag(pmat)), 3), "\n")
@@ -330,7 +330,7 @@ tip_coords <- get.tip.coords()
 plot_pics(tip_coords, icon_pics, newplot = FALSE, psize = 0.04)
 ```
 
-Icons on nearby branches were judged as similar by this participant.
+Icons on nearby branches were judged as similar overall by the group.
 
 ---
 

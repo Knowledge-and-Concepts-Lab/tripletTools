@@ -1,6 +1,6 @@
 #' Triplet data for 32 icons of faces and places
 #'
-#' A list containing triplet judgments for 5 participants on
+#' A list containing triplet judgments for 6 participants on
 #' 32 icons showing faces and buildings. These
 #' triplets were used to compute embeddings of the 32 items separately
 #' for each participant (`icon_emb_ind`) as well as a single group embedding

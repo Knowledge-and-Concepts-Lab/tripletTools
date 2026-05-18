@@ -76,7 +76,7 @@ Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`, `.get_compute_py()`.
 
 ## Data objects
 
-- `icon_triplets` — named list of 5 participant data frames; columns include `Center`, `Left`, `Right`, `Answer`, `sampleSet`, `sampleAlg`, `worker_id`
+- `icon_triplets` — named list of 6 participant data frames; columns include `Center`, `Left`, `Right`, `Answer`, `sampleSet`, `sampleAlg`, `worker_id`
 - `icon_pics` — list of PNG raster images for the 32 icon stimuli
 - `icon_labels` — character vector of icon names
 
