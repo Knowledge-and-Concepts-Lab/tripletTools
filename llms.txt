@@ -95,6 +95,8 @@ All functions are documented in `tripletTools_manual.pdf`
   : Test embedding model predictions.
 - [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
   : Train a single triplet embedding model
+- [`write_embedding_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_embedding_list.md)
+  : Write a list of individual embeddings to a CSV file
 - [`z.pred.mat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/z.pred.mat.md)
   : Z-score prediction matrix
 

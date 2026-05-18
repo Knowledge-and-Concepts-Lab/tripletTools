@@ -60,13 +60,13 @@ this format, `icon_triplets`:
 ``` r
 
 head(icon_triplets[[1]])
-#>   X head winner loser worker_id   rt Center  Left Right Answer  sampleAlg
-#> 1 1   29     24    19  3n7ggxph 3096  pnhns pncnb pdcos  pncnb     random
-#> 2 2   14      0    24  3n7ggxph 1100  fnmyb fdfob pncnb  fdfob     random
-#> 3 3   30     19    24  3n7ggxph 2616  pnhob pncnb pdcos  pdcos     random
-#> 4 4   17     12    13  3n7ggxph 2629  pdcns fnmow fnmob  fnmob validation
-#> 5 5   29      9     8  3n7ggxph 2011  pnhns fnfow fnfob  fnfow     random
-#> 6 6   25     23    12  3n7ggxph 1498  pncns fnmob pdhos  pdhos     random
+#>   head winner loser worker_id   rt Center  Left Right Answer  sampleAlg
+#> 1   29     24    19  3n7ggxph 3096  pnhns pncnb pdcos  pncnb     random
+#> 2   14      0    24  3n7ggxph 1100  fnmyb fdfob pncnb  fdfob     random
+#> 3   30     19    24  3n7ggxph 2616  pnhob pncnb pdcos  pdcos     random
+#> 4   17     12    13  3n7ggxph 2629  pdcns fnmow fnmob  fnmob validation
+#> 5   29      9     8  3n7ggxph 2011  pnhns fnfow fnfob  fnfow     random
+#> 6   25     23    12  3n7ggxph 1498  pncns fnmob pdhos  pdhos     random
 #>   sampleSet
 #> 1     train
 #> 2     train
@@ -87,7 +87,7 @@ You can see all the subject labels as follows:
 ``` r
 
 names(icon_triplets)
-#> [1] "3n7ggxph" "b5wma4no" "d8mmm1qn" "jn7bbjc0" "pbby694o"
+#> [1] "3n7ggxph" "b5wma4no" "d8mmm1qn" "jn7bbjc0" "pbby694o" "sc2xbd6w"
 ```
 
 To learn more about this dataset, try

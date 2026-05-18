@@ -3,11 +3,10 @@
 This dataset contains embedding coordinates from a triplet study using
 32 icon images showing faces and buildings. All stimuli vary in age
 (old/young) and time (day/night). Faces also vary in gender and race;
-places vary in size and kind (house/church). Five participants were
-asked to judge which option was more similar to the referent without
-further instruction. The object is a single data frame containing 3d
-embedding coordinatwes computed from the training trials for all
-participants.
+places vary in size and kind (house/church). Six participants were asked
+to judge which option was more similar to the referent without further
+instruction. The object is a single data frame containing 3d embedding
+coordinatwes computed from the training trials for all participants.
 
 ## Usage
 

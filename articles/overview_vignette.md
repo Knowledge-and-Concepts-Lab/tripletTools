@@ -37,13 +37,13 @@ library(tripletTools)
 The package includes objects from a triplet study on 32 icon images of
 faces and buildings. The icons varied in category (face/building), time
 of day (day/night), and additional features (gender and race for faces;
-size and kind for buildings). Five participants each judged
-approximately 230 triplets online.
+size and kind for buildings). Six participants each judged approximately
+230 triplets online.
 
 | Object | Description |
 |----|----|
-| `icon_triplets` | Named list of 5 data frames, one per participant, containing trial-by-trial judgments |
-| `icon_emb_ind` | Named list of 5 matrices, one per participant, containing 3-D embedding coordinates |
+| `icon_triplets` | Named list of 6 data frames, one per participant, containing trial-by-trial judgments |
+| `icon_emb_ind` | Named list of 6 matrices, one per participant, containing 3-D embedding coordinates |
 | `icon_emb_group` | Single data frame containing a 3-D group embedding |
 | `icon_pics` | Named list of 32 PNG images, one per stimulus icon |
 
@@ -54,13 +54,13 @@ Each element of `icon_triplets` is one participant’s trial data:
 ``` r
 
 head(icon_triplets[[1]])
-#>   X head winner loser worker_id   rt Center  Left Right Answer  sampleAlg
-#> 1 1   29     24    19  3n7ggxph 3096  pnhns pncnb pdcos  pncnb     random
-#> 2 2   14      0    24  3n7ggxph 1100  fnmyb fdfob pncnb  fdfob     random
-#> 3 3   30     19    24  3n7ggxph 2616  pnhob pncnb pdcos  pdcos     random
-#> 4 4   17     12    13  3n7ggxph 2629  pdcns fnmow fnmob  fnmob validation
-#> 5 5   29      9     8  3n7ggxph 2011  pnhns fnfow fnfob  fnfow     random
-#> 6 6   25     23    12  3n7ggxph 1498  pncns fnmob pdhos  pdhos     random
+#>   head winner loser worker_id   rt Center  Left Right Answer  sampleAlg
+#> 1   29     24    19  3n7ggxph 3096  pnhns pncnb pdcos  pncnb     random
+#> 2   14      0    24  3n7ggxph 1100  fnmyb fdfob pncnb  fdfob     random
+#> 3   30     19    24  3n7ggxph 2616  pnhob pncnb pdcos  pdcos     random
+#> 4   17     12    13  3n7ggxph 2629  pdcns fnmow fnmob  fnmob validation
+#> 5   29      9     8  3n7ggxph 2011  pnhns fnfow fnfob  fnfow     random
+#> 6   25     23    12  3n7ggxph 1498  pncns fnmob pdhos  pdhos     random
 #>   sampleSet
 #> 1     train
 #> 2     train
@@ -113,6 +113,7 @@ head(psummary)
 #> 3 d8mmm1qn  d8mmm1qn  230 0.5051381    1 TRUE
 #> 4 jn7bbjc0  jn7bbjc0  230 0.6958144    1 TRUE
 #> 5 pbby694o  pbby694o  230 0.6679493    1 TRUE
+#> 6 sc2xbd6w  sc2xbd6w  230 0.6507582    1 TRUE
 ```
 
 The output includes a `keep` column flagging participants who fall below
@@ -141,12 +142,12 @@ vmat <- make.vmat(icon_triplets)
 # One row per unique validation triplet
 head(vmat$majority)
 #>             triplet majority pmaj
-#> 1 fdfow_fnmyb_pdhos    fnmyb 1.00
-#> 2 fdmob_fdfow_pnhob    fdfow 1.00
-#> 3 fdmob_fdmow_fdmyb    fdmyb 0.75
-#> 4 fdmob_fnmob_pdcos    fnmob 1.00
-#> 5 fdmow_fdmyw_fnfyw    fdmyw 1.00
-#> 6 fdmow_fnfyw_pncnb    fnfyw 1.00
+#> 1 fdfow_fnmyb_pdhos    fnmyb  1.0
+#> 2 fdmob_fdfow_pnhob    fdfow  1.0
+#> 3 fdmob_fdmow_fdmyb    fdmyb  0.8
+#> 4 fdmob_fnmob_pdcos    fnmob  1.0
+#> 5 fdmow_fdmyw_fnfyw    fdmyw  1.0
+#> 6 fdmow_fnfyw_pncnb    fnfyw  1.0
 ```
 
 The `pmaj` column shows the proportion of participants who agreed with
@@ -323,16 +324,16 @@ their judgments better than another participant’s embedding does.
 pmat <- get.prediction.matrix(icon_emb_ind, icon_triplets)
 ```
 
-The result is a 5 × 5 matrix. Entry \[i, j\] is the accuracy with which
+The result is a 6 × 6 matrix. Entry \[i, j\] is the accuracy with which
 participant i’s embedding predicts participant j’s held-out judgments.
 The diagonal contains each participant’s *self-prediction* accuracy.
 
 ``` r
 
 cat("Mean self-prediction accuracy:  ", round(mean(diag(pmat)), 3), "\n")
-#> Mean self-prediction accuracy:   0.786
+#> Mean self-prediction accuracy:   0.782
 cat("Mean other-prediction accuracy: ", round(mean(pmat[row(pmat) != col(pmat)]), 3), "\n")
-#> Mean other-prediction accuracy:  0.709
+#> Mean other-prediction accuracy:  0.679
 ```
 
 `z.pred.mat` converts each diagonal entry to a z-score relative to the
@@ -345,9 +346,9 @@ participants’ embeddings:
 zscores <- z.pred.mat(pmat)
 
 cat("Mean z-score of self-prediction:", round(mean(zscores, na.rm = TRUE), 3), "\n")
-#> Mean z-score of self-prediction: 1.21
+#> Mean z-score of self-prediction: 1.022
 cat("Proportion with positive z-score:", round(mean(zscores > 0, na.rm = TRUE), 3), "\n")
-#> Proportion with positive z-score: 0.6
+#> Proportion with positive z-score: 0.833
 ```
 
 If z-scores are reliably positive across participants, this is evidence
@@ -452,11 +453,12 @@ matrix:
 pbc <- pacc.by.cluster(pmat, clusts, samediff = TRUE)
 head(pbc)
 #>               self      same     other
-#> 3n7ggxph 0.6875000 0.8050836 0.5757576
-#> b5wma4no 0.8400000 0.7609392 0.6363636
-#> d8mmm1qn 0.8461538 0.7062319 0.6363636
-#> jn7bbjc0 0.7391304 0.7682692 0.6666667
-#> pbby694o 0.8181818       NaN 0.6370255
+#> 3n7ggxph 0.6875000 0.8050836 0.5735931
+#> b5wma4no 0.8400000 0.7609392 0.5562771
+#> d8mmm1qn 0.8461538 0.7062319 0.6038961
+#> jn7bbjc0 0.7391304 0.7682692 0.5952381
+#> pbby694o 0.8181818 0.8571429 0.6370255
+#> sc2xbd6w 0.7619048 0.7575758 0.6082839
 ```
 
 Each row is one participant. The three columns give prediction accuracy
@@ -467,7 +469,7 @@ embeddings, and (3) the mean of participants outside their cluster.
 
 round(colMeans(pbc), 3)
 #>  self  same other 
-#> 0.786   NaN 0.630
+#> 0.782 0.776 0.596
 ```
 
 We can show the mean and 95% confidence interval of these values across
@@ -524,7 +526,7 @@ leaves.](overview_vignette_files/figure-html/tree-plot-1.png)
 
 Similarity tree for participant 1, with icon images at the leaves.
 
-Icons on nearby branches were judged as similar by this participant.
+Icons on nearby branches were judged as similar overall by the group.
 
 ------------------------------------------------------------------------
 

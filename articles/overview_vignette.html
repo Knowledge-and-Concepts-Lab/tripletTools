@@ -100,7 +100,7 @@ dataset included with the package.</p>
 <p>The package includes objects from a triplet study on 32 icon images
 of faces and buildings. The icons varied in category (face/building),
 time of day (day/night), and additional features (gender and race for
-faces; size and kind for buildings). Five participants each judged
+faces; size and kind for buildings). Six participants each judged
 approximately 230 triplets online.</p>
 <table class="table">
 <colgroup>
@@ -114,12 +114,12 @@ approximately 230 triplets online.</p>
 <tbody>
 <tr class="odd">
 <td><code>icon_triplets</code></td>
-<td>Named list of 5 data frames, one per participant, containing
+<td>Named list of 6 data frames, one per participant, containing
 trial-by-trial judgments</td>
 </tr>
 <tr class="even">
 <td><code>icon_emb_ind</code></td>
-<td>Named list of 5 matrices, one per participant, containing 3-D
+<td>Named list of 6 matrices, one per participant, containing 3-D
 embedding coordinates</td>
 </tr>
 <tr class="odd">
@@ -139,13 +139,13 @@ embedding coordinates</td>
 data:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">icon_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   X head winner loser worker_id   rt Center  Left Right Answer  sampleAlg</span></span>
-<span><span class="co">#&gt; 1 1   29     24    19  3n7ggxph 3096  pnhns pncnb pdcos  pncnb     random</span></span>
-<span><span class="co">#&gt; 2 2   14      0    24  3n7ggxph 1100  fnmyb fdfob pncnb  fdfob     random</span></span>
-<span><span class="co">#&gt; 3 3   30     19    24  3n7ggxph 2616  pnhob pncnb pdcos  pdcos     random</span></span>
-<span><span class="co">#&gt; 4 4   17     12    13  3n7ggxph 2629  pdcns fnmow fnmob  fnmob validation</span></span>
-<span><span class="co">#&gt; 5 5   29      9     8  3n7ggxph 2011  pnhns fnfow fnfob  fnfow     random</span></span>
-<span><span class="co">#&gt; 6 6   25     23    12  3n7ggxph 1498  pncns fnmob pdhos  pdhos     random</span></span>
+<span><span class="co">#&gt;   head winner loser worker_id   rt Center  Left Right Answer  sampleAlg</span></span>
+<span><span class="co">#&gt; 1   29     24    19  3n7ggxph 3096  pnhns pncnb pdcos  pncnb     random</span></span>
+<span><span class="co">#&gt; 2   14      0    24  3n7ggxph 1100  fnmyb fdfob pncnb  fdfob     random</span></span>
+<span><span class="co">#&gt; 3   30     19    24  3n7ggxph 2616  pnhob pncnb pdcos  pdcos     random</span></span>
+<span><span class="co">#&gt; 4   17     12    13  3n7ggxph 2629  pdcns fnmow fnmob  fnmob validation</span></span>
+<span><span class="co">#&gt; 5   29      9     8  3n7ggxph 2011  pnhns fnfow fnfob  fnfow     random</span></span>
+<span><span class="co">#&gt; 6   25     23    12  3n7ggxph 1498  pncns fnmob pdhos  pdhos     random</span></span>
 <span><span class="co">#&gt;   sampleSet</span></span>
 <span><span class="co">#&gt; 1     train</span></span>
 <span><span class="co">#&gt; 2     train</span></span>
@@ -195,7 +195,8 @@ time.</p>
 <span><span class="co">#&gt; 2 b5wma4no  b5wma4no  230 0.9026607    1 TRUE</span></span>
 <span><span class="co">#&gt; 3 d8mmm1qn  d8mmm1qn  230 0.5051381    1 TRUE</span></span>
 <span><span class="co">#&gt; 4 jn7bbjc0  jn7bbjc0  230 0.6958144    1 TRUE</span></span>
-<span><span class="co">#&gt; 5 pbby694o  pbby694o  230 0.6679493    1 TRUE</span></span></code></pre></div>
+<span><span class="co">#&gt; 5 pbby694o  pbby694o  230 0.6679493    1 TRUE</span></span>
+<span><span class="co">#&gt; 6 sc2xbd6w  sc2xbd6w  230 0.6507582    1 TRUE</span></span></code></pre></div>
 <p>The output includes a <code>keep</code> column flagging participants
 who fall below the specified thresholds (the specified minimum number of
 trials, check-trial accuracy ≥ 0.80, mean log RT &gt; 0). Participants
@@ -220,12 +221,12 @@ majority.</p>
 <span><span class="co"># One row per unique validation triplet</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">vmat</span><span class="op">$</span><span class="va">majority</span><span class="op">)</span></span>
 <span><span class="co">#&gt;             triplet majority pmaj</span></span>
-<span><span class="co">#&gt; 1 fdfow_fnmyb_pdhos    fnmyb 1.00</span></span>
-<span><span class="co">#&gt; 2 fdmob_fdfow_pnhob    fdfow 1.00</span></span>
-<span><span class="co">#&gt; 3 fdmob_fdmow_fdmyb    fdmyb 0.75</span></span>
-<span><span class="co">#&gt; 4 fdmob_fnmob_pdcos    fnmob 1.00</span></span>
-<span><span class="co">#&gt; 5 fdmow_fdmyw_fnfyw    fdmyw 1.00</span></span>
-<span><span class="co">#&gt; 6 fdmow_fnfyw_pncnb    fnfyw 1.00</span></span></code></pre></div>
+<span><span class="co">#&gt; 1 fdfow_fnmyb_pdhos    fnmyb  1.0</span></span>
+<span><span class="co">#&gt; 2 fdmob_fdfow_pnhob    fdfow  1.0</span></span>
+<span><span class="co">#&gt; 3 fdmob_fdmow_fdmyb    fdmyb  0.8</span></span>
+<span><span class="co">#&gt; 4 fdmob_fnmob_pdcos    fnmob  1.0</span></span>
+<span><span class="co">#&gt; 5 fdmow_fdmyw_fnfyw    fdmyw  1.0</span></span>
+<span><span class="co">#&gt; 6 fdmow_fnfyw_pncnb    fnfyw  1.0</span></span></code></pre></div>
 <p>The <code>pmaj</code> column shows the proportion of participants who
 agreed with the majority choice. Values near 1.0 indicate near-universal
 agreement; values near 0.5 indicate a closely split decision.</p>
@@ -372,15 +373,15 @@ does.</p>
 <p><code>get.prediction.matrix</code> computes this for all pairs:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pmat</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.prediction.matrix.html">get.prediction.matrix</a></span><span class="op">(</span><span class="va">icon_emb_ind</span>, <span class="va">icon_triplets</span><span class="op">)</span></span></code></pre></div>
-<p>The result is a 5 × 5 matrix. Entry [i, j] is the accuracy with which
+<p>The result is a 6 × 6 matrix. Entry [i, j] is the accuracy with which
 participant i’s embedding predicts participant j’s held-out judgments.
 The diagonal contains each participant’s <em>self-prediction</em>
 accuracy.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Mean self-prediction accuracy:  "</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">)</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Mean self-prediction accuracy:   0.786</span></span>
+<span><span class="co">#&gt; Mean self-prediction accuracy:   0.782</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Mean other-prediction accuracy: "</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/row.html" class="external-link">row</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">)</span> <span class="op">!=</span> <span class="fu"><a href="https://rdrr.io/r/base/col.html" class="external-link">col</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">)</span><span class="op">]</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Mean other-prediction accuracy:  0.709</span></span></code></pre></div>
+<span><span class="co">#&gt; Mean other-prediction accuracy:  0.679</span></span></code></pre></div>
 <p><code>z.pred.mat</code> converts each diagonal entry to a z-score
 relative to the other entries in its row, expressing how much better (or
 worse) a participant’s own embedding predicts their data compared to
@@ -389,9 +390,9 @@ other participants’ embeddings:</p>
 <code class="sourceCode R"><span><span class="va">zscores</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/z.pred.mat.html">z.pred.mat</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Mean z-score of self-prediction:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">zscores</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Mean z-score of self-prediction: 1.21</span></span>
+<span><span class="co">#&gt; Mean z-score of self-prediction: 1.022</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Proportion with positive z-score:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">zscores</span> <span class="op">&gt;</span> <span class="fl">0</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Proportion with positive z-score: 0.6</span></span></code></pre></div>
+<span><span class="co">#&gt; Proportion with positive z-score: 0.833</span></span></code></pre></div>
 <p>If z-scores are reliably positive across participants, this is
 evidence of meaningful individual differences in the representation of
 the stimulus set.</p>
@@ -476,11 +477,12 @@ prediction matrix:</p>
 <code class="sourceCode R"><span><span class="va">pbc</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/pacc.by.cluster.html">pacc.by.cluster</a></span><span class="op">(</span><span class="va">pmat</span>, <span class="va">clusts</span>, samediff <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">pbc</span><span class="op">)</span></span>
 <span><span class="co">#&gt;               self      same     other</span></span>
-<span><span class="co">#&gt; 3n7ggxph 0.6875000 0.8050836 0.5757576</span></span>
-<span><span class="co">#&gt; b5wma4no 0.8400000 0.7609392 0.6363636</span></span>
-<span><span class="co">#&gt; d8mmm1qn 0.8461538 0.7062319 0.6363636</span></span>
-<span><span class="co">#&gt; jn7bbjc0 0.7391304 0.7682692 0.6666667</span></span>
-<span><span class="co">#&gt; pbby694o 0.8181818       NaN 0.6370255</span></span></code></pre></div>
+<span><span class="co">#&gt; 3n7ggxph 0.6875000 0.8050836 0.5735931</span></span>
+<span><span class="co">#&gt; b5wma4no 0.8400000 0.7609392 0.5562771</span></span>
+<span><span class="co">#&gt; d8mmm1qn 0.8461538 0.7062319 0.6038961</span></span>
+<span><span class="co">#&gt; jn7bbjc0 0.7391304 0.7682692 0.5952381</span></span>
+<span><span class="co">#&gt; pbby694o 0.8181818 0.8571429 0.6370255</span></span>
+<span><span class="co">#&gt; sc2xbd6w 0.7619048 0.7575758 0.6082839</span></span></code></pre></div>
 <p>Each row is one participant. The three columns give prediction
 accuracy from (1) their own embedding, (2) the mean of their
 cluster-mates’ embeddings, and (3) the mean of participants outside
@@ -488,7 +490,7 @@ their cluster.</p>
 <div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="va">pbc</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  self  same other </span></span>
-<span><span class="co">#&gt; 0.786   NaN 0.630</span></span></code></pre></div>
+<span><span class="co">#&gt; 0.782 0.776 0.596</span></span></code></pre></div>
 <p>We can show the mean and 95% confidence interval of these values
 across participants as a ribbon plot:</p>
 <div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
@@ -535,8 +537,8 @@ full group of participants (icon_emb_group).</p>
 Similarity tree for participant 1, with icon images at the leaves.
 </p>
 </div>
-<p>Icons on nearby branches were judged as similar by this
-participant.</p>
+<p>Icons on nearby branches were judged as similar overall by the
+group.</p>
 <hr>
 </div>
 <div class="section level2">

@@ -265,20 +265,21 @@ side-effect:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">results</span>, max.level <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="co">#&gt; List of 3</span></span>
-<span><span class="co">#&gt;  $ individual:List of 5</span></span>
+<span><span class="co">#&gt;  $ individual:List of 6</span></span>
 <span><span class="co">#&gt;   ..$ 3n7ggxph: num [1:32, 1:3] ...   # one matrix per participant</span></span>
 <span><span class="co">#&gt;   ..$ b5wma4no: num [1:32, 1:3] ...</span></span>
 <span><span class="co">#&gt;   ..$ d8mmm1qn: num [1:32, 1:3] ...</span></span>
 <span><span class="co">#&gt;   ..$ jn7bbjc0: num [1:32, 1:3] ...</span></span>
 <span><span class="co">#&gt;   ..$ pbby694o: num [1:32, 1:3] ...</span></span>
+<span><span class="co">#&gt;   ..$ sc2xbd6w: num [1:32, 1:3] ...</span></span>
 <span><span class="co">#&gt;  $ group     : num [1:32, 1:3] ...    # group embedding matrix</span></span>
-<span><span class="co">#&gt;  $ history   :'data.frame': 6 obs. of 6 variables:</span></span>
-<span><span class="co">#&gt;   ..$ worker_id              : chr [1:6] "3n7ggxph" ... "group"</span></span>
-<span><span class="co">#&gt;   ..$ lowest_loss            : num [1:6] ...</span></span>
-<span><span class="co">#&gt;   ..$ epoch                  : int [1:6] ...</span></span>
-<span><span class="co">#&gt;   ..$ counter_from_last_update: int [1:6] ...</span></span>
-<span><span class="co">#&gt;   ..$ n_train_triplets       : int [1:6] ...</span></span>
-<span><span class="co">#&gt;   ..$ n_test_triplets        : int [1:6] ...</span></span></code></pre></div>
+<span><span class="co">#&gt;  $ history   :'data.frame': 7 obs. of 6 variables:</span></span>
+<span><span class="co">#&gt;   ..$ worker_id              : chr [1:7] "3n7ggxph" ... "group"</span></span>
+<span><span class="co">#&gt;   ..$ lowest_loss            : num [1:7] ...</span></span>
+<span><span class="co">#&gt;   ..$ epoch                  : int [1:7] ...</span></span>
+<span><span class="co">#&gt;   ..$ counter_from_last_update: int [1:7] ...</span></span>
+<span><span class="co">#&gt;   ..$ n_train_triplets       : int [1:7] ...</span></span>
+<span><span class="co">#&gt;   ..$ n_test_triplets        : int [1:7] ...</span></span></code></pre></div>
 <ul>
 <li>
 <code>individual</code> — a named list of matrices, one per
