@@ -13,6 +13,12 @@
 #' local multicore, SLURM, HTCondor, etc.  See the "Computing Triplet
 #' Embeddings" vignette for worked examples.
 #'
+#' If the \pkg{progressr} package is also installed, a progress bar is shown
+#' as jobs complete.  Enable it with \code{progressr::handlers(global = TRUE)}
+#' before calling this function, or wrap the call in
+#' \code{progressr::with_progress(\{ ... \})}.  Progress reporting works in
+#' both serial and parallel modes.
+#'
 #' @section Method:
 #' For each value of \code{d} in \code{dims} and each restart, an independent
 #' embedding is trained from a fresh random initialisation (controlled by a
@@ -171,10 +177,20 @@ estimate_dimensionality <- function(triplet_list,
 
   job_list <- split(jobs, seq_len(nrow(jobs)))
 
+  use_progressr <- requireNamespace("progressr", quietly = TRUE)
+  if (use_progressr) {
+    p <- progressr::progressor(steps = nrow(jobs))
+    fit_one_prog <- function(job) { out <- fit_one(job); p(); out }
+  }
+
   rows <- if (requireNamespace("future.apply", quietly = TRUE)) {
-    future.apply::future_lapply(job_list, fit_one, future.seed = NULL)
+    future.apply::future_lapply(
+      job_list,
+      if (use_progressr) fit_one_prog else fit_one,
+      future.seed = NULL
+    )
   } else {
-    lapply(job_list, fit_one)
+    lapply(job_list, if (use_progressr) fit_one_prog else fit_one)
   }
 
   results_df <- do.call(rbind, rows)

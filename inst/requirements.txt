@@ -4,3 +4,4 @@ torch
 scikit-learn
 scipy
 skorch
+setuptools<71

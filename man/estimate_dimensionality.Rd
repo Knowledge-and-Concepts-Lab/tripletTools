@@ -72,6 +72,12 @@ before calling this function.  Each (d, restart) pair becomes an
 independent future, so any backend supported by \pkg{future} works:
 local multicore, SLURM, HTCondor, etc.  See the "Computing Triplet
 Embeddings" vignette for worked examples.
+
+If the \pkg{progressr} package is also installed, a progress bar is shown
+as jobs complete.  Enable it with \code{progressr::handlers(global = TRUE)}
+before calling this function, or wrap the call in
+\code{progressr::with_progress(\{ ... \})}.  Progress reporting works in
+both serial and parallel modes.
 }
 
 \section{Method}{

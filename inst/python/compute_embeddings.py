@@ -72,7 +72,13 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
     else:
         print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  {test_acc:>10.4f}  [max epochs]")
 
-    history = pd.DataFrame(epoch_history)
+    # Return history as a plain dict of lists rather than a pandas DataFrame.
+    # Reticulate's conversion of pandas DataFrames to R data frames is
+    # inconsistent across execution contexts (interactive vs multisession
+    # workers), causing hard-to-reproduce errors on the R side. A plain Python
+    # dict is always converted to a named R list, which as.data.frame() handles
+    # reliably.
+    history = pd.DataFrame(epoch_history).to_dict("list")
     return current_best_embedding, current_lowest_loss, epoch, counter_since_update, history
 
 

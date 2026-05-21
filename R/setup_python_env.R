@@ -17,11 +17,28 @@
 #' @section Python dependencies:
 #' The following packages are installed into the conda environment:
 #' \code{numpy}, \code{pandas}, \code{torch}, \code{scikit-learn},
-#' \code{scipy}, and \code{skorch}.  PyTorch is installed via conda from the
-#' pytorch channel; all other packages come from conda-forge.  No pip installs
-#' are used, which ensures DLL compatibility on Windows.  PyTorch is a large
-#' download (~300–800 MB depending on platform), so the first-time
-#' installation may take several minutes.
+#' \code{scipy}, \code{skorch}, and \code{setuptools} (pinned to \code{< 71};
+#' later versions no longer expose \code{pkg_resources} as a top-level module,
+#' which skorch requires).  PyTorch is installed via conda from the pytorch
+#' channel; all other packages come from conda-forge.  No pip installs are
+#' used, which ensures DLL compatibility on Windows.  PyTorch is a large
+#' download (~300 MB–2 GB depending on platform and CUDA version), so the
+#' first-time installation may take several minutes.
+#'
+#' @section CUDA / GPU support:
+#' By default, the CPU-only build of PyTorch is installed.  To enable GPU
+#' acceleration, pass any non-\code{NULL} value for \code{cuda_version}
+#' (e.g. \code{cuda_version = "12.4"}).  You can check your system's maximum
+#' supported CUDA version by running \code{nvidia-smi} in a terminal; install
+#' any version at or below that number.  Common versions are \code{"11.8"},
+#' \code{"12.1"}, and \code{"12.4"}.
+#'
+#' On \strong{Windows}, the pytorch conda channel ships CUDA-enabled builds
+#' with the CUDA runtime bundled, so the \code{cuda_version} argument is
+#' accepted but the version number is not used to select a specific package —
+#' the latest available CUDA-enabled build is installed.  On Linux and macOS
+#' the \code{pytorch-cuda=<version>} package is installed from the
+#' \code{nvidia} conda channel.
 #'
 #' @param envname Name of the conda environment to create.
 #'   Defaults to \code{"triplet-embeddings"}.  Change this only if you need
@@ -29,6 +46,9 @@
 #' @param requirements Path to a \code{requirements.txt} file listing the
 #'   Python packages to install.  Defaults to the copy bundled with the
 #'   package (\code{inst/requirements.txt}).
+#' @param cuda_version CUDA version string to install GPU-enabled PyTorch
+#'   (e.g. \code{"12.1"}), or \code{NULL} (default) to install the CPU-only
+#'   build.  Must match the CUDA toolkit version on your system.
 #'
 #' @return The environment name, invisibly.
 #'
@@ -49,7 +69,8 @@
 #' }
 setup_python_env <- function(
     envname      = NULL,
-    requirements = NULL
+    requirements = NULL,
+    cuda_version = NULL
 ) {
   if (!requireNamespace("reticulate", quietly = TRUE))
     stop("The 'reticulate' package is required. Install it with install.packages('reticulate').")
@@ -90,15 +111,54 @@ setup_python_env <- function(
     pkgs <- pkgs[nzchar(trimws(pkgs)) & !startsWith(trimws(pkgs), "#")]
     is_torch <- grepl("^torch", tolower(trimws(pkgs)))
 
-    message(
-      "Installing pytorch via conda (pytorch channel). PyTorch is a large\n",
-      "package (~300-800 MB), so this may take several minutes. Please wait..."
-    )
-    reticulate::conda_install(
-      packages = c("pytorch", "numpy<2"),
-      envname  = envname,
-      channel  = "pytorch"
-    )
+    if (!is.null(cuda_version)) {
+      conda_bin <- reticulate::conda_binary()
+      # --override-channels prevents conda from falling back to pkgs/main, which
+      # only carries CPU-only PyTorch builds.
+      #
+      # On Windows the nvidia channel's cuda-runtime packages are Linux-only, so
+      # pytorch-cuda=X.Y cannot be used. Instead the pytorch channel ships
+      # CUDA-enabled Windows builds with the CUDA libraries bundled. On Linux/Mac
+      # the nvidia channel is needed to supply the separate CUDA runtime packages.
+      if (.Platform$OS.type == "windows") {
+        message(
+          "Installing pytorch (CUDA-enabled Windows build) via conda (pytorch channel).\n",
+          "PyTorch with CUDA is a large package (~1.5-2 GB); this may take several minutes. Please wait..."
+        )
+        args <- c(
+          "install", "-n", envname,
+          "--override-channels",
+          "-c", "pytorch", "-c", "conda-forge",
+          "pytorch", "numpy<2",
+          "-y"
+        )
+      } else {
+        message(sprintf(
+          "Installing pytorch with CUDA %s via conda (pytorch + nvidia channels).\n",
+          cuda_version
+        ), "PyTorch with CUDA is a large package (~1.5-2 GB); this may take several minutes. Please wait...")
+        args <- c(
+          "install", "-n", envname,
+          "--override-channels",
+          "-c", "pytorch", "-c", "nvidia",
+          "pytorch", paste0("pytorch-cuda=", cuda_version), "numpy<2",
+          "-y"
+        )
+      }
+      ret <- system2(conda_bin, args)
+      if (ret != 0L)
+        stop("conda install failed with exit code ", ret, ".")
+    } else {
+      message(
+        "Installing pytorch via conda (pytorch channel). PyTorch is a large\n",
+        "package (~300-800 MB), so this may take several minutes. Please wait..."
+      )
+      reticulate::conda_install(
+        packages = c("pytorch", "numpy<2"),
+        envname  = envname,
+        channel  = "pytorch"
+      )
+    }
 
     other_pkgs <- pkgs[!is_torch]
     if (length(other_pkgs) > 0) {

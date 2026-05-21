@@ -36,15 +36,25 @@ library(tripletTools)
 
 ## Step 1: One-time Python environment setup
 
-The embedding pipeline runs inside a self-contained conda environment. You only need to do this once after installing the package. It installs PyTorch, NumPy, pandas, scikit-learn, scipy, and skorch into an environment called `"triplet-embeddings"`.
+The embedding pipeline runs inside a self-contained conda environment. You only need to do this once after installing the package. It installs PyTorch, NumPy, pandas, scikit-learn, scipy, skorch, and setuptools into an environment called `"triplet-embeddings"`.
 
 ```{r setup-env}
 setup_python_env()
 ```
 
-PyTorch is a large download (300–800 MB depending on your platform), so the first run may take several minutes. On future R sessions you do **not** need to call `setup_python_env()` again — the environment is detected and activated automatically when you load the package.
+PyTorch is a large download (300–800 MB for a CPU build), so the first run may take several minutes. On future R sessions you do **not** need to call `setup_python_env()` again — the environment is detected and activated automatically when you load the package.
 
 If conda is not found on your system, `setup_python_env()` will stop with a message directing you to the Miniconda installation page.
+
+### GPU / CUDA support
+
+If your machine has an NVIDIA GPU, you can install a CUDA-enabled build of PyTorch by passing `cuda_version`. First check your maximum supported CUDA version by running `nvidia-smi` in a terminal (look for "CUDA Version" in the top-right corner), then pass any version at or below that number:
+
+```{r setup-env-cuda}
+setup_python_env(cuda_version = "12.4")  # common values: "11.8", "12.1", "12.4"
+```
+
+On Windows, CUDA libraries are bundled directly into the PyTorch build from the pytorch conda channel, so the version number selects the closest available build rather than an exact match. On Linux and macOS the CUDA runtime is installed as a separate package from the nvidia conda channel. CUDA-enabled builds are substantially larger (~1.5–2 GB).
 
 ---
 
@@ -350,7 +360,20 @@ Because every (d, restart) fit is completely independent, `estimate_dimensionali
 Install the required packages once:
 
 ```{r parallel-install}
-install.packages(c("future", "future.apply"))
+install.packages(c("future", "future.apply", "progressr"))
+```
+
+### Prerequisites for parallel execution
+
+**The package must be installed, not just loaded with `load_all()`.** Each worker is a fresh R process that loads `tripletTools` as a regular package. If you are developing the package and have only run `devtools::load_all()`, the workers will fail with "there is no package called 'tripletTools'". Run `devtools::install()` first, then load the package with `library(tripletTools)` before setting up a parallel plan.
+
+**Use `device = "cpu"` when running in parallel.** Multiple workers simultaneously competing for a single GPU causes resource contention and rarely speeds things up. Let the cores do the parallelism and leave GPU acceleration for single-model fits.
+
+**Progress monitoring.** Because worker output is not forwarded to the main session, the `verbose` progress messages are suppressed automatically. Install `progressr` to get a progress bar showing completions instead:
+
+```{r parallel-progress}
+library(progressr)
+handlers(global = TRUE)   # enable progress bar for the session
 ```
 
 ### Local multicore
@@ -359,22 +382,28 @@ Use all available cores on your workstation (or a subset):
 
 ```{r parallel-local}
 library(future)
-plan(multisession, workers = 4)   # or: workers = parallel::detectCores() - 1
+library(progressr)
+handlers(global = TRUE)
+
+# Pass the plan name as a string — the bare symbol form (plan(multisession))
+# may not be found if future is loaded but not attached in all environments.
+plan("multisession", workers = 4)   # or: workers = parallel::detectCores() - 1
 
 dim_est <- estimate_dimensionality(
   triplet_list = icon_triplets,
   dims         = 1:8,
   n_restarts   = 10L,
   max_epochs   = 50000L,
-  seed         = 42L
+  seed         = 42L,
+  device       = "cpu"   # use CPU in parallel — GPU contention rarely helps
 )
 
-plan(sequential)   # restore serial execution when done
+plan("sequential")   # restore serial execution when done
 ```
 
 With 4 workers and 80 total fits (8 dims × 10 restarts), wall time drops to roughly one quarter of the serial time.
 
-`multisession` launches separate R processes, so it works on Windows, macOS, and Linux.  If you are on Linux or macOS and prefer lower overhead, `plan(multicore)` uses forked processes instead.
+`multisession` launches separate R processes, so it works on Windows, macOS, and Linux. If you are on Linux or macOS and prefer lower overhead, `plan("multicore")` uses forked processes instead. Note that each worker initialises Python and the conda environment on startup, so there is some fixed overhead before the first job completes and the progress bar begins updating.
 
 ### HTCondor cluster
 

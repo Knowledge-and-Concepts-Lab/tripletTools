@@ -35,7 +35,7 @@ docs/                     # pkgdown site — rebuild with pkgdown::build_site()
 
 - Conda environment name: `"triplet-embeddings"`
 - Created once by `setup_python_env()`; activated automatically by `.onLoad`
-- Packages: numpy<2, pandas, torch, scikit-learn, scipy, skorch
+- Packages: numpy<2, pandas, torch, scikit-learn, scipy, skorch, setuptools<71
 - No pip installs — all conda (ensures DLL compatibility on Windows)
 - `reticulate` is in **Suggests**, not Imports. All R code guards with
   `requireNamespace("reticulate", quietly = TRUE)` and uses `reticulate::` prefix
