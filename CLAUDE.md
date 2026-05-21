@@ -39,7 +39,8 @@ Current version: **0.2.0**. Package URL:
 - Created once by
   [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md);
   activated automatically by `.onLoad`
-- Packages: numpy\<2, pandas, torch, scikit-learn, scipy, skorch
+- Packages: numpy\<2, pandas, torch, scikit-learn, scipy, skorch,
+  setuptools\<71
 - No pip installs — all conda (ensures DLL compatibility on Windows)
 - `reticulate` is in **Suggests**, not Imports. All R code guards with
   [`requireNamespace("reticulate", quietly = TRUE)`](https://rdrr.io/r/base/ns-load.html)

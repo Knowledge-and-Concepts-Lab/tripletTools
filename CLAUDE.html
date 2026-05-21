@@ -68,7 +68,7 @@ docs/                     # pkgdown site — rebuild with pkgdown::build_site()<
 </li>
 <li>Created once by <code><a href="reference/setup_python_env.html">setup_python_env()</a></code>; activated automatically by <code>.onLoad</code>
 </li>
-<li>Packages: numpy&lt;2, pandas, torch, scikit-learn, scipy, skorch</li>
+<li>Packages: numpy&lt;2, pandas, torch, scikit-learn, scipy, skorch, setuptools&lt;71</li>
 <li>No pip installs — all conda (ensures DLL compatibility on Windows)</li>
 <li>
 <code>reticulate</code> is in <strong>Suggests</strong>, not Imports. All R code guards with <code><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace("reticulate", quietly = TRUE)</a></code> and uses <code>reticulate::</code> prefix</li>

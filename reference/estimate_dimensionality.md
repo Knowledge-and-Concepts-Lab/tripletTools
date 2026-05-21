@@ -94,6 +94,12 @@ future, so any backend supported by future works: local multicore,
 SLURM, HTCondor, etc. See the "Computing Triplet Embeddings" vignette
 for worked examples.
 
+If the progressr package is also installed, a progress bar is shown as
+jobs complete. Enable it with `progressr::handlers(global = TRUE)`
+before calling this function, or wrap the call in
+`progressr::with_progress({ ... })`. Progress reporting works in both
+serial and parallel modes.
+
 ## Method
 
 For each value of `d` in `dims` and each restart, an independent

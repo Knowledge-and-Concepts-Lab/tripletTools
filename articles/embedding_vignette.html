@@ -114,19 +114,37 @@ three functions:</p>
 </h2>
 <p>The embedding pipeline runs inside a self-contained conda
 environment. You only need to do this once after installing the package.
-It installs PyTorch, NumPy, pandas, scikit-learn, scipy, and skorch into
-an environment called <code>"triplet-embeddings"</code>.</p>
+It installs PyTorch, NumPy, pandas, scikit-learn, scipy, skorch, and
+setuptools into an environment called
+<code>"triplet-embeddings"</code>.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/setup_python_env.html">setup_python_env</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>PyTorch is a large download (300–800 MB depending on your platform),
-so the first run may take several minutes. On future R sessions you do
+<p>PyTorch is a large download (300–800 MB for a CPU build), so the
+first run may take several minutes. On future R sessions you do
 <strong>not</strong> need to call <code><a href="../reference/setup_python_env.html">setup_python_env()</a></code> again
 — the environment is detected and activated automatically when you load
 the package.</p>
 <p>If conda is not found on your system, <code><a href="../reference/setup_python_env.html">setup_python_env()</a></code>
 will stop with a message directing you to the Miniconda installation
 page.</p>
+<div class="section level3">
+<h3 id="gpu-cuda-support">GPU / CUDA support<a class="anchor" aria-label="anchor" href="#gpu-cuda-support"></a>
+</h3>
+<p>If your machine has an NVIDIA GPU, you can install a CUDA-enabled
+build of PyTorch by passing <code>cuda_version</code>. First check your
+maximum supported CUDA version by running <code>nvidia-smi</code> in a
+terminal (look for “CUDA Version” in the top-right corner), then pass
+any version at or below that number:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/setup_python_env.html">setup_python_env</a></span><span class="op">(</span>cuda_version <span class="op">=</span> <span class="st">"12.4"</span><span class="op">)</span>  <span class="co"># common values: "11.8", "12.1", "12.4"</span></span></code></pre></div>
+<p>On Windows, CUDA libraries are bundled directly into the PyTorch
+build from the pytorch conda channel, so the version number selects the
+closest available build rather than an exact match. On Linux and macOS
+the CUDA runtime is installed as a separate package from the nvidia
+conda channel. CUDA-enabled builds are substantially larger (~1.5–2
+GB).</p>
 <hr>
+</div>
 </div>
 <div class="section level2">
 <h2 id="step-2-computing-a-group-embedding">Step 2: Computing a group embedding<a class="anchor" aria-label="anchor" href="#step-2-computing-a-group-embedding"></a>
@@ -135,7 +153,7 @@ page.</p>
 all participants and trains a single embedding that captures the shared
 similarity structure across the group. This is the fastest option and is
 a natural starting point before computing individual embeddings.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">grp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_group_embedding_from_list.html">run_group_embedding_from_list</a></span><span class="op">(</span></span>
 <span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
 <span>  d            <span class="op">=</span> <span class="fl">3L</span>,       <span class="co"># number of dimensions</span></span>
@@ -150,7 +168,7 @@ epochs.</p>
 </h3>
 <p><code><a href="../reference/run_group_embedding_from_list.html">run_group_embedding_from_list()</a></code> returns a named
 list:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">grp</span><span class="op">)</span></span>
 <span><span class="co">#&gt; List of 3</span></span>
 <span><span class="co">#&gt;  $ embedding: num [1:32, 1:3] ...</span></span>
@@ -180,7 +198,7 @@ accuracy at each epoch, useful for diagnosing convergence.</li>
 <div class="section level3">
 <h3 id="inspecting-the-result">Inspecting the result<a class="anchor" aria-label="anchor" href="#inspecting-the-result"></a>
 </h3>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># First few rows of the embedding</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">grp</span><span class="op">$</span><span class="va">embedding</span><span class="op">)</span></span>
 <span></span>
@@ -200,7 +218,7 @@ accuracy at each epoch, useful for diagnosing convergence.</li>
 <code><a href="../reference/plot_pics.html">plot_pics()</a></code> to position stimulus images at their
 coordinates in the learned similarity space (first two dimensions
 shown):</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_pics.html">plot_pics</a></span><span class="op">(</span><span class="va">grp</span><span class="op">$</span><span class="va">embedding</span><span class="op">[</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">]</span>, <span class="va">icon_pics</span>,</span>
 <span>          psize <span class="op">=</span> <span class="fl">0.04</span>,</span>
 <span>          xlab  <span class="op">=</span> <span class="st">"Dimension 1"</span>,</span>
@@ -211,7 +229,7 @@ participants overall.</p>
 <p>The group embedding can also be used with the full set of
 <code>tripletTools</code> analysis functions. For example, to evaluate
 how well it predicts held-out judgments for participant 1:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">acc</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.hoacc.html">get.hoacc</a></span><span class="op">(</span><span class="va">grp</span><span class="op">$</span><span class="va">embedding</span>, <span class="va">icon_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Hold-out accuracy (participant 1):"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">acc</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span></code></pre></div>
 <hr>
@@ -225,7 +243,7 @@ for each participant and then trains an additional group embedding on
 all participants’ data combined. This takes longer but lets you study
 individual differences in how participants represent the stimulus
 set.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_embeddings_from_list.html">run_embeddings_from_list</a></span><span class="op">(</span></span>
 <span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
 <span>  output_dir   <span class="op">=</span> <span class="st">"embeddings_output"</span>,   <span class="co"># CSVs are also saved here</span></span>
@@ -262,7 +280,7 @@ side-effect:</p>
 <h3 id="what-is-returned-1">What is returned<a class="anchor" aria-label="anchor" href="#what-is-returned-1"></a>
 </h3>
 <p><code><a href="../reference/run_embeddings_from_list.html">run_embeddings_from_list()</a></code> returns a named list:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">results</span>, max.level <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="co">#&gt; List of 3</span></span>
 <span><span class="co">#&gt;  $ individual:List of 6</span></span>
@@ -298,7 +316,7 @@ plus one row for the group, summarising training diagnostics.</li>
 </h3>
 <p>The <code>history</code> data frame gives a quick overview of how
 well each participant’s model converged:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">results</span><span class="op">$</span><span class="va">history</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"worker_id"</span>, <span class="st">"lowest_loss"</span>, <span class="st">"epoch"</span>, <span class="st">"n_train_triplets"</span><span class="op">)</span><span class="op">]</span></span></code></pre></div>
 <p>Participants who stopped early (small <code>epoch</code>) and
 achieved a low <code>lowest_loss</code> are well-modelled. If a
@@ -313,7 +331,7 @@ their data may be noisier or they may have fewer trials.</p>
 embedding: a matrix with item row names and columns <code>dim_0</code>,
 <code>dim_1</code>, …. This means they are compatible with all existing
 <code>tripletTools</code> functions.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Hold-out prediction accuracy for each participant using their own embedding</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">results</span><span class="op">$</span><span class="va">individual</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">wid</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="fu"><a href="../reference/get.hoacc.html">get.hoacc</a></span><span class="op">(</span><span class="va">results</span><span class="op">$</span><span class="va">individual</span><span class="op">[[</span><span class="va">wid</span><span class="op">]</span><span class="op">]</span>, <span class="va">icon_triplets</span><span class="op">[[</span><span class="va">wid</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
@@ -330,7 +348,7 @@ embedding: a matrix with item row names and columns <code>dim_0</code>,
 <div class="section level3">
 <h3 id="visualizing-individual-embeddings">Visualizing individual embeddings<a class="anchor" aria-label="anchor" href="#visualizing-individual-embeddings"></a>
 </h3>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">emb1</span> <span class="op">&lt;-</span> <span class="va">results</span><span class="op">$</span><span class="va">individual</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/plot_pics.html">plot_pics</a></span><span class="op">(</span><span class="va">emb1</span><span class="op">[</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">]</span>, <span class="va">icon_pics</span>,</span>
@@ -436,7 +454,7 @@ point. For a final analysis you may want to increase
 <code>max_epochs</code> and <code>tol_window</code> to allow longer
 convergence, especially with large datasets or high <code>d</code>.</p>
 <p>To inspect the training curve after fitting:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">grp</span><span class="op">$</span><span class="va">history</span><span class="op">$</span><span class="va">epoch</span>, <span class="va">grp</span><span class="op">$</span><span class="va">history</span><span class="op">$</span><span class="va">test_loss</span>,</span>
 <span>     type <span class="op">=</span> <span class="st">"l"</span>, col <span class="op">=</span> <span class="st">"steelblue"</span>, lwd <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>     xlab <span class="op">=</span> <span class="st">"Epoch"</span>, ylab <span class="op">=</span> <span class="st">"Test loss"</span>,</span>
@@ -471,7 +489,7 @@ restart.</p>
 <div class="section level3">
 <h3 id="running-the-grid">Running the grid<a class="anchor" aria-label="anchor" href="#running-the-grid"></a>
 </h3>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dim_est</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_dimensionality.html">estimate_dimensionality</a></span><span class="op">(</span></span>
 <span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
 <span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">8</span>,       <span class="co"># dimensionalities to evaluate</span></span>
@@ -482,7 +500,7 @@ restart.</p>
 <p>Progress messages are printed as each restart completes. The function
 returns a named list with two elements.</p>
 <p><code>$results</code> has one row per (dimension, restart):</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">dim_est</span><span class="op">$</span><span class="va">results</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   d restart      loss epoch</span></span>
 <span><span class="co">#&gt; 1 1       1 0.6022...   ...</span></span>
@@ -490,7 +508,7 @@ returns a named list with two elements.</p>
 <span><span class="co">#&gt; ...</span></span></code></pre></div>
 <p><code>$summary</code> has one row per dimension, with the
 <code>best_d</code> flag identifying the recommended choice:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dim_est</span><span class="op">$</span><span class="va">summary</span></span>
 <span><span class="co">#&gt;   d mean_loss  min_loss    sd_loss best_d</span></span>
 <span><span class="co">#&gt; 1 1    0.601     0.601     0.001   FALSE</span></span>
@@ -515,7 +533,7 @@ statistically indistinguishable from the best.</p>
 </h3>
 <p>A simple plot shows mean loss by dimension with ±1 SD error bars. The
 vertical dashed line marks the recommended <code>d</code>.</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="va">dim_est</span><span class="op">$</span><span class="va">summary</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">s</span><span class="op">$</span><span class="va">d</span>, <span class="va">s</span><span class="op">$</span><span class="va">mean_loss</span>,</span>
@@ -571,31 +589,63 @@ code. Parallelism is controlled via the <a href="https://future.futureverse.org/
 framework: you set a <em>plan</em> once before calling the function, and
 the function uses however many workers that plan provides.</p>
 <p>Install the required packages once:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"future"</span>, <span class="st">"future.apply"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"future"</span>, <span class="st">"future.apply"</span>, <span class="st">"progressr"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<div class="section level3">
+<h3 id="prerequisites-for-parallel-execution">Prerequisites for parallel execution<a class="anchor" aria-label="anchor" href="#prerequisites-for-parallel-execution"></a>
+</h3>
+<p><strong>The package must be installed, not just loaded with
+<code>load_all()</code>.</strong> Each worker is a fresh R process that
+loads <code>tripletTools</code> as a regular package. If you are
+developing the package and have only run
+<code>devtools::load_all()</code>, the workers will fail with “there is
+no package called ‘tripletTools’”. Run <code>devtools::install()</code>
+first, then load the package with <code><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/">library(tripletTools)</a></code>
+before setting up a parallel plan.</p>
+<p><strong>Use <code>device = "cpu"</code> when running in
+parallel.</strong> Multiple workers simultaneously competing for a
+single GPU causes resource contention and rarely speeds things up. Let
+the cores do the parallelism and leave GPU acceleration for single-model
+fits.</p>
+<p><strong>Progress monitoring.</strong> Because worker output is not
+forwarded to the main session, the <code>verbose</code> progress
+messages are suppressed automatically. Install <code>progressr</code> to
+get a progress bar showing completions instead:</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://progressr.futureverse.org" class="external-link">progressr</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://progressr.futureverse.org/reference/handlers.html" class="external-link">handlers</a></span><span class="op">(</span>global <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>   <span class="co"># enable progress bar for the session</span></span></code></pre></div>
+</div>
 <div class="section level3">
 <h3 id="local-multicore">Local multicore<a class="anchor" aria-label="anchor" href="#local-multicore"></a>
 </h3>
 <p>Use all available cores on your workstation (or a subset):</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">multisession</span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>   <span class="co"># or: workers = parallel::detectCores() - 1</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://progressr.futureverse.org" class="external-link">progressr</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://progressr.futureverse.org/reference/handlers.html" class="external-link">handlers</a></span><span class="op">(</span>global <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Pass the plan name as a string — the bare symbol form (plan(multisession))</span></span>
+<span><span class="co"># may not be found if future is loaded but not attached in all environments.</span></span>
+<span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="st">"multisession"</span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>   <span class="co"># or: workers = parallel::detectCores() - 1</span></span>
 <span></span>
 <span><span class="va">dim_est</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_dimensionality.html">estimate_dimensionality</a></span><span class="op">(</span></span>
 <span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
 <span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">8</span>,</span>
 <span>  n_restarts   <span class="op">=</span> <span class="fl">10L</span>,</span>
 <span>  max_epochs   <span class="op">=</span> <span class="fl">50000L</span>,</span>
-<span>  seed         <span class="op">=</span> <span class="fl">42L</span></span>
+<span>  seed         <span class="op">=</span> <span class="fl">42L</span>,</span>
+<span>  device       <span class="op">=</span> <span class="st">"cpu"</span>   <span class="co"># use CPU in parallel — GPU contention rarely helps</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">sequential</span><span class="op">)</span>   <span class="co"># restore serial execution when done</span></span></code></pre></div>
+<span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="st">"sequential"</span><span class="op">)</span>   <span class="co"># restore serial execution when done</span></span></code></pre></div>
 <p>With 4 workers and 80 total fits (8 dims × 10 restarts), wall time
 drops to roughly one quarter of the serial time.</p>
 <p><code>multisession</code> launches separate R processes, so it works
 on Windows, macOS, and Linux. If you are on Linux or macOS and prefer
-lower overhead, <code>plan(multicore)</code> uses forked processes
-instead.</p>
+lower overhead, <code>plan("multicore")</code> uses forked processes
+instead. Note that each worker initialises Python and the conda
+environment on startup, so there is some fixed overhead before the first
+job completes and the progress bar begins updating.</p>
 </div>
 <div class="section level3">
 <h3 id="htcondor-cluster">HTCondor cluster<a class="anchor" aria-label="anchor" href="#htcondor-cluster"></a>
@@ -603,7 +653,7 @@ instead.</p>
 <p>If you have access to an HTCondor cluster (e.g. UW–Madison’s CHTC),
 install the <code>future.batchtools</code> package, which bridges
 <code>future</code> to HTCondor’s job scheduler:</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"future.batchtools"</span><span class="op">)</span></span></code></pre></div>
 <p>You also need a one-time cluster template file that tells
 <code>future.batchtools</code> how to construct HTCondor submit files
@@ -630,7 +680,7 @@ error  = $(error)
 queue</code></pre>
 <p>Then submit your dimensionality search exactly as before, just with a
 different plan:</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.batchtools.futureverse.org" class="external-link">future.batchtools</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">batchtools_condor</span>, workers <span class="op">=</span> <span class="fl">80</span><span class="op">)</span>   <span class="co"># up to 80 simultaneous jobs</span></span>
@@ -657,7 +707,7 @@ guide.</p>
 <h3 id="checking-the-active-plan">Checking the active plan<a class="anchor" aria-label="anchor" href="#checking-the-active-plan"></a>
 </h3>
 <p>At any point you can confirm which plan is in effect:</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># prints a description of the current plan</span></span></code></pre></div>
 <p><code>plan(sequential)</code> (the default) runs everything serially

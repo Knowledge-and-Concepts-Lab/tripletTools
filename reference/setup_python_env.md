@@ -15,7 +15,7 @@ pipeline. It will:
 ## Usage
 
 ``` r
-setup_python_env(envname = NULL, requirements = NULL)
+setup_python_env(envname = NULL, requirements = NULL, cuda_version = NULL)
 ```
 
 ## Arguments
@@ -32,6 +32,12 @@ setup_python_env(envname = NULL, requirements = NULL)
   install. Defaults to the copy bundled with the package
   (`inst/requirements.txt`).
 
+- cuda_version:
+
+  CUDA version string to install GPU-enabled PyTorch (e.g. `"12.1"`), or
+  `NULL` (default) to install the CPU-only build. Must match the CUDA
+  toolkit version on your system.
+
 ## Value
 
 The environment name, invisibly.
@@ -46,12 +52,30 @@ environment is detected and activated automatically at that point.
 ## Python dependencies
 
 The following packages are installed into the conda environment:
-`numpy`, `pandas`, `torch`, `scikit-learn`, `scipy`, and `skorch`.
-PyTorch is installed via conda from the pytorch channel; all other
-packages come from conda-forge. No pip installs are used, which ensures
-DLL compatibility on Windows. PyTorch is a large download (~300–800 MB
-depending on platform), so the first-time installation may take several
-minutes.
+`numpy`, `pandas`, `torch`, `scikit-learn`, `scipy`, `skorch`, and
+`setuptools` (pinned to `< 71`; later versions no longer expose
+`pkg_resources` as a top-level module, which skorch requires). PyTorch
+is installed via conda from the pytorch channel; all other packages come
+from conda-forge. No pip installs are used, which ensures DLL
+compatibility on Windows. PyTorch is a large download (~300 MB–2 GB
+depending on platform and CUDA version), so the first-time installation
+may take several minutes.
+
+## CUDA / GPU support
+
+By default, the CPU-only build of PyTorch is installed. To enable GPU
+acceleration, pass any non-`NULL` value for `cuda_version` (e.g.
+`cuda_version = "12.4"`). You can check your system's maximum supported
+CUDA version by running `nvidia-smi` in a terminal; install any version
+at or below that number. Common versions are `"11.8"`, `"12.1"`, and
+`"12.4"`.
+
+On **Windows**, the pytorch conda channel ships CUDA-enabled builds with
+the CUDA runtime bundled, so the `cuda_version` argument is accepted but
+the version number is not used to select a specific package — the latest
+available CUDA-enabled build is installed. On Linux and macOS the
+`pytorch-cuda=<version>` package is installed from the `nvidia` conda
+channel.
 
 ## Examples
 

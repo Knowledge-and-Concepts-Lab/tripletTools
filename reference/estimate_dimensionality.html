@@ -141,6 +141,11 @@ before calling this function.  Each (d, restart) pair becomes an
 independent future, so any backend supported by <span class="pkg">future</span> works:
 local multicore, SLURM, HTCondor, etc.  See the "Computing Triplet
 Embeddings" vignette for worked examples.</p>
+<p>If the <span class="pkg">progressr</span> package is also installed, a progress bar is shown
+as jobs complete.  Enable it with <code>progressr::handlers(global = TRUE)</code>
+before calling this function, or wrap the call in
+<code>progressr::with_progress({ ... })</code>.  Progress reporting works in
+both serial and parallel modes.</p>
     </div>
     <div class="section level2">
     <h2 id="method">Method<a class="anchor" aria-label="anchor" href="#method"></a></h2>
