@@ -71,9 +71,162 @@
 <em>triadic comparisons</em> or <em>triplet</em> tasks. See the
 <em>tripletTools Overview</em> vignette for demonstrations of the
 various tools.</p>
-<p>This vignette describes how to read new data into R in a format that
-works with the package, and describes how the raw data file should be
-structured.</p>
+<p>This vignette describes how to get triplet data into R in a format
+that works with the package. There are three common starting points:</p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Raw jsPsych exports</strong> — you just finished data
+collection and have one CSV per participant straight out of jsPsych. Use
+<code><a href="../reference/read_raw_data.html">read_raw_data()</a></code>.</li>
+<li>
+<strong>A legacy dataset</strong> — you have a single CSV from an
+older experiment or a different collection platform, with column names
+that may not match the package’s conventions. Use
+<code><a href="../reference/read_legacy.html">read_legacy()</a></code>.</li>
+<li>
+<strong>Already-processed data</strong> — your data are already in
+the standard format (e.g. previously exported by one of the functions
+above). Jump straight to <a href="#data-file-structure-and-naming-conventions">Data file structure
+and naming conventions</a> below to see how to load it.</li>
+</ol>
+<hr>
+<div class="section level2">
+<h2 id="reading-raw-jspsych-data-with-read_raw_data">Reading raw jsPsych data with <code>read_raw_data()</code><a class="anchor" aria-label="anchor" href="#reading-raw-jspsych-data-with-read_raw_data"></a>
+</h2>
+<p>If you collected your data with a jsPsych triplet experiment,
+<code><a href="../reference/read_raw_data.html">read_raw_data()</a></code> handles the full cleaning pipeline in one
+call. Point it at the directory containing the raw participant CSV files
+and it will:</p>
+<ol style="list-style-type: decimal">
+<li>Read and combine all CSVs in the directory.</li>
+<li>Filter rows to experiment trials (<code>trial_category</code> equal
+to <code>"random"</code>, <code>"check"</code>, or
+<code>"validation"</code>).</li>
+<li>Apply quality-control exclusions: remove participants with too few
+trials (<code>filter_incomplete</code>), unusually fast mean reaction
+times (<code>filter_fast_responders</code>), or too many failed catch
+trials (<code>filter_failed_catch</code>).</li>
+<li>Strip file paths and extensions from stimulus names.</li>
+<li>Split the comma-separated <code>choices</code> column into labelled
+<code>Left</code> / <code>Right</code> columns and derive
+<code>winner</code> / <code>loser</code>.</li>
+<li>Assign a random 80/20 train/test split (configurable) via
+<code>assign_sample_sets</code>.</li>
+<li>Optionally write a cleaned trial CSV and a stimulus-level
+integer-mapping CSV to disk.</li>
+</ol>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/read_raw_data.html">read_raw_data</a></span><span class="op">(</span></span>
+<span>  data_dir       <span class="op">=</span> <span class="st">"experiment/raw_data/"</span>,   <span class="co"># folder of per-participant CSVs</span></span>
+<span>  output_df      <span class="op">=</span> <span class="st">"data/triplets_clean.csv"</span>,</span>
+<span>  output_levels  <span class="op">=</span> <span class="st">"data/stimulus_levels.csv"</span>,</span>
+<span>  min_trials     <span class="op">=</span> <span class="fl">200</span>,       <span class="co"># drop participants with fewer trials than this</span></span>
+<span>  min_mean_rt_ms <span class="op">=</span> <span class="fl">200</span>,       <span class="co"># drop participants with mean RT below this (ms)</span></span>
+<span>  max_prop_wrong <span class="op">=</span> <span class="fl">0.20</span>,      <span class="co"># drop participants who fail &gt;20% of catch trials</span></span>
+<span>  test_prop      <span class="op">=</span> <span class="fl">0.20</span>,      <span class="co"># fraction of trials assigned to the test set</span></span>
+<span>  seed           <span class="op">=</span> <span class="fl">42</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The function returns a list invisibly with two elements:</p>
+<ul>
+<li>
+<code>result$trials</code> — a data frame of cleaned trial-level
+data in the standard format (see <a href="#data-file-structure-and-naming-conventions">Data file
+structure</a> below), ready to pass to <code><a href="../reference/get.combined.html">get.combined()</a></code> or
+the embedding functions.</li>
+<li>
+<code>result$levels</code> — a data frame mapping each stimulus
+label to its integer index and file path.</li>
+</ul>
+<p>All QC thresholds default to permissive values
+(<code>min_trials = 0</code>, <code>min_mean_rt_ms = 0</code>,
+<code>max_prop_wrong = 1</code>), so calling
+<code><a href="../reference/read_raw_data.html">read_raw_data()</a></code> with only <code>data_dir</code> set will
+read and clean the files without excluding anyone.</p>
+<hr>
+</div>
+<div class="section level2">
+<h2 id="reading-legacy-data-with-read_legacy">Reading legacy data with <code>read_legacy()</code><a class="anchor" aria-label="anchor" href="#reading-legacy-data-with-read_legacy"></a>
+</h2>
+<p>If your data come from an older experiment or a different collection
+platform, the column names may not match the package’s conventions.
+<code><a href="../reference/read_legacy.html">read_legacy()</a></code> handles a wide range of input formats by
+matching column names case-insensitively and ignoring punctuation, so it
+can usually find the right columns even when they are named
+differently.</p>
+<p>Pass the path to a single combined CSV file:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/read_legacy.html">read_legacy</a></span><span class="op">(</span><span class="st">"data/old_experiment.csv"</span><span class="op">)</span></span></code></pre></div>
+<p>The function recognises many common alternative column names
+automatically. For example:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>Standard name</th>
+<th>Also recognised as</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>
+<code>worker_id</code> (participant)</td>
+<td>
+<code>sessionID</code>, <code>puid</code>,
+<code>Participant.ID</code>, <code>sub_id</code>, <code>pid</code>
+</td>
+</tr>
+<tr class="even">
+<td>
+<code>Center</code> (target item)</td>
+<td><code>Target</code></td>
+</tr>
+<tr class="odd">
+<td>
+<code>Left</code> / <code>Right</code> (options)</td>
+<td>
+<code>Option1</code> / <code>Option2</code>
+</td>
+</tr>
+<tr class="even">
+<td><code>sampleAlg</code></td>
+<td><code>AlgSample</code></td>
+</tr>
+<tr class="odd">
+<td><code>sampleSet</code></td>
+<td>
+<code>Alg.Label</code>, <code>TrnTest</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p>When a column cannot be found, it is derived where possible:
+<code>winner</code> and <code>loser</code> are inferred from
+<code>Answer</code>, <code>Left</code>, and <code>Right</code>; if no
+participant identifier is found, participants are assigned sequential
+IDs (<code>"P1"</code>, <code>"P2"</code>, …); if no
+<code>sampleSet</code> column exists, 10% of trials are randomly
+assigned to <code>"test"</code> and the rest to
+<code>"train"</code>.</p>
+<p><code><a href="../reference/read_legacy.html">read_legacy()</a></code> always writes two output files alongside
+the input:</p>
+<ul>
+<li>
+<code>&lt;basename&gt;_v2025.csv</code> — standardised trial data in
+the package’s column format.</li>
+<li>
+<code>&lt;basename&gt;_2025_levels.csv</code> — stimulus-level
+integer mapping.</li>
+</ul>
+<p>The function returns a list invisibly with the paths to these two
+files:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">result</span><span class="op">$</span><span class="va">data_file</span>    <span class="co"># path to the standardised CSV</span></span>
+<span><span class="va">result</span><span class="op">$</span><span class="va">levels_file</span>  <span class="co"># path to the levels mapping CSV</span></span></code></pre></div>
+<p>Once you have a standardised CSV from either function, load it into R
+with <code><a href="../reference/get.combined.html">get.combined()</a></code> as described in the next section.</p>
+<hr>
+</div>
 <div class="section level2">
 <h2 id="data-file-structure-and-naming-conventions">Data file structure and naming conventions<a class="anchor" aria-label="anchor" href="#data-file-structure-and-naming-conventions"></a>
 </h2>
@@ -126,7 +279,7 @@ the path to the data file. This function returns a named list, where
 each element includes the triplet judgment data from a single subject,
 and elements are named by the subject identified. This package includes
 an example dataset in this format, <code>icon_triplets</code>:</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">icon_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   head winner loser worker_id   rt Center  Left Right Answer  sampleAlg</span></span>
 <span><span class="co">#&gt; 1   29     24    19  3n7ggxph 3096  pnhns pncnb pdcos  pncnb     random</span></span>
@@ -148,7 +301,7 @@ the same order they are listed in the matrix.</p>
 <p>The data from each participant is a separate element in the list, and
 the elements are labeled by the <code>worker\_id</code> label in the raw
 data file. You can see all the subject labels as follows:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">icon_triplets</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "3n7ggxph" "b5wma4no" "d8mmm1qn" "jn7bbjc0" "pbby694o" "sc2xbd6w"</span></span></code></pre></div>
 <p>To learn more about this dataset, try
@@ -194,7 +347,7 @@ element contains the embedding information computed for one participant.
 The elements are labeled by the participant id (<code>worker_id</code>).
 The <code>icon_emb_ind</code> object contains a list of the kind
 returned by this function:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">icon_emb_ind</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt;           dim_0     dim_1      dim_2</span></span>
 <span><span class="co">#&gt; fdfob 0.6411938 0.9710717 -0.9336048</span></span>

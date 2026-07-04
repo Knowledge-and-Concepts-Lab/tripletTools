@@ -551,7 +551,7 @@ site. Save the following as `~/.batchtools.condor.tmpl` (adjust
 `request_memory` and any site-specific lines for your cluster):
 
     universe     = vanilla
-    executable   = '/opt/R/4.6.0/lib/R/bin/Rscript'
+    executable   = '/opt/R/4.6.1/lib/R/bin/Rscript'
     arguments    = -e 'batchtools::doJobCollection("$(job.collection)")'
 
     transfer_input_files  = $(job.collection)
