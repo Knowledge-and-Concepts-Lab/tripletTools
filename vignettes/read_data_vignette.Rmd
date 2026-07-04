@@ -20,7 +20,85 @@ library(tripletTools)
 
 This package contains a set of functions to aid analysis of data from _triadic comparisons_ or _triplet_ tasks. See the _tripletTools Overview_ vignette for demonstrations of the various tools.
 
-This vignette describes how to read new data into R in a format that works with the package, and describes how the raw data file should be structured.
+This vignette describes how to get triplet data into R in a format that works with the package. There are three common starting points:
+
+1. **Raw jsPsych exports** — you just finished data collection and have one CSV per participant straight out of jsPsych. Use `read_raw_data()`.
+2. **A legacy dataset** — you have a single CSV from an older experiment or a different collection platform, with column names that may not match the package's conventions. Use `read_legacy()`.
+3. **Already-processed data** — your data are already in the standard format (e.g. previously exported by one of the functions above). Jump straight to [Data file structure and naming conventions](#data-file-structure-and-naming-conventions) below to see how to load it.
+
+---
+
+## Reading raw jsPsych data with `read_raw_data()`
+
+If you collected your data with a jsPsych triplet experiment, `read_raw_data()` handles the full cleaning pipeline in one call. Point it at the directory containing the raw participant CSV files and it will:
+
+1. Read and combine all CSVs in the directory.
+2. Filter rows to experiment trials (`trial_category` equal to `"random"`, `"check"`, or `"validation"`).
+3. Apply quality-control exclusions: remove participants with too few trials (`filter_incomplete`), unusually fast mean reaction times (`filter_fast_responders`), or too many failed catch trials (`filter_failed_catch`).
+4. Strip file paths and extensions from stimulus names.
+5. Split the comma-separated `choices` column into labelled `Left` / `Right` columns and derive `winner` / `loser`.
+6. Assign a random 80/20 train/test split (configurable) via `assign_sample_sets`.
+7. Optionally write a cleaned trial CSV and a stimulus-level integer-mapping CSV to disk.
+
+```{r read-raw, eval = FALSE}
+result <- read_raw_data(
+  data_dir       = "experiment/raw_data/",   # folder of per-participant CSVs
+  output_df      = "data/triplets_clean.csv",
+  output_levels  = "data/stimulus_levels.csv",
+  min_trials     = 200,       # drop participants with fewer trials than this
+  min_mean_rt_ms = 200,       # drop participants with mean RT below this (ms)
+  max_prop_wrong = 0.20,      # drop participants who fail >20% of catch trials
+  test_prop      = 0.20,      # fraction of trials assigned to the test set
+  seed           = 42
+)
+```
+
+The function returns a list invisibly with two elements:
+
+- `result$trials` — a data frame of cleaned trial-level data in the standard format (see [Data file structure](#data-file-structure-and-naming-conventions) below), ready to pass to `get.combined()` or the embedding functions.
+- `result$levels` — a data frame mapping each stimulus label to its integer index and file path.
+
+All QC thresholds default to permissive values (`min_trials = 0`, `min_mean_rt_ms = 0`, `max_prop_wrong = 1`), so calling `read_raw_data()` with only `data_dir` set will read and clean the files without excluding anyone.
+
+---
+
+## Reading legacy data with `read_legacy()`
+
+If your data come from an older experiment or a different collection platform, the column names may not match the package's conventions. `read_legacy()` handles a wide range of input formats by matching column names case-insensitively and ignoring punctuation, so it can usually find the right columns even when they are named differently.
+
+Pass the path to a single combined CSV file:
+
+```{r read-legacy, eval = FALSE}
+result <- read_legacy("data/old_experiment.csv")
+```
+
+The function recognises many common alternative column names automatically. For example:
+
+| Standard name | Also recognised as |
+|---|---|
+| `worker_id` (participant) | `sessionID`, `puid`, `Participant.ID`, `sub_id`, `pid` |
+| `Center` (target item) | `Target` |
+| `Left` / `Right` (options) | `Option1` / `Option2` |
+| `sampleAlg` | `AlgSample` |
+| `sampleSet` | `Alg.Label`, `TrnTest` |
+
+When a column cannot be found, it is derived where possible: `winner` and `loser` are inferred from `Answer`, `Left`, and `Right`; if no participant identifier is found, participants are assigned sequential IDs (`"P1"`, `"P2"`, …); if no `sampleSet` column exists, 10% of trials are randomly assigned to `"test"` and the rest to `"train"`.
+
+`read_legacy()` always writes two output files alongside the input:
+
+- `<basename>_v2025.csv` — standardised trial data in the package's column format.
+- `<basename>_2025_levels.csv` — stimulus-level integer mapping.
+
+The function returns a list invisibly with the paths to these two files:
+
+```{r read-legacy-result, eval = FALSE}
+result$data_file    # path to the standardised CSV
+result$levels_file  # path to the levels mapping CSV
+```
+
+Once you have a standardised CSV from either function, load it into R with `get.combined()` as described in the next section.
+
+---
 
 ## Data file structure and naming conventions
 
