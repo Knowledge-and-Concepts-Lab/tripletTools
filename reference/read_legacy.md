@@ -35,7 +35,7 @@ A list returned invisibly with two elements:
 
 ## Output columns
 
-- `p_id`:
+- `worker_id`:
 
   Character participant identifier.
 
@@ -69,7 +69,7 @@ A list returned invisibly with two elements:
   Integer factor code for the unchosen option, using the same ordering
   as `head`.
 
-- `RT`:
+- `rt`:
 
   Numeric reaction time. `NA` if not present in the input.
 
@@ -87,7 +87,7 @@ A list returned invisibly with two elements:
 Input column names are matched case-insensitively and ignoring
 punctuation.
 
-- Participant ID (`p_id`):
+- Participant ID (`worker_id`):
 
   Recognised input names: `sessionID`, `session_ID`, `puid`,
   `Participant.ID`, `worker_id`, `sub_id`, `pid`. If none are found,

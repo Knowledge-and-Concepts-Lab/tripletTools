@@ -433,11 +433,60 @@ Look for an **elbow**: a point where increasing `d` no longer reduces
 loss substantially. The one-SE rule formalises this by returning the
 smallest `d` in the flat region of the curve.
 
+### Group vs. individual mode
+
+By default (`group = TRUE`), all participants’ trials are pooled into a
+single dataset and one dimensionality search is run on the combined
+data. This is the right choice when you want to select a single `d` for
+a group embedding, and it is faster because only one set of models is
+trained.
+
+``` r
+
+# Default: pool all participants (group = TRUE is the default)
+dim_est_grp <- estimate_dimensionality(
+  triplet_list = icon_triplets,
+  dims         = 1:6,
+  n_restarts   = 10L
+)
+dim_est_grp$summary
+```
+
+If participants may differ substantially in representational complexity
+— for example, if some participants produce clearly lower-dimensional
+structure than others — you can run the search separately for each
+participant with `group = FALSE`. In this mode the function returns a
+named list, one element per participant, each with the same `results` /
+`summary` structure.
+
+``` r
+
+dim_est_ind <- estimate_dimensionality(
+  triplet_list = icon_triplets,
+  dims         = 1:6,
+  n_restarts   = 10L,
+  group        = FALSE
+)
+
+# Result is a named list, one entry per participant
+names(dim_est_ind)
+
+# Recommended d for the first participant
+dim_est_ind[[1]]$summary
+
+# Extract the recommended d for every participant
+sapply(dim_est_ind, function(x) x$summary$d[x$summary$best_d])
+```
+
+Item indices are rebuilt from each participant’s own trials in
+individual mode, so the item space may differ across participants if not
+everyone saw every stimulus.
+
 ### Practical notes
 
 The function can be slow for large datasets or many restarts because it
-trains `length(dims) × n_restarts` independent models. A few
-suggestions:
+trains `length(dims) × n_restarts` independent models (multiplied by the
+number of participants in individual mode). A few suggestions:
 
 - Start with a coarse grid (e.g. `dims = c(1, 2, 3, 5, 8)`) and
   `n_restarts = 5` to get a rough picture, then refine around the elbow.
@@ -445,10 +494,6 @@ suggestions:
   you plan to use for the final embedding.
 - If a GPU is available, pass `device = "cuda"` (or `"mps"` on Apple
   Silicon) to speed up each individual fit.
-- [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
-  trains only a **group** embedding (pooling all participants) at each
-  `d`. This is usually the right choice for selecting `d`, and it is
-  faster than fitting per-participant models.
 - Each (d, restart) pair is independent, so the function can be
   parallelised — see the next section.
 

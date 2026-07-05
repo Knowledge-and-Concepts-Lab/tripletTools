@@ -61,7 +61,8 @@ dimensionality that achieves near-minimum hold-out loss.</p>
 <span>  tol_window <span class="op">=</span> <span class="fl">10000L</span>,</span>
 <span>  device <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">1L</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  group <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -116,10 +117,18 @@ Default <code>1L</code>.</p></dd>
 before each restart.  Ignored when running in parallel (output from
 worker processes is not forwarded to the main session).</p></dd>
 
+
+<dt id="arg-group">group<a class="anchor" aria-label="anchor" href="#arg-group"></a></dt>
+<dd><p>Logical.  If <code>TRUE</code> (default), pool all participants'
+trials and run a single dimensionality search on the combined data.  If
+<code>FALSE</code>, run the search independently for each participant and return
+a named list of result objects.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A named list with two elements:</p><dl><dt><code>results</code></dt>
+    <p>When <code>group = TRUE</code> (the default), a named list with two
+elements:</p><dl><dt><code>results</code></dt>
 <dd><p>Data frame with one row per (dimension, restart) and
 columns <code>d</code>, <code>restart</code>, <code>loss</code>, <code>epoch</code>.</p></dd>
 
@@ -130,7 +139,24 @@ The logical column <code>best_d</code> marks the smallest <code>d</code> within
 one standard error of the global minimum mean loss.</p></dd>
 
 
-</dl></div>
+</dl><p>When <code>group = FALSE</code>, a named list with one element per participant,
+each of which has the same <code>results</code> / <code>summary</code> structure
+described above.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="group-vs-individual-mode">Group vs. individual mode<a class="anchor" aria-label="anchor" href="#group-vs-individual-mode"></a></h2>
+
+
+<p>When <code>group = TRUE</code> (the default), all participants' trials are pooled
+into a single dataset and one dimensionality search is performed over the
+combined data.  This is appropriate when you want to select a single
+embedding dimensionality for a group embedding.</p>
+<p>When <code>group = FALSE</code>, the search is run independently for each
+element of <code>triplet_list</code>, using only that participant's trials.  The
+return value is then a named list of result objects, one per participant.
+Item indices are re-built from each participant's own data, so the item
+space may differ across participants.</p>
+    </div>
     <div class="section level2">
     <h2 id="parallelism">Parallelism<a class="anchor" aria-label="anchor" href="#parallelism"></a></h2>
 
@@ -167,7 +193,9 @@ tends to favour parsimony when several dimensions achieve similar loss.</p>
 
 <p>All unique item names in <code>Center</code>, <code>Left</code>, and <code>Right</code>
 across all participants are collected and sorted alphabetically; this sorted
-order defines the zero-based integer indices passed to the Python model.</p>
+order defines the zero-based integer indices passed to the Python model.
+In <code>group = FALSE</code> mode, indexing is done separately for each
+participant using only their own trials.</p>
     </div>
     <div class="section level2">
     <h2 id="filtering">Filtering<a class="anchor" aria-label="anchor" href="#filtering"></a></h2>
@@ -183,7 +211,7 @@ If no <code>sampleSet</code> column is present or all values are <code>NA</code>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="co"># Serial (default)</span></span></span>
+<span class="r-in"><span><span class="co"># Group mode (default): pool all participants</span></span></span>
 <span class="r-in"><span><span class="va">dim_est</span> <span class="op">&lt;-</span> <span class="fu">estimate_dimensionality</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span></span>
 <span class="r-in"><span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span></span>
@@ -191,15 +219,23 @@ If no <code>sampleSet</code> column is present or all values are <code>NA</code>
 <span class="r-in"><span>  max_epochs   <span class="op">=</span> <span class="fl">20000L</span>,</span></span>
 <span class="r-in"><span>  seed         <span class="op">=</span> <span class="fl">42L</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">dim_est</span><span class="op">$</span><span class="va">summary</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Individual mode: separate search per participant</span></span></span>
+<span class="r-in"><span><span class="va">dim_est_ind</span> <span class="op">&lt;-</span> <span class="fu">estimate_dimensionality</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span></span>
+<span class="r-in"><span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span></span>
+<span class="r-in"><span>  n_restarts   <span class="op">=</span> <span class="fl">5L</span>,</span></span>
+<span class="r-in"><span>  group        <span class="op">=</span> <span class="cn">FALSE</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># Best dimensionality for the first participant:</span></span></span>
+<span class="r-in"><span><span class="va">dim_est_ind</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">summary</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Parallel: use 4 local cores (requires future.apply)</span></span></span>
 <span class="r-in"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">multisession</span>, workers <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">dim_est</span> <span class="op">&lt;-</span> <span class="fu">estimate_dimensionality</span><span class="op">(</span><span class="va">icon_triplets</span>, dims <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>, n_restarts <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">sequential</span><span class="op">)</span>  <span class="co"># restore serial execution afterwards</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Summary with recommended dimensionality flagged</span></span></span>
-<span class="r-in"><span><span class="va">dim_est</span><span class="op">$</span><span class="va">summary</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Plot mean loss +/- 1 SD by dimension</span></span></span>
 <span class="r-in"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="va">dim_est</span><span class="op">$</span><span class="va">summary</span></span></span>
