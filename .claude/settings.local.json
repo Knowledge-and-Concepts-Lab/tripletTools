@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(Rscript -e \"load\\('data/icon_items.rda'\\); ls\\(\\)\")"
+      "Bash(Rscript -e \"load\\('data/icon_items.rda'\\); ls\\(\\)\")",
+      "PowerShell(git pull)",
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\Git\\\\bin\"; git pull)"
     ]
   }
 }
