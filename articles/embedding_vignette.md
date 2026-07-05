@@ -49,6 +49,43 @@ If conda is not found on your system,
 will stop with a message directing you to the Miniconda installation
 page.
 
+### If conda is installed but not found
+
+On Windows, conda is sometimes installed without being added to the
+system PATH, which means R cannot locate it automatically. If you see a
+“Conda was not found” error despite having Miniconda or Anaconda
+installed, find the conda executable and tell reticulate where it is:
+
+``` r
+
+# Common locations — run this to find yours:
+possible_paths <- c(
+  file.path(Sys.getenv("USERPROFILE"), "miniconda3", "Scripts", "conda.exe"),
+  file.path(Sys.getenv("USERPROFILE"), "anaconda3", "Scripts", "conda.exe"),
+  "C:/ProgramData/miniconda3/Scripts/conda.exe",
+  "C:/ProgramData/anaconda3/Scripts/conda.exe",
+  "C:/miniconda3/Scripts/conda.exe"
+)
+possible_paths[file.exists(possible_paths)]
+```
+
+Once you have the path, set it for the current session:
+
+``` r
+
+Sys.setenv(RETICULATE_CONDA = "C:/Users/you/miniconda3/Scripts/conda.exe")
+```
+
+To avoid having to do this every session, add the line to your
+`.Renviron` file so it is set automatically on startup:
+
+``` r
+
+usethis::edit_r_environ()
+# Add this line to the file that opens, then save and restart RStudio:
+# RETICULATE_CONDA=C:/Users/you/miniconda3/Scripts/conda.exe
+```
+
 ### GPU / CUDA support
 
 If your machine has an NVIDIA GPU, you can install a CUDA-enabled build
@@ -535,12 +572,18 @@ acceleration for single-model fits.
 **Progress monitoring.** Because worker output is not forwarded to the
 main session, the `verbose` progress messages are suppressed
 automatically. Install `progressr` to get a progress bar showing
-completions instead:
+completions instead. Wrap the call in
+[`with_progress()`](https://progressr.futureverse.org/reference/with_progress.html)
+— this is more reliable in RStudio than `handlers(global = TRUE)`, which
+can fail if RStudio has already registered its own handlers:
 
 ``` r
 
 library(progressr)
-handlers(global = TRUE)   # enable progress bar for the session
+
+with_progress({
+  dim_est <- estimate_dimensionality(...)
+})
 ```
 
 ### Local multicore
@@ -551,20 +594,21 @@ Use all available cores on your workstation (or a subset):
 
 library(future)
 library(progressr)
-handlers(global = TRUE)
 
 # Pass the plan name as a string — the bare symbol form (plan(multisession))
 # may not be found if future is loaded but not attached in all environments.
 plan("multisession", workers = 4)   # or: workers = parallel::detectCores() - 1
 
-dim_est <- estimate_dimensionality(
-  triplet_list = icon_triplets,
-  dims         = 1:8,
-  n_restarts   = 10L,
-  max_epochs   = 50000L,
-  seed         = 42L,
-  device       = "cpu"   # use CPU in parallel — GPU contention rarely helps
-)
+with_progress({
+  dim_est <- estimate_dimensionality(
+    triplet_list = icon_triplets,
+    dims         = 1:8,
+    n_restarts   = 10L,
+    max_epochs   = 50000L,
+    seed         = 42L,
+    device       = "cpu"   # use CPU in parallel — GPU contention rarely helps
+  )
+})
 
 plan("sequential")   # restore serial execution when done
 ```
