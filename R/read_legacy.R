@@ -9,7 +9,7 @@
 #'
 #' @section Output columns:
 #' \describe{
-#'   \item{\code{p_id}}{Character participant identifier.}
+#'   \item{\code{worker_id}}{Character participant identifier.}
 #'   \item{\code{Center}}{Character label of the target (reference) stimulus.}
 #'   \item{\code{Left}}{Character label of the left-hand choice stimulus.}
 #'   \item{\code{Right}}{Character label of the right-hand choice stimulus.}
@@ -21,7 +21,7 @@
 #'     same ordering as \code{head}.}
 #'   \item{\code{loser}}{Integer factor code for the unchosen option, using
 #'     the same ordering as \code{head}.}
-#'   \item{\code{RT}}{Numeric reaction time. \code{NA} if not present in the
+#'   \item{\code{rt}}{Numeric reaction time. \code{NA} if not present in the
 #'     input.}
 #'   \item{\code{sampleAlg}}{Character sampling algorithm label:
 #'     \code{"random"}, \code{"check"}, \code{"validation"},
@@ -33,7 +33,7 @@
 #' @section Column mappings:
 #' Input column names are matched case-insensitively and ignoring punctuation.
 #' \describe{
-#'   \item{Participant ID (\code{p_id})}{Recognised input names:
+#'   \item{Participant ID (\code{worker_id})}{Recognised input names:
 #'     \code{sessionID}, \code{session_ID}, \code{puid},
 #'     \code{Participant.ID}, \code{worker_id}, \code{sub_id}, \code{pid}.
 #'     If none are found, participants are assigned sequential IDs
@@ -123,7 +123,7 @@ read_legacy <- function(input_file) {
   new_data <- data
 
   # ── Participant ID ─────────────────────────────────────
-  new_data$p_id <- if (!is.null(p_id_col)) {
+  new_data$worker_id <- if (!is.null(p_id_col)) {
     data[[p_id_col]]
   } else {
     paste0("P", seq_len(nrow(data)))
@@ -171,7 +171,7 @@ read_legacy <- function(input_file) {
     )
 
   # ── Reaction time ──────────────────────────────────────
-  new_data$RT <- if ("RT" %in% colnames(data)) data$RT else NA
+  new_data$rt <- if ("RT" %in% colnames(data)) data$RT else if ("rt" %in% colnames(data)) data$rt else NA
 
   # ── sampleAlg ──────────────────────────────────────────
   new_data$sampleAlg <- if (!is.null(samplealg_col)) {
@@ -197,8 +197,8 @@ read_legacy <- function(input_file) {
 
   # ── Select and order output columns ───────────────────
   new_data <- new_data %>%
-    select(.data$p_id, .data$Center, .data$Left, .data$Right, .data$Answer, .data$head,
-           .data$winner, .data$loser, .data$RT, .data$sampleAlg, .data$sampleSet)
+    select(.data$worker_id, .data$Center, .data$Left, .data$Right, .data$Answer, .data$head,
+           .data$winner, .data$loser, .data$rt, .data$sampleAlg, .data$sampleSet)
 
   # ── Write output ───────────────────────────────────────
   output_file <- paste0(base_name, "_v2025.csv")

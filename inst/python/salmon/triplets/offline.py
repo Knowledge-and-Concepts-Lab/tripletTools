@@ -250,9 +250,10 @@ class OfflineEmbedding(BaseEstimator):
     def _score(self, X):
         module_ = self.opt_.module_
         with torch.no_grad():
-            score = self.opt_.score(X)
-            loss = module_.losses(*module_._get_dists(X))
-        return score, float(loss.mean().item())
+            win2, lose2 = module_._get_dists(X)
+            acc = float((win2 < lose2).float().mean().item())
+            loss = float(module_.losses(win2, lose2).mean().item())
+        return acc, loss
 
     def _partial_fit(self, X_train):
         _start = time()

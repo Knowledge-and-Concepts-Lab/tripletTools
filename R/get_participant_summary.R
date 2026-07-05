@@ -68,7 +68,7 @@ get.participant.summary <- function(d, irange = NULL, mintrial = 1000, accthresh
       sdat <- sdat[sdat$sampleAlg=="check",]
       o$cacc[i] <- mean(sdat$Answer==sdat$Center)
     } else {
-      o$cacc[i] <- NA
+      o$cacc[i] <- 1.0 #Automatic pass if no check trials
     }
     #Which subjects meet quality criteria
     if(o$cacc[i] <= accthresh | o$lrt[i] <= rtthresh | o$ndat[i] < mintrial) o$keep[i] <- F

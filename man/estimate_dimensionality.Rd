@@ -13,7 +13,8 @@ estimate_dimensionality(
   tol_window = 10000L,
   device = NULL,
   seed = 1L,
-  verbose = TRUE
+  verbose = TRUE,
+  group = TRUE
 )
 }
 \arguments{
@@ -46,9 +47,15 @@ Default \code{1L}.}
 \item{verbose}{Logical.  If \code{TRUE} (default), print a progress line
 before each restart.  Ignored when running in parallel (output from
 worker processes is not forwarded to the main session).}
+
+\item{group}{Logical.  If \code{TRUE} (default), pool all participants'
+trials and run a single dimensionality search on the combined data.  If
+\code{FALSE}, run the search independently for each participant and return
+a named list of result objects.}
 }
 \value{
-A named list with two elements:
+When \code{group = TRUE} (the default), a named list with two
+elements:
 \describe{
 \item{\code{results}}{Data frame with one row per (dimension, restart) and
 columns \code{d}, \code{restart}, \code{loss}, \code{epoch}.}
@@ -57,6 +64,9 @@ columns \code{d}, \code{restart}, \code{loss}, \code{epoch}.}
 The logical column \code{best_d} marks the smallest \code{d} within
 one standard error of the global minimum mean loss.}
 }
+When \code{group = FALSE}, a named list with one element per participant,
+each of which has the same \code{results} / \code{summary} structure
+described above.
 }
 \description{
 Fits embeddings across a range of dimensionalities, each with multiple
@@ -64,6 +74,20 @@ random restarts, and returns the hold-out loss at every
 (dimension, restart) combination.  Use the results to select the smallest
 dimensionality that achieves near-minimum hold-out loss.
 }
+\section{Group vs. individual mode}{
+
+When \code{group = TRUE} (the default), all participants' trials are pooled
+into a single dataset and one dimensionality search is performed over the
+combined data.  This is appropriate when you want to select a single
+embedding dimensionality for a group embedding.
+
+When \code{group = FALSE}, the search is run independently for each
+element of \code{triplet_list}, using only that participant's trials.  The
+return value is then a named list of result objects, one per participant.
+Item indices are re-built from each participant's own data, so the item
+space may differ across participants.
+}
+
 \section{Parallelism}{
 
 By default the function runs serially.  If the \pkg{future.apply} package
@@ -99,6 +123,8 @@ tends to favour parsimony when several dimensions achieve similar loss.
 All unique item names in \code{Center}, \code{Left}, and \code{Right}
 across all participants are collected and sorted alphabetically; this sorted
 order defines the zero-based integer indices passed to the Python model.
+In \code{group = FALSE} mode, indexing is done separately for each
+participant using only their own trials.
 }
 
 \section{Filtering}{
@@ -112,7 +138,7 @@ If no \code{sampleSet} column is present or all values are \code{NA}, a
 
 \examples{
 \dontrun{
-# Serial (default)
+# Group mode (default): pool all participants
 dim_est <- estimate_dimensionality(
   triplet_list = icon_triplets,
   dims         = 1:6,
@@ -120,15 +146,23 @@ dim_est <- estimate_dimensionality(
   max_epochs   = 20000L,
   seed         = 42L
 )
+dim_est$summary
+
+# Individual mode: separate search per participant
+dim_est_ind <- estimate_dimensionality(
+  triplet_list = icon_triplets,
+  dims         = 1:6,
+  n_restarts   = 5L,
+  group        = FALSE
+)
+# Best dimensionality for the first participant:
+dim_est_ind[[1]]$summary
 
 # Parallel: use 4 local cores (requires future.apply)
 library(future)
 plan(multisession, workers = 4)
 dim_est <- estimate_dimensionality(icon_triplets, dims = 1:6, n_restarts = 10L)
 plan(sequential)  # restore serial execution afterwards
-
-# Summary with recommended dimensionality flagged
-dim_est$summary
 
 # Plot mean loss +/- 1 SD by dimension
 s <- dim_est$summary

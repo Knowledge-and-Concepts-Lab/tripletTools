@@ -29,7 +29,7 @@ stimulus-level mapping CSV.
 \section{Output columns}{
 
 \describe{
-\item{\code{p_id}}{Character participant identifier.}
+\item{\code{worker_id}}{Character participant identifier.}
 \item{\code{Center}}{Character label of the target (reference) stimulus.}
 \item{\code{Left}}{Character label of the left-hand choice stimulus.}
 \item{\code{Right}}{Character label of the right-hand choice stimulus.}
@@ -41,7 +41,7 @@ ordered alphabetically across all unique stimuli in \code{Center},
 same ordering as \code{head}.}
 \item{\code{loser}}{Integer factor code for the unchosen option, using
 the same ordering as \code{head}.}
-\item{\code{RT}}{Numeric reaction time. \code{NA} if not present in the
+\item{\code{rt}}{Numeric reaction time. \code{NA} if not present in the
 input.}
 \item{\code{sampleAlg}}{Character sampling algorithm label:
 \code{"random"}, \code{"check"}, \code{"validation"},
@@ -55,7 +55,7 @@ input.}
 
 Input column names are matched case-insensitively and ignoring punctuation.
 \describe{
-\item{Participant ID (\code{p_id})}{Recognised input names:
+\item{Participant ID (\code{worker_id})}{Recognised input names:
 \code{sessionID}, \code{session_ID}, \code{puid},
 \code{Participant.ID}, \code{worker_id}, \code{sub_id}, \code{pid}.
 If none are found, participants are assigned sequential IDs

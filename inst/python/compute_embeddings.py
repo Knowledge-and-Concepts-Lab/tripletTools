@@ -39,36 +39,48 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
     counter_since_update = 0
     epoch_history = []
 
+    # Score every score_every epochs rather than every epoch.
+    # Scoring the full dataset every epoch is the dominant cost for large
+    # datasets: with 50k triplets and 50k epochs it means billions of
+    # evaluations before any gradient work counts. Checking every
+    # tol_window//100 epochs gives ~100 monitoring points per tolerance
+    # window, which is more than enough for reliable early stopping.
+    score_every = max(1, tol_window // 100)
+
     header = f"{'Epoch':>8}  {'Train Loss':>10}  {'Test Loss':>10}  {'Train Acc':>10}  {'Test Acc':>10}"
     print(header)
     print("-" * len(header))
 
+    train_acc = train_loss = test_acc = test_loss = float("nan")
+
     for epoch in range(max_epochs):
         model.partial_fit(X_train)
 
-        train_acc, train_loss = model._score(X_train)
-        test_acc,  test_loss  = model._score(X_test)
+        if epoch % score_every == 0 or epoch == max_epochs - 1:
+            train_acc, train_loss = model._score(X_train)
+            test_acc,  test_loss  = model._score(X_test)
 
-        epoch_history.append({
-            "epoch":      epoch,
-            "train_loss": train_loss,
-            "test_loss":  test_loss,
-            "train_acc":  train_acc,
-            "test_acc":   test_acc,
-        })
+            epoch_history.append({
+                "epoch":      epoch,
+                "train_loss": train_loss,
+                "test_loss":  test_loss,
+                "train_acc":  train_acc,
+                "test_acc":   test_acc,
+            })
 
-        if epoch % print_every == 0:
-            print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  {test_acc:>10.4f}")
+            if epoch % print_every == 0:
+                print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  {test_acc:>10.4f}")
 
-        if test_loss < current_lowest_loss:
-            current_lowest_loss = test_loss
-            current_best_embedding = model.embedding_
-            counter_since_update = 0
-        elif (current_lowest_loss - test_loss) < tolerance and counter_since_update > tol_window:
-            print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  {test_acc:>10.4f}  [early stop]")
-            break
-        else:
-            counter_since_update += 1
+            if test_loss < current_lowest_loss:
+                current_lowest_loss = test_loss
+                current_best_embedding = model.embedding_
+                counter_since_update = 0
+            else:
+                counter_since_update += score_every
+
+            if counter_since_update > tol_window:
+                print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  {test_acc:>10.4f}  [early stop]")
+                break
     else:
         print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  {test_acc:>10.4f}  [max epochs]")
 

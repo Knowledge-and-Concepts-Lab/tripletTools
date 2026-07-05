@@ -6,6 +6,8 @@
 .quarto
 .claude
 inst/doc
+__pycache__/
+*.pyc
 /doc/
 /Meta/
 docs
