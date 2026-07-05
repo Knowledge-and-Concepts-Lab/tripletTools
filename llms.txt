@@ -31,6 +31,8 @@ All functions are documented in `tripletTools_manual.pdf`
   : Assign trials to train or test sets
 - [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
   : Estimate the latent dimensionality of a triplet dataset
+- [`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)
+  : Estimate a learning curve for a triplet embedding
 - [`filter_failed_catch()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_failed_catch.md)
   : Exclude participants who fail too many catch trials
 - [`filter_fast_responders()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_fast_responders.md)
