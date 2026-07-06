@@ -22,7 +22,9 @@
 #'   \item{\code{loser}}{Integer factor code for the unchosen option, using
 #'     the same ordering as \code{head}.}
 #'   \item{\code{rt}}{Numeric reaction time. \code{NA} if not present in the
-#'     input.}
+#'     input. Recognised input names: \code{RT}, \code{rt}, or any column
+#'     whose name contains "response" and "time" (case- and
+#'     punctuation-insensitive, e.g. \code{Response.Time..s.}).}
 #'   \item{\code{sampleAlg}}{Character sampling algorithm label:
 #'     \code{"random"}, \code{"check"}, \code{"validation"},
 #'     \code{"uncertainty"}, or \code{NA}.}
@@ -172,7 +174,13 @@ read_legacy <- function(input_file) {
     )
 
   # ── Reaction time ──────────────────────────────────────
-  new_data$rt <- if ("RT" %in% colnames(data)) data$RT else if ("rt" %in% colnames(data)) data$rt else NA
+  rt_col <- find_column(c("RT", "rt"), data)
+  if (is.null(rt_col)) {
+    clean_cols <- tolower(gsub("[[:punct:]]", "", colnames(data)))
+    rt_idx <- grep("response.*time|time.*response", clean_cols)
+    if (length(rt_idx) > 0) rt_col <- colnames(data)[rt_idx[1]]
+  }
+  new_data$rt <- if (!is.null(rt_col)) data[[rt_col]] else NA
 
   # ── sampleAlg ──────────────────────────────────────────
   new_data$sampleAlg <- if (!is.null(samplealg_col)) {
