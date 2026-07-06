@@ -46,9 +46,10 @@
 #'     \code{Answer}, \code{Left}, and \code{Right} when absent.}
 #'   \item{sampleAlg}{Recognised input names: \code{sampleAlg},
 #'     \code{AlgSample}. Values are recoded: \code{"Random"} →
-#'     \code{"random"}; \code{"Test"} → \code{"validation"};
-#'     \code{"check"} → \code{"check"}; \code{"uncertainty"} →
-#'     \code{"uncertainty"}. Filled with \code{NA} when absent.}
+#'     \code{"random"}; \code{"Test"} → \code{"test"} (and the row is also
+#'     assigned \code{sampleSet = "test"}); \code{"check"} → \code{"check"};
+#'     \code{"uncertainty"} → \code{"uncertainty"}. Filled with \code{NA}
+#'     when absent.}
 #'   \item{sampleSet}{Recognised input names: \code{sampleSet},
 #'     \code{Alg.Label}, \code{TrnTest}. When absent, 10\% of trials are
 #'     randomly assigned to \code{"test"} and the remainder to
@@ -177,7 +178,7 @@ read_legacy <- function(input_file) {
   new_data$sampleAlg <- if (!is.null(samplealg_col)) {
     case_when(
       tolower(data[[samplealg_col]]) == "random"      ~ "random",
-      tolower(data[[samplealg_col]]) == "test"        ~ "validation",
+      tolower(data[[samplealg_col]]) == "test"        ~ "test",
       tolower(data[[samplealg_col]]) == "check"       ~ "check",
       tolower(data[[samplealg_col]]) == "uncertainty" ~ "uncertainty",
       TRUE                                            ~ NA_character_
@@ -187,8 +188,16 @@ read_legacy <- function(input_file) {
   }
 
   # ── sampleSet ──────────────────────────────────────────
+  has_alg_test <- !is.null(samplealg_col) &&
+    any(tolower(data[[samplealg_col]]) == "test", na.rm = TRUE)
+
   new_data$sampleSet <- if (!is.null(sampleset_col)) {
     data[[sampleset_col]]
+  } else if (has_alg_test) {
+    # Test items are already identified via sampleAlg — use those exclusively
+    # rather than adding an additional random 10% split on top.
+    ifelse(!is.na(new_data$sampleAlg) & new_data$sampleAlg == "test",
+           "test", "train")
   } else {
     set.seed(2025)
     sample(c("train", "test"), size = nrow(new_data), replace = TRUE,
