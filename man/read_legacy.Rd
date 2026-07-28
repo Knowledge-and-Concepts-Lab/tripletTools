@@ -42,7 +42,9 @@ same ordering as \code{head}.}
 \item{\code{loser}}{Integer factor code for the unchosen option, using
 the same ordering as \code{head}.}
 \item{\code{rt}}{Numeric reaction time. \code{NA} if not present in the
-input.}
+input. Recognised input names: \code{RT}, \code{rt}, or any column
+whose name contains "response" and "time" (case- and
+punctuation-insensitive, e.g. \code{Response.Time..s.}).}
 \item{\code{sampleAlg}}{Character sampling algorithm label:
 \code{"random"}, \code{"check"}, \code{"validation"},
 \code{"uncertainty"}, or \code{NA}.}
@@ -68,9 +70,10 @@ If none are found, participants are assigned sequential IDs
 \code{Answer}, \code{Left}, and \code{Right} when absent.}
 \item{sampleAlg}{Recognised input names: \code{sampleAlg},
 \code{AlgSample}. Values are recoded: \code{"Random"} →
-\code{"random"}; \code{"Test"} → \code{"validation"};
-\code{"check"} → \code{"check"}; \code{"uncertainty"} →
-\code{"uncertainty"}. Filled with \code{NA} when absent.}
+\code{"random"}; \code{"Test"} → \code{"test"} (and the row is also
+assigned \code{sampleSet = "test"}); \code{"check"} → \code{"check"};
+\code{"uncertainty"} → \code{"uncertainty"}. Filled with \code{NA}
+when absent.}
 \item{sampleSet}{Recognised input names: \code{sampleSet},
 \code{Alg.Label}, \code{TrnTest}. When absent, 10\\% of trials are
 randomly assigned to \code{"test"} and the remainder to

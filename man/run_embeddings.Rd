@@ -13,7 +13,9 @@ run_embeddings(
   tolerance = 1e-04,
   tol_window = 10000L,
   seed = 222L,
-  device = NULL
+  device = NULL,
+  geometry = c("euclidean", "sphere"),
+  radius = 1
 )
 }
 \arguments{
@@ -41,6 +43,16 @@ Default \code{10000}.}
 \item{device}{PyTorch device string, or \code{NULL} (default) to
 auto-select: CUDA GPU if available, then Apple MPS, then CPU.
 Pass \code{"cpu"} to force CPU even on a GPU machine.}
+
+\item{geometry}{Either \code{"euclidean"} (default) or \code{"sphere"}.
+When \code{"sphere"}, items are placed on the surface of a
+\code{d}-dimensional sphere of radius \code{radius} (\code{d = 2} is a
+circle) instead of freely in \eqn{R^d}.  See the \emph{Spherical
+embeddings} section of \code{\link{train_embedding}} for details,
+including why this roughly doubles training time.}
+
+\item{radius}{Radius of the sphere used when \code{geometry = "sphere"}.
+Ignored when \code{geometry = "euclidean"}.  Default \code{1}.}
 }
 \value{
 A named list with two elements:

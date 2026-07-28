@@ -75,16 +75,22 @@ class TripletDist(nn.Module):
     def probs(self, win2, lose2):
         return self.numpy_or_torch(self._probs)(win2, lose2)
 
-    def _get_dists(self, h_w_l):
+    def _gather(self, h_w_l):
+        """
+        Look up the (head, winner, loser) embedding vectors for a batch of
+        triplet queries. Shared by ``_get_dists`` and by manifold variants
+        (e.g. spherical) that need the raw points but compute a different
+        distance between them.
+        """
         if isinstance(h_w_l, np.ndarray):
             h_w_l = torch.from_numpy(h_w_l.copy())
         h_w_l = h_w_l.to(self._embedding.device)
         H_W_L = h_w_l.long().T
         h, w, l = H_W_L[0], H_W_L[1], H_W_L[2]
-        heads = self._embedding[h]
-        winners = self._embedding[w]
-        losers = self._embedding[l]
+        return self._embedding[h], self._embedding[w], self._embedding[l]
 
+    def _get_dists(self, h_w_l):
+        heads, winners, losers = self._gather(h_w_l)
         win_dist2 = torch.norm(heads - winners, dim=1) ** 2
         lose_dist2 = torch.norm(heads - losers, dim=1) ** 2
         return win_dist2, lose_dist2

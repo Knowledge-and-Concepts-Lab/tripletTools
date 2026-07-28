@@ -303,6 +303,111 @@ A well-converged model shows test loss flattening well before `max_epochs`. If t
 
 ---
 
+## Spherical embeddings
+
+By default, embeddings are computed freely in Euclidean space — items can end up anywhere in \(\mathbb{R}^d\). Sometimes you have reason to believe the true structure is instead **circular or spherical**: a periodic variable like hue, phase, or time-of-day, where "wrapping around" is part of the representation rather than an artifact to be fit away. `train_embedding()` and every function built on it accept a `geometry` argument for exactly this case.
+
+```{r sphere-basic}
+grp_circle <- run_group_embedding_from_list(
+  triplet_list = icon_triplets,
+  d            = 2L,          # d = 2 means the *ambient* dimension —
+  geometry     = "sphere",    # a 2-sphere embedded in R^2 is a circle
+  radius       = 1,
+  max_epochs   = 50000L
+)
+```
+
+`d` always refers to the ambient dimension the sphere lives in, matching the convention used everywhere else in the package. A circle is the `d = 2` case; `d = 3` gives an ordinary sphere; higher `d` gives a hypersphere. `radius` sets the sphere's radius (default `1`) — mostly cosmetic, since it just rescales the recovered coordinates.
+
+### Why fitting takes two stages
+
+Constraining every point to a sphere's surface removes one degree of freedom per item relative to a free Euclidean fit. That turns out to matter a lot for optimization: starting from a random arrangement *on* the sphere, gradient descent has too little room to maneuver and reliably gets stuck reproducing close to chance-level accuracy, unable to escape a bad ordering of the items around the sphere.
+
+To avoid this, `geometry = "sphere"` fits in two stages automatically:
+
+1. A free Euclidean embedding is trained first (same `d`, same `max_epochs`/`tolerance`/`tol_window`), which easily finds a good arrangement because it isn't constrained.
+2. That solution is projected onto the sphere and used as the starting point for a second fit, now constrained to stay on the sphere's surface.
+
+You'll see both stages' progress printed in the console, labelled `[spherical warm start: fitting free Euclidean embedding]` and `[fitting constrained spherical embedding]`. This roughly **doubles training time** relative to `geometry = "euclidean"` — budget for it when setting `max_epochs` for a spherical fit on a large dataset.
+
+### Interpreting a circular (d = 2) embedding
+
+For `d = 2`, each item's angle around the circle is often more interpretable than its raw `(x, y)` coordinates:
+
+```{r sphere-angles}
+angles <- atan2(grp_circle$embedding[, 2], grp_circle$embedding[, 1])
+names(angles) <- rownames(grp_circle$embedding)
+sort(angles)
+```
+
+As with any embedding, the absolute rotation and reflection are arbitrary (not identifiable from triplet judgments alone) — only the relative circular *order* and *spacing* of items are meaningful. Plotting the fit with an equal aspect ratio, together with the unit circle for reference, makes this easy to check visually:
+
+```{r sphere-plot, fig.width = 6, fig.height = 6}
+plot(grp_circle$embedding, asp = 1, pch = 19, col = "steelblue",
+     xlab = "x", ylab = "y", main = "Circular group embedding")
+theta <- seq(0, 2 * pi, length.out = 200)
+lines(cos(theta), sin(theta), col = "gray70")
+text(grp_circle$embedding, labels = rownames(grp_circle$embedding),
+     pos = 3, cex = 0.7)
+```
+
+Points should fall almost exactly on the reference circle — the fit constrains them there — but check that they aren't all bunched together, which would indicate the optimizer struggled even with the warm start (try increasing `max_epochs`, or confirm the underlying structure is actually close to circular in the first place).
+
+### A worked example: recovering a known circular structure
+
+To build intuition for what a good fit looks like, it helps to see the recipe recover a *known* circular arrangement from synthetic data, since with real data you don't have ground truth to check against.
+
+```{r sphere-synthetic}
+set.seed(0)
+n_items <- 16
+true_angle <- sort(runif(n_items, 0, 2 * pi))
+
+# Triplet judgments generated purely from position on the circle
+circ_dist <- function(i, j) {
+  d <- abs(true_angle[i] - true_angle[j])
+  pmin(d, 2 * pi - d)
+}
+n_triplets <- 4000
+trip <- t(sapply(seq_len(n_triplets), function(k) {
+  idx <- sample(seq_len(n_items), 3)
+  h <- idx[1]; a <- idx[2]; b <- idx[3]
+  if (circ_dist(h, a) < circ_dist(h, b)) c(h, a, b) - 1L else c(h, b, a) - 1L
+}))
+split <- floor(0.8 * n_triplets)
+
+fit <- train_embedding(
+  X_train = trip[1:split, ], X_test = trip[(split + 1):n_triplets, ],
+  d = 2L, geometry = "sphere", max_epochs = 20000L, random_state = 0L
+)
+
+true_xy <- cbind(cos(true_angle), sin(true_angle))
+aligned <- align.embeddings(list(true_xy, fit$embedding), scl = FALSE)
+recovered_aligned <- aligned[[2]]
+
+rmse <- sqrt(mean(rowSums((true_xy - recovered_aligned)^2)))
+rmse
+```
+
+Comparing raw `atan2()` angles (or their ranks) between the true and recovered embeddings does *not* work here: the recovered circle's rotation and reflection are arbitrary, so `atan2()`'s wraparound point can fall anywhere relative to the true item ordering, and a linear/rank correlation between the two angle sequences can come out strongly negative even when the circular structure was recovered correctly. `align.embeddings()` avoids this by finding the rotation and reflection (and, if `scl = TRUE`, scale) that best superimposes the two embeddings before comparing them — the same approach the package uses to align embeddings across participants. The RMS distance after alignment is close to `0` for a good recovery; on a unit circle the largest possible distance between two points is `2`.
+
+### Combining with `estimate_dimensionality()`
+
+`estimate_dimensionality()` also accepts `geometry` and `radius`, so you can compare hold-out loss for spherical vs. Euclidean fits at the same set of dimensions:
+
+```{r sphere-dimest}
+dim_est_sphere <- estimate_dimensionality(
+  triplet_list = icon_triplets,
+  dims         = 1:6,
+  n_restarts   = 5L,
+  geometry     = "sphere"
+)
+dim_est_sphere$summary
+```
+
+Comparing this against a `geometry = "euclidean"` run at the same `dims` is a reasonable way to check whether constraining the data to a sphere costs you meaningfully in hold-out accuracy — if it doesn't, that's evidence the spherical structure is a genuine (or at least harmless) description of the data rather than a misspecification.
+
+---
+
 ## Choosing the number of dimensions
 
 The number of embedding dimensions `d` is a hyperparameter that must be set before fitting. Too few dimensions underfit the similarity structure; too many overfit noise. The right approach is to treat `d` as an unknown, fit embeddings at several values, and choose the smallest `d` whose hold-out loss is not meaningfully higher than the best.

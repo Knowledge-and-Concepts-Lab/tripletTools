@@ -6,33 +6,21 @@ from salmon.triplets.offline import OfflineEmbedding
 import os
 
 
-def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000, print_every=100, device=None, random_state=None):
+def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print_every,
+                  device, noise_model="CKL", embedding=None, random_state=None,
+                  module_kwargs=None, stage_label=None):
     """
-    Train embedding model with early stopping based on test loss.
+    Run one early-stopped OfflineEmbedding fit. Shared by the plain Euclidean
+    path and each stage of the spherical warm-start recipe in
+    ``train_embedding_model``.
 
-    Parameters:
-    X_train: numpy array of training triplets (head, winner, loser)
-    X_test: numpy array of test triplets (head, winner, loser)
-    d: embedding dimensions
-    max_epochs: maximum training epochs
-    tolerance: loss improvement threshold for early stopping
-    tol_window: epochs without meaningful improvement before stopping
-    print_every: print progress every this many epochs (default 100)
-
-    Returns:
-    best_embedding, lowest_loss, epoch_stopped, counter, history
-    where history is a DataFrame with columns:
-        epoch, train_loss, test_loss, train_acc, test_acc
+    Returns the same 5-tuple as ``train_embedding_model``.
     """
-    if random_state is not None:
-        np.random.seed(random_state)
-        torch.manual_seed(random_state)
-
-    n = int(max(X_train.max(), X_test.max()) + 1)  # number of targets
+    module_kwargs = module_kwargs or {}
 
     model = OfflineEmbedding(n=n, d=d, max_epochs=max_epochs, verbose=100, device=device,
-                              random_state=random_state)
-    model.partial_fit(X_train)
+                              noise_model=noise_model, random_state=random_state, **module_kwargs)
+    model.initialize(X_train, embedding=embedding)
 
     current_lowest_loss = 1
     current_best_embedding = model.embedding_
@@ -48,6 +36,8 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
     score_every = max(1, tol_window // 100)
 
     header = f"{'Epoch':>8}  {'Train Loss':>10}  {'Test Loss':>10}  {'Train Acc':>10}  {'Test Acc':>10}"
+    if stage_label:
+        print(stage_label)
     print(header)
     print("-" * len(header))
 
@@ -94,8 +84,100 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
     return current_best_embedding, current_lowest_loss, epoch, counter_since_update, history
 
 
+def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000,
+                           print_every=100, device=None, random_state=None,
+                           geometry="euclidean", radius=1.0, warm_start=None):
+    """
+    Train embedding model with early stopping based on test loss.
+
+    Parameters:
+    X_train: numpy array of training triplets (head, winner, loser)
+    X_test: numpy array of test triplets (head, winner, loser)
+    d: embedding dimensions
+    max_epochs: maximum training epochs
+    tolerance: loss improvement threshold for early stopping
+    tol_window: epochs without meaningful improvement before stopping
+    print_every: print progress every this many epochs (default 100)
+    geometry: "euclidean" (default) or "sphere". When "sphere", points are
+        constrained to the surface of a d-dimensional sphere of radius
+        ``radius`` (d=2 is a circle) rather than living freely in R^d.
+        Distances between constrained points are used directly in the noise
+        model, which is mathematically equivalent to great-circle distance
+        for points on a common sphere (see salmon's ``_spherical.py`` for
+        why) but numerically better behaved.
+
+        Fitting a spherical embedding from a random start reliably gets
+        stuck near chance accuracy: the sphere's tangent space gives each
+        point only d-1 degrees of freedom to move along, too few for
+        gradient descent to escape a bad ordering. So when geometry="sphere"
+        and no ``warm_start`` is given, this function first fits a free
+        Euclidean embedding (same d, same early-stopping schedule), projects
+        it onto the sphere, and uses that as the starting point for the
+        constrained fit. This roughly doubles training cost relative to
+        geometry="euclidean", but is necessary for the constrained fit to
+        find good solutions.
+    radius: radius of the sphere when geometry="sphere". Ignored otherwise.
+    warm_start: optional (n, d) numpy array of existing embedding
+        coordinates to start training from, instead of a random
+        initialization. When geometry="sphere", this is treated as an
+        already-fit *Euclidean* embedding and is projected onto the sphere
+        directly, skipping the internal warm-start Euclidean fit described
+        above -- useful when that Euclidean embedding has already been
+        computed elsewhere. When geometry="euclidean", it is used directly
+        as the starting point for the fit.
+
+    Returns:
+    best_embedding, lowest_loss, epoch_stopped, counter, history
+    where history is a DataFrame with columns:
+        epoch, train_loss, test_loss, train_acc, test_acc
+    """
+    if geometry not in ("euclidean", "sphere"):
+        raise ValueError(f"geometry must be 'euclidean' or 'sphere', got {geometry!r}")
+
+    if random_state is not None:
+        np.random.seed(random_state)
+        torch.manual_seed(random_state)
+
+    n = int(max(X_train.max(), X_test.max()) + 1)  # number of targets
+
+    if warm_start is not None:
+        warm_start = np.asarray(warm_start, dtype="float32")
+        if warm_start.shape != (n, d):
+            raise ValueError(
+                f"warm_start must have shape ({n}, {d}), got {warm_start.shape}"
+            )
+
+    if geometry == "sphere":
+        if warm_start is not None:
+            euclidean_embedding = warm_start
+        else:
+            euclidean_embedding, *_ = _fit_offline(
+                X_train, X_test, n=n, d=d, max_epochs=max_epochs, tolerance=tolerance,
+                tol_window=tol_window, print_every=max_epochs, device=device,
+                noise_model="CKL", random_state=random_state,
+                stage_label="[spherical warm start: fitting free Euclidean embedding]",
+            )
+        norms = np.linalg.norm(euclidean_embedding, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        start_embedding = (radius * euclidean_embedding / norms).astype("float32")
+    else:
+        start_embedding = warm_start
+
+    noise_model = "CKL" if geometry == "euclidean" else "SphericalCKL"
+    module_kwargs = {} if geometry == "euclidean" else {"module__radius": radius}
+    stage_label = "[fitting constrained spherical embedding]" if geometry == "sphere" else None
+
+    return _fit_offline(
+        X_train, X_test, n=n, d=d, max_epochs=max_epochs, tolerance=tolerance,
+        tol_window=tol_window, print_every=print_every, device=device,
+        noise_model=noise_model, embedding=start_embedding, random_state=random_state,
+        module_kwargs=module_kwargs, stage_label=stage_label,
+    )
+
+
 def process_all_workers(input_file, additional_data_file, output_dir,
-                        d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000, device=None):
+                        d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000, device=None,
+                        geometry="euclidean", radius=1.0):
     """
     Process triplets for all workers from a single CSV file and append additional data.
 
@@ -109,6 +191,8 @@ def process_all_workers(input_file, additional_data_file, output_dir,
     max_epochs: maximum training epochs (default 50,000)
     tolerance: loss tolerance for early stopping (default 1e-4)
     tol_window: epochs without improvement before early stopping triggers (default 10,000)
+    geometry: "euclidean" (default) or "sphere". See train_embedding_model().
+    radius: radius of the sphere when geometry="sphere". Ignored otherwise.
 
     Output files written to output_dir:
         model_history.csv       -- training history per worker
@@ -142,7 +226,8 @@ def process_all_workers(input_file, additional_data_file, output_dir,
 
         embedding, loss, epoch, counter, _ = train_embedding_model(
             X_train, X_test, d=d, max_epochs=max_epochs,
-            tolerance=tolerance, tol_window=tol_window, device=device
+            tolerance=tolerance, tol_window=tol_window, device=device,
+            geometry=geometry, radius=radius,
         )
 
         emb_df = pd.DataFrame(embedding, columns=[f'dim_{i}' for i in range(embedding.shape[1])])
@@ -183,7 +268,8 @@ def process_all_workers(input_file, additional_data_file, output_dir,
 
         emb_group, loss_group, epoch_group, counter_group, _ = train_embedding_model(
             X_train_group, X_test_group, d=d, max_epochs=max_epochs,
-            tolerance=tolerance, tol_window=tol_window, device=device
+            tolerance=tolerance, tol_window=tol_window, device=device,
+            geometry=geometry, radius=radius,
         )
 
         emb_group_df = pd.DataFrame(emb_group, columns=[f'dim_{i}' for i in range(emb_group.shape[1])])

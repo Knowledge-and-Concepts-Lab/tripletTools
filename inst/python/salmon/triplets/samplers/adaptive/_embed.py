@@ -200,10 +200,21 @@ class Embedding(BaseEstimator):
             self.optimizer_.zero_grad()
             loss = losses.mean()
             loss.backward()
+            with torch.no_grad():
+                if hasattr(self.module_, "pre_step"):
+                    # Manifold-constrained noise models (e.g. spherical) project
+                    # the raw gradient onto the manifold's tangent space here,
+                    # before the optimizer consumes it.
+                    self.module_.pre_step()
             self.optimizer_.step()
             self.optimizer_.zero_grad()
             with torch.no_grad():
-                self._project_onto_ball()
+                if hasattr(self.module_, "project"):
+                    # Manifold-constrained noise models (e.g. spherical) do
+                    # their own projection/retraction back onto the manifold.
+                    self.module_.project()
+                else:
+                    self._project_onto_ball()
             self.optimizer_.zero_grad()
 
             self.meta_["num_grad_comps"] += len(train_ans)

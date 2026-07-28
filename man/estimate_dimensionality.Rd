@@ -14,7 +14,9 @@ estimate_dimensionality(
   device = NULL,
   seed = 1L,
   verbose = TRUE,
-  group = TRUE
+  group = TRUE,
+  geometry = c("euclidean", "sphere"),
+  radius = 1
 )
 }
 \arguments{
@@ -52,6 +54,20 @@ worker processes is not forwarded to the main session).}
 trials and run a single dimensionality search on the combined data.  If
 \code{FALSE}, run the search independently for each participant and return
 a named list of result objects.}
+
+\item{geometry}{Either \code{"euclidean"} (default) or \code{"sphere"}.
+When \code{"sphere"}, each restart embeds items onto the surface of a
+\code{d}-dimensional sphere of radius \code{radius} (\code{d = 2} is a
+circle) instead of freely in \eqn{R^d}.  See the \emph{Spherical
+embeddings} section of \code{\link{train_embedding}} for details,
+including why this roughly doubles compute time per restart.  Dimensions
+in \code{dims} still refer to the ambient dimension of the sphere (its
+surface itself has one fewer degree of freedom), so results stay directly
+comparable to a \code{geometry = "euclidean"} search over the same
+\code{dims}.}
+
+\item{radius}{Radius of the sphere used when \code{geometry = "sphere"}.
+Ignored when \code{geometry = "euclidean"}.  Default \code{1}.}
 }
 \value{
 When \code{group = TRUE} (the default), a named list with two

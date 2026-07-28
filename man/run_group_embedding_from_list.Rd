@@ -11,7 +11,10 @@ run_group_embedding_from_list(
   tolerance = 1e-04,
   tol_window = 10000L,
   seed = 222L,
-  device = NULL
+  device = NULL,
+  geometry = c("euclidean", "sphere"),
+  radius = 1,
+  warm_start = NULL
 )
 }
 \arguments{
@@ -34,6 +37,33 @@ Default \code{10000}.}
 \item{device}{PyTorch device string, or \code{NULL} (default) to
 auto-select: CUDA GPU if available, then Apple MPS, then CPU.
 Pass \code{"cpu"} to force CPU even on a GPU machine.}
+
+\item{geometry}{Either \code{"euclidean"} (default) or \code{"sphere"}.
+When \code{"sphere"}, items are placed on the surface of a
+\code{d}-dimensional sphere of radius \code{radius} (\code{d = 2} is a
+circle) instead of freely in \eqn{R^d}.  See the \emph{Spherical
+embeddings} section of \code{\link{train_embedding}} for details,
+including why this roughly doubles training time.}
+
+\item{radius}{Radius of the sphere used when \code{geometry = "sphere"}.
+Ignored when \code{geometry = "euclidean"}.  Default \code{1}.}
+
+\item{warm_start}{Optional numeric matrix of existing embedding
+coordinates to start training from, instead of a random initialization
+— for example, the \code{embedding} returned by a previous call to this
+function.  Must have row names matching item names and \code{d} columns;
+rows are matched and reordered by name, so \code{warm_start} does not
+need to list items in the same order as this call (every item present
+in \code{triplet_list} must have a matching row name, though).
+
+When \code{geometry = "sphere"}, pass an already-computed
+\strong{Euclidean} embedding of the same items (e.g. from a prior
+\code{geometry = "euclidean"} call) to skip the internal warm-start
+Euclidean fit — see the \emph{Spherical embeddings} section of
+\code{\link{train_embedding}} for why that stage normally runs.  When
+\code{geometry = "euclidean"}, it is used directly as the starting
+point for training.  \code{NULL} (default) starts from a random
+initialization.}
 }
 \value{
 A named list with three elements:
@@ -80,5 +110,14 @@ head(grp$embedding)
 
 # Best test loss
 grp$loss
+
+# Already have a Euclidean fit of the same items? Skip the internal
+# warm-start stage when fitting a spherical embedding.
+grp_circle <- run_group_embedding_from_list(
+  triplet_list = icon_triplets,
+  d            = 2L,
+  geometry     = "sphere",
+  warm_start   = grp$embedding
+)
 }
 }
