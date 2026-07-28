@@ -499,6 +499,160 @@ increase <code>max_epochs</code>.</p>
 <hr>
 </div>
 <div class="section level2">
+<h2 id="spherical-embeddings">Spherical embeddings<a class="anchor" aria-label="anchor" href="#spherical-embeddings"></a>
+</h2>
+<p>By default, embeddings are computed freely in Euclidean space — items
+can end up anywhere in
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>ℝ</mi><mi>d</mi></msup><annotation encoding="application/x-tex">\mathbb{R}^d</annotation></semantics></math>.
+Sometimes you have reason to believe the true structure is instead
+<strong>circular or spherical</strong>: a periodic variable like hue,
+phase, or time-of-day, where “wrapping around” is part of the
+representation rather than an artifact to be fit away.
+<code><a href="../reference/train_embedding.html">train_embedding()</a></code> and every function built on it accept a
+<code>geometry</code> argument for exactly this case.</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">grp_circle</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_group_embedding_from_list.html">run_group_embedding_from_list</a></span><span class="op">(</span></span>
+<span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
+<span>  d            <span class="op">=</span> <span class="fl">2L</span>,          <span class="co"># d = 2 means the *ambient* dimension —</span></span>
+<span>  geometry     <span class="op">=</span> <span class="st">"sphere"</span>,    <span class="co"># a 2-sphere embedded in R^2 is a circle</span></span>
+<span>  radius       <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  max_epochs   <span class="op">=</span> <span class="fl">50000L</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p><code>d</code> always refers to the ambient dimension the sphere
+lives in, matching the convention used everywhere else in the package. A
+circle is the <code>d = 2</code> case; <code>d = 3</code> gives an
+ordinary sphere; higher <code>d</code> gives a hypersphere.
+<code>radius</code> sets the sphere’s radius (default <code>1</code>) —
+mostly cosmetic, since it just rescales the recovered coordinates.</p>
+<div class="section level3">
+<h3 id="why-fitting-takes-two-stages">Why fitting takes two stages<a class="anchor" aria-label="anchor" href="#why-fitting-takes-two-stages"></a>
+</h3>
+<p>Constraining every point to a sphere’s surface removes one degree of
+freedom per item relative to a free Euclidean fit. That turns out to
+matter a lot for optimization: starting from a random arrangement
+<em>on</em> the sphere, gradient descent has too little room to maneuver
+and reliably gets stuck reproducing close to chance-level accuracy,
+unable to escape a bad ordering of the items around the sphere.</p>
+<p>To avoid this, <code>geometry = "sphere"</code> fits in two stages
+automatically:</p>
+<ol style="list-style-type: decimal">
+<li>A free Euclidean embedding is trained first (same <code>d</code>,
+same
+<code>max_epochs</code>/<code>tolerance</code>/<code>tol_window</code>),
+which easily finds a good arrangement because it isn’t constrained.</li>
+<li>That solution is projected onto the sphere and used as the starting
+point for a second fit, now constrained to stay on the sphere’s
+surface.</li>
+</ol>
+<p>You’ll see both stages’ progress printed in the console, labelled
+<code>[spherical warm start: fitting free Euclidean embedding]</code>
+and <code>[fitting constrained spherical embedding]</code>. This roughly
+<strong>doubles training time</strong> relative to
+<code>geometry = "euclidean"</code> — budget for it when setting
+<code>max_epochs</code> for a spherical fit on a large dataset.</p>
+</div>
+<div class="section level3">
+<h3 id="interpreting-a-circular-d-2-embedding">Interpreting a circular (d = 2) embedding<a class="anchor" aria-label="anchor" href="#interpreting-a-circular-d-2-embedding"></a>
+</h3>
+<p>For <code>d = 2</code>, each item’s angle around the circle is often
+more interpretable than its raw <code>(x, y)</code> coordinates:</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">angles</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">atan2</a></span><span class="op">(</span><span class="va">grp_circle</span><span class="op">$</span><span class="va">embedding</span><span class="op">[</span>, <span class="fl">2</span><span class="op">]</span>, <span class="va">grp_circle</span><span class="op">$</span><span class="va">embedding</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">angles</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">grp_circle</span><span class="op">$</span><span class="va">embedding</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="va">angles</span><span class="op">)</span></span></code></pre></div>
+<p>As with any embedding, the absolute rotation and reflection are
+arbitrary (not identifiable from triplet judgments alone) — only the
+relative circular <em>order</em> and <em>spacing</em> of items are
+meaningful. Plotting the fit with an equal aspect ratio, together with
+the unit circle for reference, makes this easy to check visually:</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">grp_circle</span><span class="op">$</span><span class="va">embedding</span>, asp <span class="op">=</span> <span class="fl">1</span>, pch <span class="op">=</span> <span class="fl">19</span>, col <span class="op">=</span> <span class="st">"steelblue"</span>,</span>
+<span>     xlab <span class="op">=</span> <span class="st">"x"</span>, ylab <span class="op">=</span> <span class="st">"y"</span>, main <span class="op">=</span> <span class="st">"Circular group embedding"</span><span class="op">)</span></span>
+<span><span class="va">theta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">2</span> <span class="op">*</span> <span class="va">pi</span>, length.out <span class="op">=</span> <span class="fl">200</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/lines.html" class="external-link">lines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">cos</a></span><span class="op">(</span><span class="va">theta</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">sin</a></span><span class="op">(</span><span class="va">theta</span><span class="op">)</span>, col <span class="op">=</span> <span class="st">"gray70"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/text.html" class="external-link">text</a></span><span class="op">(</span><span class="va">grp_circle</span><span class="op">$</span><span class="va">embedding</span>, labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">grp_circle</span><span class="op">$</span><span class="va">embedding</span><span class="op">)</span>,</span>
+<span>     pos <span class="op">=</span> <span class="fl">3</span>, cex <span class="op">=</span> <span class="fl">0.7</span><span class="op">)</span></span></code></pre></div>
+<p>Points should fall almost exactly on the reference circle — the fit
+constrains them there — but check that they aren’t all bunched together,
+which would indicate the optimizer struggled even with the warm start
+(try increasing <code>max_epochs</code>, or confirm the underlying
+structure is actually close to circular in the first place).</p>
+</div>
+<div class="section level3">
+<h3 id="a-worked-example-recovering-a-known-circular-structure">A worked example: recovering a known circular structure<a class="anchor" aria-label="anchor" href="#a-worked-example-recovering-a-known-circular-structure"></a>
+</h3>
+<p>To build intuition for what a good fit looks like, it helps to see
+the recipe recover a <em>known</em> circular arrangement from synthetic
+data, since with real data you don’t have ground truth to check
+against.</p>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">0</span><span class="op">)</span></span>
+<span><span class="va">n_items</span> <span class="op">&lt;-</span> <span class="fl">16</span></span>
+<span><span class="va">true_angle</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n_items</span>, <span class="fl">0</span>, <span class="fl">2</span> <span class="op">*</span> <span class="va">pi</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Triplet judgments generated purely from position on the circle</span></span>
+<span><span class="va">circ_dist</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">i</span>, <span class="va">j</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">d</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">true_angle</span><span class="op">[</span><span class="va">i</span><span class="op">]</span> <span class="op">-</span> <span class="va">true_angle</span><span class="op">[</span><span class="va">j</span><span class="op">]</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">pmin</a></span><span class="op">(</span><span class="va">d</span>, <span class="fl">2</span> <span class="op">*</span> <span class="va">pi</span> <span class="op">-</span> <span class="va">d</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">n_triplets</span> <span class="op">&lt;-</span> <span class="fl">4000</span></span>
+<span><span class="va">trip</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_triplets</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">k</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">idx</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_items</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
+<span>  <span class="va">h</span> <span class="op">&lt;-</span> <span class="va">idx</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>; <span class="va">a</span> <span class="op">&lt;-</span> <span class="va">idx</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span>; <span class="va">b</span> <span class="op">&lt;-</span> <span class="va">idx</span><span class="op">[</span><span class="fl">3</span><span class="op">]</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu">circ_dist</span><span class="op">(</span><span class="va">h</span>, <span class="va">a</span><span class="op">)</span> <span class="op">&lt;</span> <span class="fu">circ_dist</span><span class="op">(</span><span class="va">h</span>, <span class="va">b</span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">h</span>, <span class="va">a</span>, <span class="va">b</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1L</span> <span class="kw">else</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">h</span>, <span class="va">b</span>, <span class="va">a</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1L</span></span>
+<span><span class="op">}</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">split</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">floor</a></span><span class="op">(</span><span class="fl">0.8</span> <span class="op">*</span> <span class="va">n_triplets</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/train_embedding.html">train_embedding</a></span><span class="op">(</span></span>
+<span>  X_train <span class="op">=</span> <span class="va">trip</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="va">split</span>, <span class="op">]</span>, X_test <span class="op">=</span> <span class="va">trip</span><span class="op">[</span><span class="op">(</span><span class="va">split</span> <span class="op">+</span> <span class="fl">1</span><span class="op">)</span><span class="op">:</span><span class="va">n_triplets</span>, <span class="op">]</span>,</span>
+<span>  d <span class="op">=</span> <span class="fl">2L</span>, geometry <span class="op">=</span> <span class="st">"sphere"</span>, max_epochs <span class="op">=</span> <span class="fl">20000L</span>, random_state <span class="op">=</span> <span class="fl">0L</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">true_xy</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">cos</a></span><span class="op">(</span><span class="va">true_angle</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/Trig.html" class="external-link">sin</a></span><span class="op">(</span><span class="va">true_angle</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">aligned</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/align.embeddings.html">align.embeddings</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">true_xy</span>, <span class="va">fit</span><span class="op">$</span><span class="va">embedding</span><span class="op">)</span>, scl <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="va">recovered_aligned</span> <span class="op">&lt;-</span> <span class="va">aligned</span><span class="op">[[</span><span class="fl">2</span><span class="op">]</span><span class="op">]</span></span>
+<span></span>
+<span><span class="va">rmse</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="op">(</span><span class="va">true_xy</span> <span class="op">-</span> <span class="va">recovered_aligned</span><span class="op">)</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">rmse</span></span></code></pre></div>
+<p>Comparing raw <code><a href="https://rdrr.io/r/base/Trig.html" class="external-link">atan2()</a></code> angles (or their ranks) between
+the true and recovered embeddings does <em>not</em> work here: the
+recovered circle’s rotation and reflection are arbitrary, so
+<code><a href="https://rdrr.io/r/base/Trig.html" class="external-link">atan2()</a></code>’s wraparound point can fall anywhere relative to
+the true item ordering, and a linear/rank correlation between the two
+angle sequences can come out strongly negative even when the circular
+structure was recovered correctly. <code><a href="../reference/align.embeddings.html">align.embeddings()</a></code>
+avoids this by finding the rotation and reflection (and, if
+<code>scl = TRUE</code>, scale) that best superimposes the two
+embeddings before comparing them — the same approach the package uses to
+align embeddings across participants. The RMS distance after alignment
+is close to <code>0</code> for a good recovery; on a unit circle the
+largest possible distance between two points is <code>2</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="combining-with-estimate_dimensionality">Combining with <code>estimate_dimensionality()</code><a class="anchor" aria-label="anchor" href="#combining-with-estimate_dimensionality"></a>
+</h3>
+<p><code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code> also accepts
+<code>geometry</code> and <code>radius</code>, so you can compare
+hold-out loss for spherical vs. Euclidean fits at the same set of
+dimensions:</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dim_est_sphere</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_dimensionality.html">estimate_dimensionality</a></span><span class="op">(</span></span>
+<span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
+<span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span>
+<span>  n_restarts   <span class="op">=</span> <span class="fl">5L</span>,</span>
+<span>  geometry     <span class="op">=</span> <span class="st">"sphere"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">dim_est_sphere</span><span class="op">$</span><span class="va">summary</span></span></code></pre></div>
+<p>Comparing this against a <code>geometry = "euclidean"</code> run at
+the same <code>dims</code> is a reasonable way to check whether
+constraining the data to a sphere costs you meaningfully in hold-out
+accuracy — if it doesn’t, that’s evidence the spherical structure is a
+genuine (or at least harmless) description of the data rather than a
+misspecification.</p>
+<hr>
+</div>
+</div>
+<div class="section level2">
 <h2 id="choosing-the-number-of-dimensions">Choosing the number of dimensions<a class="anchor" aria-label="anchor" href="#choosing-the-number-of-dimensions"></a>
 </h2>
 <p>The number of embedding dimensions <code>d</code> is a hyperparameter
@@ -517,7 +671,7 @@ restart.</p>
 <div class="section level3">
 <h3 id="running-the-grid">Running the grid<a class="anchor" aria-label="anchor" href="#running-the-grid"></a>
 </h3>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dim_est</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_dimensionality.html">estimate_dimensionality</a></span><span class="op">(</span></span>
 <span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
 <span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">8</span>,       <span class="co"># dimensionalities to evaluate</span></span>
@@ -528,7 +682,7 @@ restart.</p>
 <p>Progress messages are printed as each restart completes. The function
 returns a named list with two elements.</p>
 <p><code>$results</code> has one row per (dimension, restart):</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">dim_est</span><span class="op">$</span><span class="va">results</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   d restart      loss epoch</span></span>
 <span><span class="co">#&gt; 1 1       1 0.6022...   ...</span></span>
@@ -536,7 +690,7 @@ returns a named list with two elements.</p>
 <span><span class="co">#&gt; ...</span></span></code></pre></div>
 <p><code>$summary</code> has one row per dimension, with the
 <code>best_d</code> flag identifying the recommended choice:</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dim_est</span><span class="op">$</span><span class="va">summary</span></span>
 <span><span class="co">#&gt;   d mean_loss  min_loss    sd_loss best_d</span></span>
 <span><span class="co">#&gt; 1 1    0.601     0.601     0.001   FALSE</span></span>
@@ -561,7 +715,7 @@ statistically indistinguishable from the best.</p>
 </h3>
 <p>A simple plot shows mean loss by dimension with ±1 SD error bars. The
 vertical dashed line marks the recommended <code>d</code>.</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="va">dim_est</span><span class="op">$</span><span class="va">summary</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">s</span><span class="op">$</span><span class="va">d</span>, <span class="va">s</span><span class="op">$</span><span class="va">mean_loss</span>,</span>
@@ -588,7 +742,7 @@ pooled into a single dataset and one dimensionality search is run on the
 combined data. This is the right choice when you want to select a single
 <code>d</code> for a group embedding, and it is faster because only one
 set of models is trained.</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Default: pool all participants (group = TRUE is the default)</span></span>
 <span><span class="va">dim_est_grp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_dimensionality.html">estimate_dimensionality</a></span><span class="op">(</span></span>
 <span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
@@ -603,7 +757,7 @@ separately for each participant with <code>group = FALSE</code>. In this
 mode the function returns a named list, one element per participant,
 each with the same <code>results</code> / <code>summary</code>
 structure.</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dim_est_ind</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_dimensionality.html">estimate_dimensionality</a></span><span class="op">(</span></span>
 <span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
 <span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span>
@@ -655,7 +809,7 @@ code. Parallelism is controlled via the <a href="https://future.futureverse.org/
 framework: you set a <em>plan</em> once before calling the function, and
 the function uses however many workers that plan provides.</p>
 <p>Install the required packages once:</p>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"future"</span>, <span class="st">"future.apply"</span>, <span class="st">"progressr"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <div class="section level3">
 <h3 id="prerequisites-for-parallel-execution">Prerequisites for parallel execution<a class="anchor" aria-label="anchor" href="#prerequisites-for-parallel-execution"></a>
@@ -680,7 +834,7 @@ get a progress bar showing completions instead. Wrap the call in
 <code><a href="https://progressr.futureverse.org/reference/with_progress.html" class="external-link">with_progress()</a></code> — this is more reliable in RStudio than
 <code>handlers(global = TRUE)</code>, which can fail if RStudio has
 already registered its own handlers:</p>
-<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://progressr.futureverse.org" class="external-link">progressr</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://progressr.futureverse.org/reference/with_progress.html" class="external-link">with_progress</a></span><span class="op">(</span><span class="op">{</span></span>
@@ -691,7 +845,7 @@ already registered its own handlers:</p>
 <h3 id="local-multicore">Local multicore<a class="anchor" aria-label="anchor" href="#local-multicore"></a>
 </h3>
 <p>Use all available cores on your workstation (or a subset):</p>
-<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://progressr.futureverse.org" class="external-link">progressr</a></span><span class="op">)</span></span>
 <span></span>
@@ -726,7 +880,7 @@ job completes and the progress bar begins updating.</p>
 <p>If you have access to an HTCondor cluster (e.g. UW–Madison’s CHTC),
 install the <code>future.batchtools</code> package, which bridges
 <code>future</code> to HTCondor’s job scheduler:</p>
-<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"future.batchtools"</span><span class="op">)</span></span></code></pre></div>
 <p>You also need a one-time cluster template file that tells
 <code>future.batchtools</code> how to construct HTCondor submit files
@@ -753,7 +907,7 @@ error  = $(error)
 queue</code></pre>
 <p>Then submit your dimensionality search exactly as before, just with a
 different plan:</p>
-<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb34"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.batchtools.futureverse.org" class="external-link">future.batchtools</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">batchtools_condor</span>, workers <span class="op">=</span> <span class="fl">80</span><span class="op">)</span>   <span class="co"># up to 80 simultaneous jobs</span></span>
@@ -780,7 +934,7 @@ guide.</p>
 <h3 id="checking-the-active-plan">Checking the active plan<a class="anchor" aria-label="anchor" href="#checking-the-active-plan"></a>
 </h3>
 <p>At any point you can confirm which plan is in effect:</p>
-<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># prints a description of the current plan</span></span></code></pre></div>
 <p><code>plan(sequential)</code> (the default) runs everything serially
@@ -799,7 +953,7 @@ all other <code>tripletTools</code> functions are unaffected.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

@@ -59,7 +59,10 @@ structure, which is faster than <code><a href="run_embeddings_from_list.html">ru
 <span>  tolerance <span class="op">=</span> <span class="fl">1e-04</span>,</span>
 <span>  tol_window <span class="op">=</span> <span class="fl">10000L</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">222L</span>,</span>
-<span>  device <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  device <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  geometry <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"euclidean"</span>, <span class="st">"sphere"</span><span class="op">)</span>,</span>
+<span>  radius <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  warm_start <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -99,6 +102,38 @@ Default <code>10000</code>.</p></dd>
 <dd><p>PyTorch device string, or <code>NULL</code> (default) to
 auto-select: CUDA GPU if available, then Apple MPS, then CPU.
 Pass <code>"cpu"</code> to force CPU even on a GPU machine.</p></dd>
+
+
+<dt id="arg-geometry">geometry<a class="anchor" aria-label="anchor" href="#arg-geometry"></a></dt>
+<dd><p>Either <code>"euclidean"</code> (default) or <code>"sphere"</code>.
+When <code>"sphere"</code>, items are placed on the surface of a
+<code>d</code>-dimensional sphere of radius <code>radius</code> (<code>d = 2</code> is a
+circle) instead of freely in \(R^d\).  See the <em>Spherical
+embeddings</em> section of <code><a href="train_embedding.html">train_embedding</a></code> for details,
+including why this roughly doubles training time.</p></dd>
+
+
+<dt id="arg-radius">radius<a class="anchor" aria-label="anchor" href="#arg-radius"></a></dt>
+<dd><p>Radius of the sphere used when <code>geometry = "sphere"</code>.
+Ignored when <code>geometry = "euclidean"</code>.  Default <code>1</code>.</p></dd>
+
+
+<dt id="arg-warm-start">warm_start<a class="anchor" aria-label="anchor" href="#arg-warm-start"></a></dt>
+<dd><p>Optional numeric matrix of existing embedding
+coordinates to start training from, instead of a random initialization
+— for example, the <code>embedding</code> returned by a previous call to this
+function.  Must have row names matching item names and <code>d</code> columns;
+rows are matched and reordered by name, so <code>warm_start</code> does not
+need to list items in the same order as this call (every item present
+in <code>triplet_list</code> must have a matching row name, though).</p>
+<p>When <code>geometry = "sphere"</code>, pass an already-computed
+<strong>Euclidean</strong> embedding of the same items (e.g. from a prior
+<code>geometry = "euclidean"</code> call) to skip the internal warm-start
+Euclidean fit — see the <em>Spherical embeddings</em> section of
+<code><a href="train_embedding.html">train_embedding</a></code> for why that stage normally runs.  When
+<code>geometry = "euclidean"</code>, it is used directly as the starting
+point for training.  <code>NULL</code> (default) starts from a random
+initialization.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -149,6 +184,15 @@ and is used to split data for early stopping.</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Best test loss</span></span></span>
 <span class="r-in"><span><span class="va">grp</span><span class="op">$</span><span class="va">loss</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Already have a Euclidean fit of the same items? Skip the internal</span></span></span>
+<span class="r-in"><span><span class="co"># warm-start stage when fitting a spherical embedding.</span></span></span>
+<span class="r-in"><span><span class="va">grp_circle</span> <span class="op">&lt;-</span> <span class="fu">run_group_embedding_from_list</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span></span>
+<span class="r-in"><span>  d            <span class="op">=</span> <span class="fl">2L</span>,</span></span>
+<span class="r-in"><span>  geometry     <span class="op">=</span> <span class="st">"sphere"</span>,</span></span>
+<span class="r-in"><span>  warm_start   <span class="op">=</span> <span class="va">grp</span><span class="op">$</span><span class="va">embedding</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>
@@ -161,7 +205,7 @@ and is used to split data for early stopping.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

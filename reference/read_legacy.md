@@ -71,7 +71,10 @@ A list returned invisibly with two elements:
 
 - `rt`:
 
-  Numeric reaction time. `NA` if not present in the input.
+  Numeric reaction time. `NA` if not present in the input. Recognised
+  input names: `RT`, `rt`, or any column whose name contains "response"
+  and "time" (case- and punctuation-insensitive, e.g.
+  `Response.Time..s.`).
 
 - `sampleAlg`:
 
@@ -113,9 +116,9 @@ punctuation.
 - sampleAlg:
 
   Recognised input names: `sampleAlg`, `AlgSample`. Values are recoded:
-  `"Random"` → `"random"`; `"Test"` → `"validation"`; `"check"` →
-  `"check"`; `"uncertainty"` → `"uncertainty"`. Filled with `NA` when
-  absent.
+  `"Random"` → `"random"`; `"Test"` → `"test"` (and the row is also
+  assigned `sampleSet = "test"`); `"check"` → `"check"`; `"uncertainty"`
+  → `"uncertainty"`. Filled with `NA` when absent.
 
 - sampleSet:
 

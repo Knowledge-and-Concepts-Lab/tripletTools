@@ -18,7 +18,9 @@ estimate_dimensionality(
   device = NULL,
   seed = 1L,
   verbose = TRUE,
-  group = TRUE
+  group = TRUE,
+  geometry = c("euclidean", "sphere"),
+  radius = 1
 )
 ```
 
@@ -77,6 +79,24 @@ estimate_dimensionality(
   single dimensionality search on the combined data. If `FALSE`, run the
   search independently for each participant and return a named list of
   result objects.
+
+- geometry:
+
+  Either `"euclidean"` (default) or `"sphere"`. When `"sphere"`, each
+  restart embeds items onto the surface of a `d`-dimensional sphere of
+  radius `radius` (`d = 2` is a circle) instead of freely in \\R^d\\.
+  See the *Spherical embeddings* section of
+  [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
+  for details, including why this roughly doubles compute time per
+  restart. Dimensions in `dims` still refer to the ambient dimension of
+  the sphere (its surface itself has one fewer degree of freedom), so
+  results stay directly comparable to a `geometry = "euclidean"` search
+  over the same `dims`.
+
+- radius:
+
+  Radius of the sphere used when `geometry = "sphere"`. Ignored when
+  `geometry = "euclidean"`. Default `1`.
 
 ## Value
 

@@ -62,7 +62,9 @@ dimensionality that achieves near-minimum hold-out loss.</p>
 <span>  device <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  group <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  group <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  geometry <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"euclidean"</span>, <span class="st">"sphere"</span><span class="op">)</span>,</span>
+<span>  radius <span class="op">=</span> <span class="fl">1</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -123,6 +125,24 @@ worker processes is not forwarded to the main session).</p></dd>
 trials and run a single dimensionality search on the combined data.  If
 <code>FALSE</code>, run the search independently for each participant and return
 a named list of result objects.</p></dd>
+
+
+<dt id="arg-geometry">geometry<a class="anchor" aria-label="anchor" href="#arg-geometry"></a></dt>
+<dd><p>Either <code>"euclidean"</code> (default) or <code>"sphere"</code>.
+When <code>"sphere"</code>, each restart embeds items onto the surface of a
+<code>d</code>-dimensional sphere of radius <code>radius</code> (<code>d = 2</code> is a
+circle) instead of freely in \(R^d\).  See the <em>Spherical
+embeddings</em> section of <code><a href="train_embedding.html">train_embedding</a></code> for details,
+including why this roughly doubles compute time per restart.  Dimensions
+in <code>dims</code> still refer to the ambient dimension of the sphere (its
+surface itself has one fewer degree of freedom), so results stay directly
+comparable to a <code>geometry = "euclidean"</code> search over the same
+<code>dims</code>.</p></dd>
+
+
+<dt id="arg-radius">radius<a class="anchor" aria-label="anchor" href="#arg-radius"></a></dt>
+<dd><p>Radius of the sphere used when <code>geometry = "sphere"</code>.
+Ignored when <code>geometry = "euclidean"</code>.  Default <code>1</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -256,7 +276,7 @@ If no <code>sampleSet</code> column is present or all values are <code>NA</code>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

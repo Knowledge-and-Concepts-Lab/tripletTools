@@ -115,7 +115,9 @@ the same ordering as <code>head</code>.</p></dd>
 
 <dt><code>rt</code></dt>
 <dd><p>Numeric reaction time. <code>NA</code> if not present in the
-input.</p></dd>
+input. Recognised input names: <code>RT</code>, <code>rt</code>, or any column
+whose name contains "response" and "time" (case- and
+punctuation-insensitive, e.g. <code>Response.Time..s.</code>).</p></dd>
 
 <dt><code>sampleAlg</code></dt>
 <dd><p>Character sampling algorithm label:
@@ -156,9 +158,10 @@ If none are found, participants are assigned sequential IDs
 <dt>sampleAlg</dt>
 <dd><p>Recognised input names: <code>sampleAlg</code>,
 <code>AlgSample</code>. Values are recoded: <code>"Random"</code> →
-<code>"random"</code>; <code>"Test"</code> → <code>"validation"</code>;
-<code>"check"</code> → <code>"check"</code>; <code>"uncertainty"</code> →
-<code>"uncertainty"</code>. Filled with <code>NA</code> when absent.</p></dd>
+<code>"random"</code>; <code>"Test"</code> → <code>"test"</code> (and the row is also
+assigned <code>sampleSet = "test"</code>); <code>"check"</code> → <code>"check"</code>;
+<code>"uncertainty"</code> → <code>"uncertainty"</code>. Filled with <code>NA</code>
+when absent.</p></dd>
 
 <dt>sampleSet</dt>
 <dd><p>Recognised input names: <code>sampleSet</code>,
@@ -187,7 +190,7 @@ randomly assigned to <code>"test"</code> and the remainder to
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

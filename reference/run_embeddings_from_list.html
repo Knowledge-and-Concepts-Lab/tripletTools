@@ -57,7 +57,9 @@ by <code><a href="get.combined.html">get.combined</a></code> — rather than rea
 <span>  tolerance <span class="op">=</span> <span class="fl">1e-04</span>,</span>
 <span>  tol_window <span class="op">=</span> <span class="fl">10000L</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">222L</span>,</span>
-<span>  device <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  device <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  geometry <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"euclidean"</span>, <span class="st">"sphere"</span><span class="op">)</span>,</span>
+<span>  radius <span class="op">=</span> <span class="fl">1</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -102,6 +104,20 @@ Default <code>10000</code>.</p></dd>
 <dd><p>PyTorch device string, or <code>NULL</code> (default) to
 auto-select: CUDA GPU if available, then Apple MPS, then CPU.
 Pass <code>"cpu"</code> to force CPU even on a GPU machine.</p></dd>
+
+
+<dt id="arg-geometry">geometry<a class="anchor" aria-label="anchor" href="#arg-geometry"></a></dt>
+<dd><p>Either <code>"euclidean"</code> (default) or <code>"sphere"</code>.
+When <code>"sphere"</code>, items are placed on the surface of a
+<code>d</code>-dimensional sphere of radius <code>radius</code> (<code>d = 2</code> is a
+circle) instead of freely in \(R^d\).  See the <em>Spherical
+embeddings</em> section of <code><a href="train_embedding.html">train_embedding</a></code> for details,
+including why this roughly doubles training time.</p></dd>
+
+
+<dt id="arg-radius">radius<a class="anchor" aria-label="anchor" href="#arg-radius"></a></dt>
+<dd><p>Radius of the sphere used when <code>geometry = "sphere"</code>.
+Ignored when <code>geometry = "euclidean"</code>.  Default <code>1</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -181,7 +197,7 @@ unchanged.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer></div>

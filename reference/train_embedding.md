@@ -17,7 +17,10 @@ train_embedding(
   tol_window = 10000L,
   print_every = 100L,
   device = NULL,
-  random_state = NULL
+  random_state = NULL,
+  geometry = c("euclidean", "sphere"),
+  radius = 1,
+  warm_start = NULL
 )
 ```
 
@@ -70,6 +73,37 @@ train_embedding(
   `NULL` (default) leaves the global random state unchanged. Set this
   when you need reproducible embeddings, e.g. when comparing multiple
   random restarts.
+
+- geometry:
+
+  Either `"euclidean"` (default) or `"sphere"`. When `"sphere"`, items
+  are placed on the surface of a `d`-dimensional sphere of radius
+  `radius` (so `d = 2` embeds onto a circle) instead of freely in
+  \\R^d\\. See the *Spherical embeddings* section below.
+
+- radius:
+
+  Radius of the sphere used when `geometry = "sphere"`. Ignored when
+  `geometry = "euclidean"`. Default `1`.
+
+- warm_start:
+
+  Optional numeric matrix of shape \\n\_{\text{items}} \times d\\ giving
+  existing embedding coordinates to start training from, instead of a
+  random initialization. Row `i` (1-based) corresponds to the zero-based
+  item index `i - 1` used in `X_train`/`X_test` — the same row order as
+  the `embedding` this function returns, so a previous call's output can
+  be passed straight back in.
+
+  When `geometry = "sphere"`, pass an already-computed **Euclidean**
+  embedding here (e.g. from a prior `geometry = "euclidean"` call on the
+  same `X_train`/`X_test`/`d`) to skip the internal warm-start Euclidean
+  fit described below and go straight to the constrained spherical fit —
+  this avoids paying for that fit twice when you already have it. When
+  `geometry = "euclidean"`, it is used directly as the starting point
+  for training. `NULL` (default) starts from a random initialization
+  (and, for `geometry = "sphere"`, still runs the internal Euclidean
+  warm-start stage).
 
 ## Value
 
@@ -126,6 +160,29 @@ showing epoch number, train loss, test loss, train accuracy, and test
 accuracy. A final line is printed when training stops, labelled
 `[early stop]` if stopping was triggered before `max_epochs`.
 
+## Spherical embeddings
+
+Passing `geometry = "sphere"` constrains every item to the surface of a
+`d`-dimensional sphere (`d = 2` is a circle) rather than letting it
+range freely. This is useful when you have reason to believe the
+underlying structure is inherently circular or spherical (e.g. hue,
+phase, or other periodic variables) rather than merely embeddable in a
+bounded Euclidean region.
+
+Fitting a spherical embedding from a random start reliably gets stuck
+near chance accuracy: constrained to the sphere's surface, each item has
+only `d - 1` degrees of freedom to move along, which is too few for
+gradient descent to escape a bad ordering. To avoid this,
+`geometry = "sphere"` first fits a free Euclidean embedding (using the
+same `max_epochs`/`tolerance`/`tol_window` schedule), projects it onto
+the sphere, and uses that as the starting point for the constrained fit.
+This roughly doubles training time relative to `geometry = "euclidean"`,
+but is necessary for the constrained fit to find a good solution — see
+the training output, which prints progress for both the warm-start stage
+and the constrained stage. If you already have a Euclidean embedding of
+the same items (e.g. from a previous `geometry = "euclidean"` call),
+pass it as `warm_start` to skip this first stage entirely.
+
 ## Examples
 
 ``` r
@@ -146,5 +203,16 @@ cat("Stopped at epoch:", out$epoch, "\n")
 head(out$history)
 plot(out$history$epoch, out$history$test_loss, type = "l",
      xlab = "Epoch", ylab = "Test loss")
+
+# Embed onto a circle instead of freely in 2D
+out_circle <- train_embedding(X_train, X_test, d = 2L,
+                               geometry = "sphere", radius = 1)
+plot(out_circle$embedding, asp = 1, xlab = "x", ylab = "y")
+
+# Already have a Euclidean fit? Skip the internal warm-start stage.
+out_euclid <- train_embedding(X_train, X_test, d = 2L)
+out_circle2 <- train_embedding(X_train, X_test, d = 2L,
+                                geometry = "sphere", radius = 1,
+                                warm_start = out_euclid$embedding)
 } # }
 ```

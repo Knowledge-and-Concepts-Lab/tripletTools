@@ -18,7 +18,9 @@ run_embeddings(
   tolerance = 1e-04,
   tol_window = 10000L,
   seed = 222L,
-  device = NULL
+  device = NULL,
+  geometry = c("euclidean", "sphere"),
+  radius = 1
 )
 ```
 
@@ -66,6 +68,20 @@ run_embeddings(
   PyTorch device string, or `NULL` (default) to auto-select: CUDA GPU if
   available, then Apple MPS, then CPU. Pass `"cpu"` to force CPU even on
   a GPU machine.
+
+- geometry:
+
+  Either `"euclidean"` (default) or `"sphere"`. When `"sphere"`, items
+  are placed on the surface of a `d`-dimensional sphere of radius
+  `radius` (`d = 2` is a circle) instead of freely in \\R^d\\. See the
+  *Spherical embeddings* section of
+  [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
+  for details, including why this roughly doubles training time.
+
+- radius:
+
+  Radius of the sphere used when `geometry = "sphere"`. Ignored when
+  `geometry = "euclidean"`. Default `1`.
 
 ## Value
 
