@@ -15,6 +15,7 @@ test_that("inst/condor files are present", {
   expect_true(file.exists(file.path(condor_dir, "condor_workflow.R")))
   expect_true(file.exists(file.path(condor_dir, "condor_helpers.R")))
   expect_true(file.exists(file.path(condor_dir, "condor.tmpl")))
+  expect_true(file.exists(file.path(condor_dir, "condor_apptainer.tmpl")))
   expect_true(file.exists(file.path(condor_dir, "params_template.yml")))
 })
 
@@ -111,4 +112,19 @@ test_that("condor.tmpl contains the fields batchtools/HTCondor expect", {
   expect_true(grepl("resources\\$request_memory", tmpl_text))
   expect_true(grepl("^queue\\s*$", tmpl_text, perl = TRUE) ||
                 any(grepl("^queue\\s*$", tmpl)))
+})
+
+test_that("condor_apptainer.tmpl references the container image and shares core fields with condor.tmpl", {
+  tmpl <- readLines(file.path(condor_dir, "condor_apptainer.tmpl"))
+  tmpl_text <- paste(tmpl, collapse = "\n")
+
+  expect_true(grepl("universe\\s*=\\s*container", tmpl_text))
+  expect_true(grepl("container_image", tmpl_text))
+  expect_true(grepl("resources\\$container_image", tmpl_text))
+  expect_true(grepl("ghcr\\.io", tmpl_text))
+  expect_true(grepl("\\$\\(job\\.collection\\)", tmpl_text))
+  expect_true(grepl("request_cpus", tmpl_text))
+  expect_true(grepl("request_memory", tmpl_text))
+  expect_true(grepl("request_disk", tmpl_text))
+  expect_true(any(grepl("^queue\\s*$", tmpl)))
 })

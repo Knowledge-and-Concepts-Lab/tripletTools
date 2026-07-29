@@ -12,3 +12,5 @@
 ^docs$
 ^pkgdown$
 ^\.github$
+^Dockerfile$
+^\.dockerignore$

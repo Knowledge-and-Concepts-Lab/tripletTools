@@ -1,0 +1,5 @@
+# tripletTools installs from GitHub inside the Dockerfile (see
+# TRIPLETTOOLS_REF), not from the local build context, so none of the repo
+# needs to be sent to the Docker daemon. This keeps `docker build .`
+# fast and avoids accidentally baking in local, uncommitted changes.
+*

@@ -1,0 +1,46 @@
+<%
+# batchtools/future.batchtools HTCondor cluster template that runs each job
+# inside the tripletTools container image (see the Dockerfile and
+# .github/workflows/docker-publish.yml at the repo root) via Apptainer,
+# instead of assuming R/tripletTools/conda are already installed on
+# whatever execute node the job lands on.
+#
+# Uses HTCondor's `container` universe, which CHTC's execute nodes resolve
+# via Apptainer for a `docker://` image reference (Apptainer pulls and
+# caches Docker images directly -- no separate native .sif build needed).
+# This is the current general-purpose HTCondor mechanism as of this
+# writing; it has NOT been tested against a live CHTC access point from
+# here, so if your access point rejects `universe = container`, see the
+# commented-out fallback below using the older +SingularityImage
+# classad, or check CHTC's current container documentation / ask CHTC
+# support which form your access point expects.
+#
+# Set the image via `resources = list(container_image = "docker://...")`
+# in plan(); otherwise defaults to the image this repo's own GitHub
+# Actions workflow publishes.
+-%>
+universe        = container
+container_image = <%= if (!is.null(resources$container_image)) resources$container_image else "docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest" %>
+
+<%
+# --- Fallback for access points that don't yet support `universe = container` ---
+# universe = vanilla
+# +SingularityImage = "<%= if (!is.null(resources$container_image)) resources$container_image else "docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest" %>"
+-%>
+
+executable   = Rscript
+arguments    = -e 'batchtools::doJobCollection("$(job.collection)")'
+
+transfer_input_files  = $(job.collection)
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+
+request_cpus   = <%= if (!is.null(resources$request_cpus))   resources$request_cpus   else 1 %>
+request_memory = <%= if (!is.null(resources$request_memory)) resources$request_memory else "4GB" %>
+request_disk   = <%= if (!is.null(resources$request_disk))   resources$request_disk   else "2GB" %>
+
+log    = $(log)
+output = $(output)
+error  = $(error)
+
+queue

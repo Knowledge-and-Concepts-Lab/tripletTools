@@ -32,8 +32,21 @@ norm_penalty: 0
 
 # --- HTCondor settings ------------------------------------------------------
 condor:
-  # Path to the batchtools cluster template (see condor.tmpl in this same
-  # directory). ~ is expanded to your home directory on the submit node.
+  # Path to the batchtools cluster template. ~ is expanded to your home
+  # directory on the submit node.
+  #
+  # Two templates ship in this same directory:
+  #   condor.tmpl            assumes R/tripletTools/the conda env are
+  #                           already installed on whatever execute node
+  #                           the job lands on (see the vignette's
+  #                           "HTCondor cluster" section).
+  #   condor_apptainer.tmpl  runs each job inside the tripletTools
+  #                           container image instead (see the Dockerfile
+  #                           and .github/workflows/docker-publish.yml at
+  #                           the repo root) -- use this if your pool
+  #                           doesn't have the software pre-installed
+  #                           everywhere, or you'd rather not depend on
+  #                           that assumption at all.
   template: ~/.batchtools.condor.tmpl
   # Maximum number of simultaneous Condor jobs across all three stages.
   workers: 80
@@ -50,6 +63,8 @@ defaults:
     request_cpus: 1
     request_memory: 4GB
     request_disk: 2GB
+    # Only read by condor_apptainer.tmpl; ignored by condor.tmpl.
+    # container_image: docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest
 
 # --- Stage 1: dimensionality search -----------------------------------------
 # One Condor job per (dimension, restart) pair -- dims * n_restarts jobs.
