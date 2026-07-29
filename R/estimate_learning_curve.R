@@ -83,17 +83,31 @@
 #'   trials and estimate a single learning curve on the combined data. If
 #'   \code{FALSE}, estimate the learning curve independently for each
 #'   participant and return a named list of result objects.
+#' @param norm_penalty Non-negative number, forwarded to
+#'   \code{\link{train_embedding}}'s \code{norm_penalty} argument for every
+#'   fit, controlling how each fit chooses its "best" training checkpoint.
+#'   Default \code{0} preserves prior behavior exactly (checkpoints are
+#'   chosen by raw test loss).  See the \emph{Diagnosing outlier items}
+#'   section of \code{\link{train_embedding}} for details.
 #'
 #' @return When \code{group = TRUE} (the default), a named list with two
 #'   elements:
 #' \describe{
 #'   \item{\code{results}}{Data frame with one row per (fraction, restart) and
 #'     columns \code{fraction}, \code{n_train}, \code{restart}, \code{loss},
-#'     \code{accuracy}, \code{epoch}. \code{loss} and \code{accuracy} are the
-#'     hold-out test loss and accuracy at the epoch of best test loss.}
+#'     \code{accuracy}, \code{epoch}, \code{norm_ratio}. \code{loss} and
+#'     \code{accuracy} are the hold-out test loss and accuracy at the epoch
+#'     of best test loss; \code{norm_ratio} is the ratio of the largest to
+#'     median per-item embedding norm at that same epoch — see the
+#'     \emph{Diagnosing outlier items} section of
+#'     \code{\link{train_embedding}}.}
 #'   \item{\code{summary}}{Data frame with one row per fraction and columns
 #'     \code{fraction}, \code{n_train}, \code{mean_loss}, \code{sd_loss},
-#'     \code{mean_accuracy}, \code{sd_accuracy}.}
+#'     \code{mean_accuracy}, \code{sd_accuracy}, \code{mean_norm_ratio},
+#'     \code{max_norm_ratio}.  A rising \code{max_norm_ratio} across
+#'     fractions alongside improving loss can mean the fit is relying more
+#'     on an outlier item as more data comes in, rather than genuinely
+#'     stabilizing.}
 #' }
 #' When \code{group = FALSE}, a named list with one element per participant,
 #' each of which has the same \code{results} / \code{summary} structure
@@ -134,6 +148,15 @@
 #' s <- curve$summary
 #' plot(s$fraction, s$mean_loss, type = "b", pch = 19,
 #'      xlab = "Fraction of training data", ylab = "Mean hold-out loss")
+#'
+#' # Discourage outlier-chasing checkpoints during fitting itself
+#' curve_penalized <- estimate_learning_curve(
+#'   triplet_list = icon_triplets,
+#'   d            = 3L,
+#'   by           = 0.2,
+#'   n_restarts   = 5L,
+#'   norm_penalty = 0.05
+#' )
 #' }
 estimate_learning_curve <- function(triplet_list,
                                     d          = 5L,
@@ -145,7 +168,8 @@ estimate_learning_curve <- function(triplet_list,
                                     device     = NULL,
                                     seed       = 1L,
                                     verbose    = TRUE,
-                                    group      = TRUE) {
+                                    group      = TRUE,
+                                    norm_penalty = 0) {
 
   # Build X_train / X_test matrices from a list of participant data frames
   .prepare_matrices <- function(dfs) {
@@ -220,13 +244,15 @@ estimate_learning_curve <- function(triplet_list,
         tol_window   = tol_window,
         device       = device,
         random_state = as.integer(job$random_state),
-        print_every  = as.integer(max_epochs)
+        print_every  = as.integer(max_epochs),
+        norm_penalty = norm_penalty
       )
 
       best <- out$history[which.min(out$history$test_loss), ]
 
       data.frame(fraction = job$frac, n_train = n_rows, restart = job$restart,
                  loss = best$test_loss, accuracy = best$test_acc, epoch = best$epoch,
+                 norm_ratio = best$norm_ratio,
                  stringsAsFactors = FALSE)
     }
 
@@ -255,12 +281,14 @@ estimate_learning_curve <- function(triplet_list,
     summary_df <- do.call(rbind, lapply(fractions, function(f) {
       sub <- results_df[results_df$fraction == f, ]
       data.frame(
-        fraction      = f,
-        n_train       = sub$n_train[1],
-        mean_loss     = mean(sub$loss),
-        sd_loss       = if (nrow(sub) > 1L) stats::sd(sub$loss) else NA_real_,
-        mean_accuracy = mean(sub$accuracy),
-        sd_accuracy   = if (nrow(sub) > 1L) stats::sd(sub$accuracy) else NA_real_,
+        fraction         = f,
+        n_train          = sub$n_train[1],
+        mean_loss        = mean(sub$loss),
+        sd_loss          = if (nrow(sub) > 1L) stats::sd(sub$loss) else NA_real_,
+        mean_accuracy    = mean(sub$accuracy),
+        sd_accuracy      = if (nrow(sub) > 1L) stats::sd(sub$accuracy) else NA_real_,
+        mean_norm_ratio  = mean(sub$norm_ratio),
+        max_norm_ratio   = max(sub$norm_ratio),
         stringsAsFactors = FALSE
       )
     }))

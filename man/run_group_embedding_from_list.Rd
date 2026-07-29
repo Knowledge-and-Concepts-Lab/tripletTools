@@ -14,7 +14,8 @@ run_group_embedding_from_list(
   device = NULL,
   geometry = c("euclidean", "sphere"),
   radius = 1,
-  warm_start = NULL
+  warm_start = NULL,
+  norm_penalty = 0
 )
 }
 \arguments{
@@ -64,6 +65,11 @@ Euclidean fit — see the \emph{Spherical embeddings} section of
 \code{geometry = "euclidean"}, it is used directly as the starting
 point for training.  \code{NULL} (default) starts from a random
 initialization.}
+
+\item{norm_penalty}{Non-negative number controlling how the "best"
+checkpoint is chosen during training.  Default \code{0} preserves prior
+behavior exactly.  See the \code{norm_penalty} argument of
+\code{\link{train_embedding}} for details.}
 }
 \value{
 A named list with three elements:
@@ -73,7 +79,9 @@ as row names) and \code{d} columns (\code{dim_0}, \code{dim_1}, …).}
 \item{\code{loss}}{Best test loss achieved during training.}
 \item{\code{history}}{Data frame with one row per epoch and columns
 \code{epoch}, \code{train_loss}, \code{test_loss}, \code{train_acc},
-\code{test_acc}.}
+\code{test_acc}, \code{max_norm}, \code{median_norm},
+\code{norm_ratio} — see the \emph{Diagnosing outlier items} section of
+\code{\link{train_embedding}}.}
 }
 }
 \description{

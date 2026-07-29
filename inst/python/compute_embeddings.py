@@ -8,11 +8,21 @@ import os
 
 def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print_every,
                   device, noise_model="CKL", embedding=None, random_state=None,
-                  module_kwargs=None, stage_label=None):
+                  module_kwargs=None, stage_label=None, norm_penalty=0.0):
     """
     Run one early-stopped OfflineEmbedding fit. Shared by the plain Euclidean
     path and each stage of the spherical warm-start recipe in
     ``train_embedding_model``.
+
+    norm_penalty: non-negative number. The checkpoint kept as "best" (and
+        the counter driving early stopping) is chosen by
+        ``test_loss + norm_penalty * (norm_ratio - 1)`` rather than raw
+        ``test_loss``, so a checkpoint that improves test_loss only by
+        growing an outlier item's norm is not necessarily preferred over
+        an earlier, more compact one. norm_penalty=0.0 (the default)
+        reduces this to plain test_loss, reproducing prior behavior
+        exactly. The returned ``lowest_loss`` is always the raw test_loss
+        of whichever checkpoint was selected, not the penalized value.
 
     Returns the same 5-tuple as ``train_embedding_model``.
     """
@@ -22,7 +32,8 @@ def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print
                               noise_model=noise_model, random_state=random_state, **module_kwargs)
     model.initialize(X_train, embedding=embedding)
 
-    current_lowest_loss = 1
+    current_lowest_loss = float("inf")
+    current_lowest_penalized_loss = float("inf")
     current_best_embedding = model.embedding_
     counter_since_update = 0
     epoch_history = []
@@ -35,13 +46,14 @@ def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print
     # window, which is more than enough for reliable early stopping.
     score_every = max(1, tol_window // 100)
 
-    header = f"{'Epoch':>8}  {'Train Loss':>10}  {'Test Loss':>10}  {'Train Acc':>10}  {'Test Acc':>10}"
+    header = (f"{'Epoch':>8}  {'Train Loss':>10}  {'Test Loss':>10}  {'Train Acc':>10}  "
+              f"{'Test Acc':>10}  {'NormRatio':>10}")
     if stage_label:
         print(stage_label)
     print(header)
     print("-" * len(header))
 
-    train_acc = train_loss = test_acc = test_loss = float("nan")
+    train_acc = train_loss = test_acc = test_loss = norm_ratio = float("nan")
 
     for epoch in range(max_epochs):
         model.partial_fit(X_train)
@@ -50,18 +62,37 @@ def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print
             train_acc, train_loss = model._score(X_train)
             test_acc,  test_loss  = model._score(X_test)
 
+            # Per-item embedding norms, to help diagnose whether the
+            # optimizer is minimizing loss in part by pushing a small
+            # number of weakly-constrained items far away from the rest
+            # rather than genuinely improving the shared structure.
+            # norm_ratio close to 1 means items are roughly equidistant
+            # from the origin; a growing ratio flags one or more outliers.
+            # (Meaningless for geometry="sphere", where every item's norm
+            # is fixed at ``radius`` by construction -- ratio is always ~1.)
+            item_norms  = np.linalg.norm(model.embedding_, axis=1)
+            max_norm    = float(item_norms.max())
+            median_norm = float(np.median(item_norms))
+            norm_ratio  = max_norm / median_norm if median_norm > 0 else float("nan")
+
             epoch_history.append({
-                "epoch":      epoch,
-                "train_loss": train_loss,
-                "test_loss":  test_loss,
-                "train_acc":  train_acc,
-                "test_acc":   test_acc,
+                "epoch":       epoch,
+                "train_loss":  train_loss,
+                "test_loss":   test_loss,
+                "train_acc":   train_acc,
+                "test_acc":    test_acc,
+                "max_norm":    max_norm,
+                "median_norm": median_norm,
+                "norm_ratio":  norm_ratio,
             })
 
             if epoch % print_every == 0:
-                print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  {test_acc:>10.4f}")
+                print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  "
+                      f"{test_acc:>10.4f}  {norm_ratio:>10.4f}")
 
-            if test_loss < current_lowest_loss:
+            penalized_loss = test_loss + norm_penalty * (norm_ratio - 1)
+            if penalized_loss < current_lowest_penalized_loss:
+                current_lowest_penalized_loss = penalized_loss
                 current_lowest_loss = test_loss
                 current_best_embedding = model.embedding_
                 counter_since_update = 0
@@ -69,10 +100,12 @@ def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print
                 counter_since_update += score_every
 
             if counter_since_update > tol_window:
-                print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  {test_acc:>10.4f}  [early stop]")
+                print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  "
+                      f"{test_acc:>10.4f}  {norm_ratio:>10.4f}  [early stop]")
                 break
     else:
-        print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  {test_acc:>10.4f}  [max epochs]")
+        print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  "
+              f"{test_acc:>10.4f}  {norm_ratio:>10.4f}  [max epochs]")
 
     # Return history as a plain dict of lists rather than a pandas DataFrame.
     # Reticulate's conversion of pandas DataFrames to R data frames is
@@ -86,7 +119,7 @@ def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print
 
 def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000,
                            print_every=100, device=None, random_state=None,
-                           geometry="euclidean", radius=1.0, warm_start=None):
+                           geometry="euclidean", radius=1.0, warm_start=None, norm_penalty=0.0):
     """
     Train embedding model with early stopping based on test loss.
 
@@ -125,11 +158,30 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
         above -- useful when that Euclidean embedding has already been
         computed elsewhere. When geometry="euclidean", it is used directly
         as the starting point for the fit.
+    norm_penalty: non-negative number (default 0.0). Controls which epoch's
+        embedding is kept as the "best" checkpoint (and therefore the
+        counter driving early stopping): instead of picking the epoch with
+        the lowest raw test_loss, this picks the epoch with the lowest
+        test_loss + norm_penalty * (norm_ratio - 1), so an epoch that only
+        improved test_loss by growing an outlier item's norm is not
+        necessarily preferred over an earlier, more compact epoch. The
+        default 0.0 reduces this to plain test_loss, reproducing prior
+        behavior exactly. The returned lowest_loss is always the raw
+        test_loss of the selected checkpoint, never the penalized value.
+        Applied to every internal fit stage, including the Euclidean
+        warm-start stage of geometry="sphere" -- it has no effect on the
+        constrained spherical stage itself, since norm_ratio is always ~1
+        there by construction.
 
     Returns:
     best_embedding, lowest_loss, epoch_stopped, counter, history
     where history is a DataFrame with columns:
-        epoch, train_loss, test_loss, train_acc, test_acc
+        epoch, train_loss, test_loss, train_acc, test_acc,
+        max_norm, median_norm, norm_ratio
+    max_norm/median_norm/norm_ratio describe the distribution of per-item
+    embedding norms at that epoch (norm_ratio = max_norm / median_norm),
+    as a diagnostic for whether a small number of items are being pushed
+    far from the rest rather than the fit genuinely improving.
     """
     if geometry not in ("euclidean", "sphere"):
         raise ValueError(f"geometry must be 'euclidean' or 'sphere', got {geometry!r}")
@@ -156,6 +208,7 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
                 tol_window=tol_window, print_every=max_epochs, device=device,
                 noise_model="CKL", random_state=random_state,
                 stage_label="[spherical warm start: fitting free Euclidean embedding]",
+                norm_penalty=norm_penalty,
             )
         norms = np.linalg.norm(euclidean_embedding, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
@@ -171,7 +224,7 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
         X_train, X_test, n=n, d=d, max_epochs=max_epochs, tolerance=tolerance,
         tol_window=tol_window, print_every=print_every, device=device,
         noise_model=noise_model, embedding=start_embedding, random_state=random_state,
-        module_kwargs=module_kwargs, stage_label=stage_label,
+        module_kwargs=module_kwargs, stage_label=stage_label, norm_penalty=norm_penalty,
     )
 
 

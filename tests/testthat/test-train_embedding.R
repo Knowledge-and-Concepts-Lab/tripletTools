@@ -24,8 +24,11 @@ test_that("train_embedding runs and returns the expected structure", {
   expect_true(is.numeric(fit$epoch))
   expect_s3_class(fit$history, "data.frame")
   expect_true(all(
-    c("epoch", "train_loss", "test_loss", "train_acc", "test_acc") %in% names(fit$history)
+    c("epoch", "train_loss", "test_loss", "train_acc", "test_acc",
+      "max_norm", "median_norm", "norm_ratio") %in% names(fit$history)
   ))
+  # norm_ratio = max_norm / median_norm, so it can never fall below 1
+  expect_true(all(fit$history$norm_ratio >= 1 - 1e-8))
 })
 
 test_that("geometry = 'sphere' constrains points to the sphere's surface", {
@@ -35,6 +38,9 @@ test_that("geometry = 'sphere' constrains points to the sphere's surface", {
 
   norms <- sqrt(rowSums(fit$embedding^2))
   expect_equal(norms, rep(1, n_items), tolerance = 1e-4)
+  # Every item's norm is pinned to `radius` by construction under
+  # geometry = "sphere", so norm_ratio should stay ~1 throughout training.
+  expect_equal(fit$history$norm_ratio, rep(1, nrow(fit$history)), tolerance = 1e-4)
 })
 
 test_that("warm_start skips the internal Euclidean warm-start stage", {
@@ -62,4 +68,30 @@ test_that("warm_start with a mismatched shape errors before training", {
                      warm_start = matrix(0, 3, 3)),
     "warm_start must have shape"
   )
+})
+
+test_that("norm_penalty = 0 preserves checkpoint-selection behavior exactly", {
+  fit_default      <- train_embedding(X_train, X_test, d = 2L, max_epochs = 20L,
+                                       tol_window = 10L, print_every = 20L,
+                                       random_state = 0L)
+  fit_explicit_zero <- train_embedding(X_train, X_test, d = 2L, max_epochs = 20L,
+                                        tol_window = 10L, print_every = 20L,
+                                        random_state = 0L, norm_penalty = 0)
+
+  expect_equal(fit_default$embedding, fit_explicit_zero$embedding)
+  expect_equal(fit_default$loss, fit_explicit_zero$loss)
+  expect_equal(fit_default$history, fit_explicit_zero$history)
+})
+
+test_that("norm_penalty selects the checkpoint with lowest penalized loss", {
+  fit <- train_embedding(X_train, X_test, d = 2L, max_epochs = 20L,
+                          tol_window = 10L, print_every = 20L, random_state = 0L,
+                          norm_penalty = 5)
+
+  # The returned loss must be the raw test_loss of whichever history row
+  # minimizes test_loss + norm_penalty * (norm_ratio - 1) -- i.e. the
+  # checkpoint-selection logic must be self-consistent with what's recorded
+  # in history, not just "some" loss value.
+  penalized <- fit$history$test_loss + 5 * (fit$history$norm_ratio - 1)
+  expect_equal(fit$loss, fit$history$test_loss[which.min(penalized)])
 })

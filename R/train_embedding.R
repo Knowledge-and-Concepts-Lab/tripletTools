@@ -13,7 +13,10 @@
 #' It stops early if the test loss is within \code{tolerance} of the best
 #' observed test loss for more than \code{tol_window} consecutive epochs.
 #' The embedding that achieved the best test loss during training is returned,
-#' not necessarily the final-epoch embedding.
+#' not necessarily the final-epoch embedding — unless \code{norm_penalty} is
+#' set above \code{0}, in which case "best" is redefined as described under
+#' that argument below, to avoid preferring an epoch that only improved loss
+#' by growing an outlier item's norm.
 #'
 #' @section Item indices:
 #' Items are identified by zero-based integer indices.  If your data uses
@@ -73,6 +76,20 @@
 #'   directly as the starting point for training.  \code{NULL} (default)
 #'   starts from a random initialization (and, for \code{geometry = "sphere"},
 #'   still runs the internal Euclidean warm-start stage).
+#' @param norm_penalty Non-negative number controlling how the "best"
+#'   checkpoint is chosen during training (see \emph{Early stopping} and
+#'   \emph{Diagnosing outlier items} below).  Default \code{0} preserves
+#'   prior behavior exactly: the checkpoint with the lowest raw
+#'   \code{test_loss} is kept.  A positive value instead keeps the
+#'   checkpoint with the lowest \code{test_loss + norm_penalty * (norm_ratio - 1)},
+#'   so an epoch that only improved \code{test_loss} by growing an outlier
+#'   item's norm is not necessarily preferred over an earlier, more compact
+#'   epoch.  The returned \code{loss} is always the raw \code{test_loss} of
+#'   whichever checkpoint was selected, never the penalized value.  Applied
+#'   to every internal fit stage, including the Euclidean warm-start stage
+#'   of \code{geometry = "sphere"}; has no effect on the constrained
+#'   spherical stage itself, since \code{norm_ratio} is always \code{~1}
+#'   there by construction.
 #'
 #' @section Spherical embeddings:
 #' Passing \code{geometry = "sphere"} constrains every item to the surface of
@@ -97,6 +114,27 @@
 #' \code{geometry = "euclidean"} call), pass it as \code{warm_start} to skip
 #' this first stage entirely.
 #'
+#' @section Diagnosing outlier items:
+#' Hold-out loss can sometimes improve not because the fit is capturing more
+#' shared structure, but because the optimizer has pushed one or two weakly
+#' constrained items (e.g. ones involved in few triplets) far from everything
+#' else — cheaply satisfying their few comparisons without materially
+#' affecting the rest of the loss.  \code{history} includes per-epoch
+#' \code{max_norm}, \code{median_norm}, and \code{norm_ratio} (their ratio)
+#' to help catch this: a \code{norm_ratio} that stays near \code{1} means
+#' items are roughly equidistant from the origin, while a ratio that keeps
+#' growing across epochs, dimensions, or restarts flags a drifting outlier
+#' worth inspecting directly in \code{embedding}.  This is only informative
+#' for \code{geometry = "euclidean"} — under \code{geometry = "sphere"} every
+#' item's norm is fixed at \code{radius} by construction, so
+#' \code{norm_ratio} is always \code{~1} regardless of fit quality.
+#'
+#' Once you've confirmed outlier drift is happening, \code{norm_penalty} lets
+#' you push back on it directly rather than just observing it: it changes
+#' which epoch's embedding training keeps as "best," discouraging (but not
+#' forbidding) checkpoints that improved loss mainly by growing
+#' \code{norm_ratio}.  See the \code{norm_penalty} argument above.
+#'
 #' @return A named list with five elements:
 #' \describe{
 #'   \item{\code{embedding}}{Numeric matrix of shape
@@ -108,7 +146,8 @@
 #'     improvement at the point training stopped.}
 #'   \item{\code{history}}{Data frame with one row per epoch and columns
 #'     \code{epoch}, \code{train_loss}, \code{test_loss}, \code{train_acc},
-#'     \code{test_acc}.}
+#'     \code{test_acc}, \code{max_norm}, \code{median_norm},
+#'     \code{norm_ratio} — see \emph{Diagnosing outlier items} below.}
 #' }
 #'
 #' @export
@@ -142,6 +181,10 @@
 #' out_circle2 <- train_embedding(X_train, X_test, d = 2L,
 #'                                 geometry = "sphere", radius = 1,
 #'                                 warm_start = out_euclid$embedding)
+#'
+#' # Discourage checkpoints whose loss improvement came from an outlier
+#' # item's norm growing rather than genuinely better structure
+#' out_penalized <- train_embedding(X_train, X_test, d = 5L, norm_penalty = 0.05)
 #' }
 train_embedding <- function(X_train,
                             X_test,
@@ -154,7 +197,8 @@ train_embedding <- function(X_train,
                             random_state = NULL,
                             geometry     = c("euclidean", "sphere"),
                             radius       = 1,
-                            warm_start   = NULL) {
+                            warm_start   = NULL,
+                            norm_penalty = 0) {
   geometry <- match.arg(geometry)
 
   compute_py <- .get_compute_py()
@@ -188,7 +232,8 @@ train_embedding <- function(X_train,
     random_state = if (is.null(random_state)) NULL else as.integer(random_state),
     geometry     = geometry,
     radius       = radius,
-    warm_start   = warm_start_np
+    warm_start   = warm_start_np,
+    norm_penalty = norm_penalty
   )
 
   list(

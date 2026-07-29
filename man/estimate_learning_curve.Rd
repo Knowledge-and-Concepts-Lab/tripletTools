@@ -15,7 +15,8 @@ estimate_learning_curve(
   device = NULL,
   seed = 1L,
   verbose = TRUE,
-  group = TRUE
+  group = TRUE,
+  norm_penalty = 0
 )
 }
 \arguments{
@@ -58,6 +59,13 @@ worker processes is not forwarded to the main session).}
 trials and estimate a single learning curve on the combined data. If
 \code{FALSE}, estimate the learning curve independently for each
 participant and return a named list of result objects.}
+
+\item{norm_penalty}{Non-negative number, forwarded to
+\code{\link{train_embedding}}'s \code{norm_penalty} argument for every
+fit, controlling how each fit chooses its "best" training checkpoint.
+Default \code{0} preserves prior behavior exactly (checkpoints are
+chosen by raw test loss).  See the \emph{Diagnosing outlier items}
+section of \code{\link{train_embedding}} for details.}
 }
 \value{
 When \code{group = TRUE} (the default), a named list with two
@@ -65,11 +73,19 @@ elements:
 \describe{
 \item{\code{results}}{Data frame with one row per (fraction, restart) and
 columns \code{fraction}, \code{n_train}, \code{restart}, \code{loss},
-\code{accuracy}, \code{epoch}. \code{loss} and \code{accuracy} are the
-hold-out test loss and accuracy at the epoch of best test loss.}
+\code{accuracy}, \code{epoch}, \code{norm_ratio}. \code{loss} and
+\code{accuracy} are the hold-out test loss and accuracy at the epoch
+of best test loss; \code{norm_ratio} is the ratio of the largest to
+median per-item embedding norm at that same epoch — see the
+\emph{Diagnosing outlier items} section of
+\code{\link{train_embedding}}.}
 \item{\code{summary}}{Data frame with one row per fraction and columns
 \code{fraction}, \code{n_train}, \code{mean_loss}, \code{sd_loss},
-\code{mean_accuracy}, \code{sd_accuracy}.}
+\code{mean_accuracy}, \code{sd_accuracy}, \code{mean_norm_ratio},
+\code{max_norm_ratio}.  A rising \code{max_norm_ratio} across
+fractions alongside improving loss can mean the fit is relying more
+on an outlier item as more data comes in, rather than genuinely
+stabilizing.}
 }
 When \code{group = FALSE}, a named list with one element per participant,
 each of which has the same \code{results} / \code{summary} structure
@@ -173,5 +189,14 @@ plan(sequential)  # restore serial execution afterwards
 s <- curve$summary
 plot(s$fraction, s$mean_loss, type = "b", pch = 19,
      xlab = "Fraction of training data", ylab = "Mean hold-out loss")
+
+# Discourage outlier-chasing checkpoints during fitting itself
+curve_penalized <- estimate_learning_curve(
+  triplet_list = icon_triplets,
+  d            = 3L,
+  by           = 0.2,
+  n_restarts   = 5L,
+  norm_penalty = 0.05
+)
 }
 }

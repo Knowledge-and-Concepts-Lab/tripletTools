@@ -53,6 +53,10 @@
 #'   \code{geometry = "euclidean"}, it is used directly as the starting
 #'   point for training.  \code{NULL} (default) starts from a random
 #'   initialization.
+#' @param norm_penalty Non-negative number controlling how the "best"
+#'   checkpoint is chosen during training.  Default \code{0} preserves prior
+#'   behavior exactly.  See the \code{norm_penalty} argument of
+#'   \code{\link{train_embedding}} for details.
 #'
 #' @return A named list with three elements:
 #' \describe{
@@ -61,7 +65,9 @@
 #'   \item{\code{loss}}{Best test loss achieved during training.}
 #'   \item{\code{history}}{Data frame with one row per epoch and columns
 #'     \code{epoch}, \code{train_loss}, \code{test_loss}, \code{train_acc},
-#'     \code{test_acc}.}
+#'     \code{test_acc}, \code{max_norm}, \code{median_norm},
+#'     \code{norm_ratio} — see the \emph{Diagnosing outlier items} section of
+#'     \code{\link{train_embedding}}.}
 #' }
 #'
 #' @export
@@ -98,7 +104,8 @@ run_group_embedding_from_list <- function(triplet_list,
                                           device     = NULL,
                                           geometry   = c("euclidean", "sphere"),
                                           radius     = 1,
-                                          warm_start = NULL) {
+                                          warm_start = NULL,
+                                          norm_penalty = 0) {
   geometry <- match.arg(geometry)
   set.seed(seed)
 
@@ -153,16 +160,17 @@ run_group_embedding_from_list <- function(triplet_list,
   }
 
   out <- train_embedding(
-    X_train    = X_train,
-    X_test     = X_test,
-    d          = d,
-    max_epochs = max_epochs,
-    tolerance  = tolerance,
-    tol_window = tol_window,
-    device     = device,
-    geometry   = geometry,
-    radius     = radius,
-    warm_start = warm_start_mat
+    X_train      = X_train,
+    X_test       = X_test,
+    d            = d,
+    max_epochs   = max_epochs,
+    tolerance    = tolerance,
+    tol_window   = tol_window,
+    device       = device,
+    geometry     = geometry,
+    radius       = radius,
+    warm_start   = warm_start_mat,
+    norm_penalty = norm_penalty
   )
 
   colnames(out$embedding) <- paste0("dim_", seq_len(ncol(out$embedding)) - 1L)

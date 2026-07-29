@@ -94,16 +94,55 @@
 #'   \code{dims}.
 #' @param radius Radius of the sphere used when \code{geometry = "sphere"}.
 #'   Ignored when \code{geometry = "euclidean"}.  Default \code{1}.
+#' @param norm_penalty Non-negative number, forwarded to \code{\link{train_embedding}}'s
+#'   \code{norm_penalty} argument for every restart, controlling how each
+#'   individual fit chooses its "best" training checkpoint.  Default
+#'   \code{0} preserves prior behavior exactly (checkpoints are chosen by
+#'   raw test loss).  This changes the actual fitted embeddings and the
+#'   \code{loss}/\code{norm_ratio} values reported in \code{results}; it is
+#'   independent of \code{best_d_norm_penalty} below, which only affects
+#'   \emph{which already-fitted dimension} gets flagged \code{best_d}.  See
+#'   the \emph{Diagnosing outlier items} section of
+#'   \code{\link{train_embedding}} for details.
+#' @param best_d_norm_penalty Non-negative number controlling how much
+#'   \code{best_d} selection penalizes dimensions whose fits show outlier
+#'   items (see \code{norm_ratio} in the \emph{Diagnosing outlier items}
+#'   section of \code{\link{train_embedding}}).  \code{best_d} is chosen by
+#'   applying the same one-standard-error rule described below to
+#'   \code{penalized_loss = mean_loss + best_d_norm_penalty * (max_norm_ratio - 1)}
+#'   instead of \code{mean_loss} directly.  Default \code{0} leaves
+#'   selection based purely on \code{mean_loss}, matching prior behavior;
+#'   increase it to make dimensions with a high \code{max_norm_ratio} less
+#'   likely to be selected as \code{best_d} even if their mean loss is
+#'   lowest.  This is a purely post-hoc selection rule applied to already-
+#'   fitted results — \code{results}/\code{summary} always report the raw,
+#'   unpenalized \code{loss}/\code{mean_loss} regardless of this setting,
+#'   and it does not affect fitting itself (see \code{norm_penalty} above
+#'   for that).
 #'
 #' @return When \code{group = TRUE} (the default), a named list with two
 #'   elements:
 #' \describe{
 #'   \item{\code{results}}{Data frame with one row per (dimension, restart) and
-#'     columns \code{d}, \code{restart}, \code{loss}, \code{epoch}.}
+#'     columns \code{d}, \code{restart}, \code{loss}, \code{epoch},
+#'     \code{norm_ratio}.  \code{norm_ratio} is the ratio of the largest to
+#'     median per-item embedding norm at the epoch of best test loss — see
+#'     the \emph{Diagnosing outlier items} section of
+#'     \code{\link{train_embedding}}.  Only meaningful for
+#'     \code{geometry = "euclidean"}; always \code{~1} under
+#'     \code{geometry = "sphere"}.}
 #'   \item{\code{summary}}{Data frame with one row per dimension and columns
-#'     \code{d}, \code{mean_loss}, \code{min_loss}, \code{sd_loss}.
-#'     The logical column \code{best_d} marks the smallest \code{d} within
-#'     one standard error of the global minimum mean loss.}
+#'     \code{d}, \code{mean_loss}, \code{min_loss}, \code{sd_loss},
+#'     \code{mean_norm_ratio}, \code{max_norm_ratio}, \code{penalized_loss}.
+#'     \code{penalized_loss} equals \code{mean_loss} whenever
+#'     \code{best_d_norm_penalty = 0} (the default) — see the
+#'     \code{best_d_norm_penalty} argument.  The logical column
+#'     \code{best_d} marks the smallest \code{d} within one standard error
+#'     of the global minimum \code{penalized_loss}.  A \code{d} with low
+#'     \code{mean_loss} but a high \code{max_norm_ratio} relative to
+#'     smaller dimensions is a sign that the loss improvement may be coming
+#'     from an outlier item being pushed away rather than genuinely better
+#'     structure.}
 #' }
 #' When \code{group = FALSE}, a named list with one element per participant,
 #' each of which has the same \code{results} / \code{summary} structure
@@ -133,6 +172,27 @@
 #' # Best dimensionality for the first participant:
 #' dim_est_ind[[1]]$summary
 #'
+#' # Penalize dimensions whose fits show a strong outlier item when
+#' # choosing best_d, rather than selecting on raw mean loss alone
+#' # (post-hoc selection only -- does not change the fits themselves)
+#' dim_est_penalized <- estimate_dimensionality(
+#'   triplet_list      = icon_triplets,
+#'   dims              = 1:6,
+#'   n_restarts        = 5L,
+#'   best_d_norm_penalty = 0.05
+#' )
+#' dim_est_penalized$summary[, c("d", "mean_loss", "max_norm_ratio",
+#'                                "penalized_loss", "best_d")]
+#'
+#' # Discourage outlier-chasing checkpoints during fitting itself, at every
+#' # dimension/restart (changes the fits and reported loss/norm_ratio)
+#' dim_est_fit_penalized <- estimate_dimensionality(
+#'   triplet_list = icon_triplets,
+#'   dims         = 1:6,
+#'   n_restarts   = 5L,
+#'   norm_penalty = 0.05
+#' )
+#'
 #' # Parallel: use 4 local cores (requires future.apply)
 #' library(future)
 #' plan(multisession, workers = 4)
@@ -158,7 +218,9 @@ estimate_dimensionality <- function(triplet_list,
                                     verbose     = TRUE,
                                     group       = TRUE,
                                     geometry    = c("euclidean", "sphere"),
-                                    radius      = 1) {
+                                    radius      = 1,
+                                    norm_penalty = 0,
+                                    best_d_norm_penalty = 0) {
   geometry <- match.arg(geometry)
 
   # Build X_train / X_test matrices from a list of participant data frames
@@ -221,10 +283,13 @@ estimate_dimensionality <- function(triplet_list,
         random_state = as.integer(job$random_state),
         print_every  = as.integer(max_epochs),
         geometry     = geometry,
-        radius       = radius
+        radius       = radius,
+        norm_penalty = norm_penalty
       )
+      best <- out$history[which.min(out$history$test_loss), ]
       data.frame(d = job$d, restart = job$restart,
                  loss = out$loss, epoch = out$epoch,
+                 norm_ratio = best$norm_ratio,
                  stringsAsFactors = FALSE)
     }
 
@@ -253,18 +318,26 @@ estimate_dimensionality <- function(triplet_list,
     summary_df <- do.call(rbind, lapply(dims, function(d) {
       sub <- results_df[results_df$d == d, ]
       data.frame(
-        d         = d,
-        mean_loss = mean(sub$loss),
-        min_loss  = min(sub$loss),
-        sd_loss   = if (nrow(sub) > 1L) stats::sd(sub$loss) else NA_real_,
+        d              = d,
+        mean_loss      = mean(sub$loss),
+        min_loss       = min(sub$loss),
+        sd_loss        = if (nrow(sub) > 1L) stats::sd(sub$loss) else NA_real_,
+        mean_norm_ratio = mean(sub$norm_ratio),
+        max_norm_ratio  = max(sub$norm_ratio),
         stringsAsFactors = FALSE
       )
     }))
 
-    best_idx  <- which.min(summary_df$mean_loss)
+    # penalized_loss == mean_loss whenever best_d_norm_penalty == 0 (the
+    # default), so best_d selection below is unaffected unless a caller
+    # opts in.
+    summary_df$penalized_loss <- summary_df$mean_loss +
+      best_d_norm_penalty * (summary_df$max_norm_ratio - 1)
+
+    best_idx  <- which.min(summary_df$penalized_loss)
     best_se   <- summary_df$sd_loss[best_idx] / sqrt(n_restarts)
-    threshold <- summary_df$mean_loss[best_idx] + best_se
-    eligible  <- summary_df$d[summary_df$mean_loss <= threshold]
+    threshold <- summary_df$penalized_loss[best_idx] + best_se
+    eligible  <- summary_df$d[summary_df$penalized_loss <= threshold]
     summary_df$best_d <- summary_df$d == min(eligible)
 
     list(results = results_df, summary = summary_df)
