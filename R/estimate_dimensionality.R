@@ -124,16 +124,18 @@
 #'   elements:
 #' \describe{
 #'   \item{\code{results}}{Data frame with one row per (dimension, restart) and
-#'     columns \code{d}, \code{restart}, \code{loss}, \code{epoch},
-#'     \code{norm_ratio}.  \code{norm_ratio} is the ratio of the largest to
-#'     median per-item embedding norm at the epoch of best test loss — see
-#'     the \emph{Diagnosing outlier items} section of
-#'     \code{\link{train_embedding}}.  Only meaningful for
-#'     \code{geometry = "euclidean"}; always \code{~1} under
-#'     \code{geometry = "sphere"}.}
+#'     columns \code{d}, \code{restart}, \code{loss}, \code{accuracy},
+#'     \code{epoch}, \code{norm_ratio}.  \code{loss} and \code{accuracy} are
+#'     the hold-out test loss and accuracy at the epoch of best test loss.
+#'     \code{norm_ratio} is the ratio of the largest to median per-item
+#'     embedding norm at that same epoch — see the \emph{Diagnosing outlier
+#'     items} section of \code{\link{train_embedding}}.  \code{norm_ratio}
+#'     is only meaningful for \code{geometry = "euclidean"}; always
+#'     \code{~1} under \code{geometry = "sphere"}.}
 #'   \item{\code{summary}}{Data frame with one row per dimension and columns
 #'     \code{d}, \code{mean_loss}, \code{min_loss}, \code{sd_loss},
-#'     \code{mean_norm_ratio}, \code{max_norm_ratio}, \code{penalized_loss}.
+#'     \code{mean_accuracy}, \code{sd_accuracy}, \code{mean_norm_ratio},
+#'     \code{max_norm_ratio}, \code{penalized_loss}.
 #'     \code{penalized_loss} equals \code{mean_loss} whenever
 #'     \code{best_d_norm_penalty = 0} (the default) — see the
 #'     \code{best_d_norm_penalty} argument.  The logical column
@@ -206,6 +208,9 @@
 #' arrows(s$d, s$mean_loss - s$sd_loss, s$d, s$mean_loss + s$sd_loss,
 #'        angle = 90, code = 3, length = 0.05)
 #' abline(v = s$d[s$best_d], lty = 2)
+#'
+#' # Compare loss, accuracy, and norm_ratio side by side across dimensions
+#' s[, c("d", "mean_loss", "mean_accuracy", "mean_norm_ratio", "max_norm_ratio")]
 #' }
 estimate_dimensionality <- function(triplet_list,
                                     dims        = 1:8,
@@ -288,7 +293,7 @@ estimate_dimensionality <- function(triplet_list,
       )
       best <- out$history[which.min(out$history$test_loss), ]
       data.frame(d = job$d, restart = job$restart,
-                 loss = out$loss, epoch = out$epoch,
+                 loss = out$loss, accuracy = best$test_acc, epoch = out$epoch,
                  norm_ratio = best$norm_ratio,
                  stringsAsFactors = FALSE)
     }
@@ -318,10 +323,12 @@ estimate_dimensionality <- function(triplet_list,
     summary_df <- do.call(rbind, lapply(dims, function(d) {
       sub <- results_df[results_df$d == d, ]
       data.frame(
-        d              = d,
-        mean_loss      = mean(sub$loss),
-        min_loss       = min(sub$loss),
-        sd_loss        = if (nrow(sub) > 1L) stats::sd(sub$loss) else NA_real_,
+        d               = d,
+        mean_loss       = mean(sub$loss),
+        min_loss        = min(sub$loss),
+        sd_loss         = if (nrow(sub) > 1L) stats::sd(sub$loss) else NA_real_,
+        mean_accuracy   = mean(sub$accuracy),
+        sd_accuracy     = if (nrow(sub) > 1L) stats::sd(sub$accuracy) else NA_real_,
         mean_norm_ratio = mean(sub$norm_ratio),
         max_norm_ratio  = max(sub$norm_ratio),
         stringsAsFactors = FALSE

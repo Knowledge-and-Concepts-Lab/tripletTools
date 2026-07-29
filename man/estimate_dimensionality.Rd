@@ -103,16 +103,18 @@ When \code{group = TRUE} (the default), a named list with two
 elements:
 \describe{
 \item{\code{results}}{Data frame with one row per (dimension, restart) and
-columns \code{d}, \code{restart}, \code{loss}, \code{epoch},
-\code{norm_ratio}.  \code{norm_ratio} is the ratio of the largest to
-median per-item embedding norm at the epoch of best test loss — see
-the \emph{Diagnosing outlier items} section of
-\code{\link{train_embedding}}.  Only meaningful for
-\code{geometry = "euclidean"}; always \code{~1} under
-\code{geometry = "sphere"}.}
+columns \code{d}, \code{restart}, \code{loss}, \code{accuracy},
+\code{epoch}, \code{norm_ratio}.  \code{loss} and \code{accuracy} are
+the hold-out test loss and accuracy at the epoch of best test loss.
+\code{norm_ratio} is the ratio of the largest to median per-item
+embedding norm at that same epoch — see the \emph{Diagnosing outlier
+items} section of \code{\link{train_embedding}}.  \code{norm_ratio}
+is only meaningful for \code{geometry = "euclidean"}; always
+\code{~1} under \code{geometry = "sphere"}.}
 \item{\code{summary}}{Data frame with one row per dimension and columns
 \code{d}, \code{mean_loss}, \code{min_loss}, \code{sd_loss},
-\code{mean_norm_ratio}, \code{max_norm_ratio}, \code{penalized_loss}.
+\code{mean_accuracy}, \code{sd_accuracy}, \code{mean_norm_ratio},
+\code{max_norm_ratio}, \code{penalized_loss}.
 \code{penalized_loss} equals \code{mean_loss} whenever
 \code{best_d_norm_penalty = 0} (the default) — see the
 \code{best_d_norm_penalty} argument.  The logical column
@@ -251,5 +253,8 @@ plot(s$d, s$mean_loss, type = "b", pch = 19,
 arrows(s$d, s$mean_loss - s$sd_loss, s$d, s$mean_loss + s$sd_loss,
        angle = 90, code = 3, length = 0.05)
 abline(v = s$d[s$best_d], lty = 2)
+
+# Compare loss, accuracy, and norm_ratio side by side across dimensions
+s[, c("d", "mean_loss", "mean_accuracy", "mean_norm_ratio", "max_norm_ratio")]
 }
 }

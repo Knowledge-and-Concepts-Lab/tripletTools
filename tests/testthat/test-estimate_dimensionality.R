@@ -10,24 +10,34 @@ trips <- make_fake_triplet_list()
 # while still exercising the real grid-search loop -- this test checks that
 # the pipeline runs and returns the right shapes, not that it converges.
 
-test_that("estimate_dimensionality runs and returns norm_ratio columns", {
+test_that("estimate_dimensionality runs and returns accuracy/norm_ratio columns", {
   dim_est <- estimate_dimensionality(
     triplet_list = trips, dims = 1:2, n_restarts = 2L,
     max_epochs = 20L, tol_window = 10L, seed = 1L, verbose = FALSE
   )
 
   expect_true(all(
-    c("d", "restart", "loss", "epoch", "norm_ratio") %in% names(dim_est$results)
+    c("d", "restart", "loss", "accuracy", "epoch", "norm_ratio") %in%
+      names(dim_est$results)
   ))
   expect_equal(nrow(dim_est$results), 4L)  # 2 dims x 2 restarts
   expect_true(all(dim_est$results$norm_ratio >= 1 - 1e-8))
+  expect_true(all(dim_est$results$accuracy >= 0 & dim_est$results$accuracy <= 1))
 
   expect_true(all(
-    c("d", "mean_loss", "min_loss", "sd_loss", "mean_norm_ratio",
-      "max_norm_ratio", "penalized_loss", "best_d") %in% names(dim_est$summary)
+    c("d", "mean_loss", "min_loss", "sd_loss", "mean_accuracy", "sd_accuracy",
+      "mean_norm_ratio", "max_norm_ratio", "penalized_loss", "best_d") %in%
+      names(dim_est$summary)
   ))
   expect_equal(nrow(dim_est$summary), 2L)
   expect_true(sum(dim_est$summary$best_d) == 1L)
+
+  # mean_accuracy in summary must match the per-restart accuracy values
+  expect_equal(
+    dim_est$summary$mean_accuracy,
+    vapply(split(dim_est$results$accuracy, dim_est$results$d), mean, numeric(1),
+           USE.NAMES = FALSE)
+  )
 
   # norm_penalty/best_d_norm_penalty default to 0, so penalized_loss must
   # equal mean_loss and best_d selection must be unaffected by norm_ratio.
