@@ -1,0 +1,114 @@
+# These files are plain scripts/templates under inst/condor/, not package
+# functions -- they can't be unit tested by calling exported functions, and
+# actually running condor_workflow.R requires an HTCondor cluster this
+# environment doesn't have. These tests instead check: the helper logic
+# (sourced directly) behaves correctly in isolation, the driver script and
+# helpers parse without a syntax error, and the shipped template/config
+# files are structurally sound.
+
+skip_if_not_installed("yaml")
+
+condor_dir <- system.file("condor", package = "tripletTools")
+
+test_that("inst/condor files are present", {
+  expect_true(nzchar(condor_dir))
+  expect_true(file.exists(file.path(condor_dir, "condor_workflow.R")))
+  expect_true(file.exists(file.path(condor_dir, "condor_helpers.R")))
+  expect_true(file.exists(file.path(condor_dir, "condor.tmpl")))
+  expect_true(file.exists(file.path(condor_dir, "params_template.yml")))
+})
+
+test_that("condor_workflow.R and condor_helpers.R parse without a syntax error", {
+  expect_no_error(parse(file.path(condor_dir, "condor_workflow.R")))
+  expect_no_error(parse(file.path(condor_dir, "condor_helpers.R")))
+})
+
+# Source the helpers into a private environment so their tests don't leak
+# `%||%`/get_config/etc. into the rest of the test suite.
+helpers <- new.env()
+sys.source(file.path(condor_dir, "condor_helpers.R"), envir = helpers)
+
+test_that("%||% falls back only on NULL", {
+  expect_equal(helpers$`%||%`(NULL, "default"), "default")
+  expect_equal(helpers$`%||%`("value", "default"), "value")
+  expect_equal(helpers$`%||%`(0, "default"), 0)  # falsy but non-NULL
+})
+
+test_that("parse_dims handles range strings and explicit lists", {
+  expect_equal(helpers$parse_dims("1:8"), 1:8)
+  expect_equal(helpers$parse_dims(" 2 : 5 "), 2:5)
+  expect_equal(helpers$parse_dims(list(1, 3, 5)), c(1L, 3L, 5L))
+  expect_equal(helpers$parse_dims(c(2, 4, 6)), c(2L, 4L, 6L))
+})
+
+test_that("get_config resolves stage override > defaults > hardcoded default", {
+  config <- list(
+    defaults = list(max_epochs = 50000L, tol_window = 10000L),
+    dimensionality = list(max_epochs = 20000L)
+  )
+  # Stage-level override wins
+  expect_equal(
+    helpers$get_config(config$dimensionality, "max_epochs", config, 999L),
+    20000L
+  )
+  # Falls back to defaults when the stage doesn't override
+  expect_equal(
+    helpers$get_config(config$dimensionality, "tol_window", config, 999L),
+    10000L
+  )
+  # Falls back to the hardcoded default when neither is set
+  expect_equal(
+    helpers$get_config(config$dimensionality, "tolerance", config, 1e-4),
+    1e-4
+  )
+})
+
+test_that("resources_config resolves stage override > defaults > empty list", {
+  config <- list(defaults = list(resources = list(request_memory = "4GB")))
+  stage_with_override <- list(resources = list(request_memory = "16GB"))
+
+  expect_equal(
+    helpers$resources_config(stage_with_override, config),
+    list(request_memory = "16GB")
+  )
+  expect_equal(
+    helpers$resources_config(list(), config),
+    list(request_memory = "4GB")
+  )
+  expect_equal(
+    helpers$resources_config(list(), list()),
+    list()
+  )
+})
+
+test_that("params_template.yml loads and has the fields condor_workflow.R expects", {
+  config <- yaml::read_yaml(file.path(condor_dir, "params_template.yml"))
+
+  expect_true(all(c("output_dir", "seed", "geometry", "radius", "norm_penalty",
+                     "condor", "defaults", "dimensionality", "learning_curve",
+                     "final_fit") %in% names(config)))
+  expect_true(all(c("template", "workers") %in% names(config$condor)))
+  expect_true(all(c("max_epochs", "tolerance", "tol_window", "device",
+                     "resources") %in% names(config$defaults)))
+  expect_true(all(c("request_cpus", "request_memory", "request_disk") %in%
+                    names(config$defaults$resources)))
+  expect_true("dims" %in% names(config$dimensionality))
+  expect_true("by" %in% names(config$learning_curve))
+
+  # dims as shipped ("1:8") must be parseable by parse_dims()
+  expect_equal(helpers$parse_dims(config$dimensionality$dims), 1:8)
+})
+
+test_that("condor.tmpl contains the fields batchtools/HTCondor expect", {
+  tmpl <- readLines(file.path(condor_dir, "condor.tmpl"))
+  tmpl_text <- paste(tmpl, collapse = "\n")
+
+  expect_true(grepl("universe", tmpl_text))
+  expect_true(grepl("\\$\\(job\\.collection\\)", tmpl_text))
+  expect_true(grepl("request_cpus", tmpl_text))
+  expect_true(grepl("request_memory", tmpl_text))
+  expect_true(grepl("request_disk", tmpl_text))
+  expect_true(grepl("resources\\$request_memory", tmpl_text))
+  expect_true(grepl("^queue\\s*$", tmpl_text, perl = TRUE) ||
+                any(grepl("^queue\\s*$", tmpl)))
+})

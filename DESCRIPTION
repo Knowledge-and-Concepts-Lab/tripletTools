@@ -19,7 +19,9 @@ Suggests:
     rmarkdown,
     reticulate,
     future.apply,
+    future.batchtools,
     progressr,
+    yaml,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)

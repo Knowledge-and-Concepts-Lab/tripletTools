@@ -1,0 +1,81 @@
+# ---------------------------------------------------------------------------
+# tripletTools Condor workflow configuration
+#
+# Copy this file, edit the fields below, and pass it as the second argument
+# to condor_workflow.R:
+#
+#   Rscript condor_workflow.R my_triplet_list.rds my_params.yml
+#
+# Fields under `defaults:` apply to all three stages (dimensionality search,
+# learning curve, final fit) unless overridden inside that stage's own
+# block. seed/geometry/radius/norm_penalty are shared across all stages on
+# purpose, so the three stages describe the same embedding space.
+# ---------------------------------------------------------------------------
+
+# Directory where output CSVs are written. Created if it doesn't exist.
+output_dir: condor_output
+
+# Base random seed. Each restart derives its own seed from this, so runs
+# are independently reproducible.
+seed: 1
+
+# Embedding geometry: "euclidean" or "sphere". See train_embedding()'s
+# "Spherical embeddings" section for what geometry = "sphere" means.
+geometry: euclidean
+radius: 1
+
+# Non-negative number, forwarded to train_embedding()'s norm_penalty
+# argument everywhere. 0 (default) leaves checkpoint selection based on
+# raw test loss. See train_embedding()'s "Diagnosing outlier items"
+# section before setting this above 0.
+norm_penalty: 0
+
+# --- HTCondor settings ------------------------------------------------------
+condor:
+  # Path to the batchtools cluster template (see condor.tmpl in this same
+  # directory). ~ is expanded to your home directory on the submit node.
+  template: ~/.batchtools.condor.tmpl
+  # Maximum number of simultaneous Condor jobs across all three stages.
+  workers: 80
+
+# --- Shared training defaults -----------------------------------------------
+# Any of these may be overridden inside dimensionality:/learning_curve:/
+# final_fit: below.
+defaults:
+  max_epochs: 50000
+  tolerance: 1e-4
+  tol_window: 10000
+  device: cpu          # execute nodes in the general CHTC pool have no GPU
+  resources:
+    request_cpus: 1
+    request_memory: 4GB
+    request_disk: 2GB
+
+# --- Stage 1: dimensionality search -----------------------------------------
+# One Condor job per (dimension, restart) pair -- dims * n_restarts jobs.
+dimensionality:
+  dims: "1:8"           # or a list, e.g. [1, 2, 3, 4, 6, 8]
+  n_restarts: 10
+  # Purely a post-hoc penalty on *which dimension* gets flagged best_d --
+  # unlike norm_penalty above, this never changes the fits themselves.
+  # See estimate_dimensionality()'s best_d_norm_penalty argument.
+  best_d_norm_penalty: 0
+  # max_epochs: 20000   # e.g. run the search faster than the final fit
+
+# --- Stage 2: learning curve at the dimension selected in stage 1 ----------
+# One Condor job per (fraction, restart) pair -- ceil(1/by) * n_restarts jobs.
+learning_curve:
+  by: 0.1
+  n_restarts: 10
+  # max_epochs: 50000
+
+# --- Stage 3: final embedding, fit on the full dataset ----------------------
+# A single Condor job. Unlike stage 2's fraction = 1.0 fits (which still
+# hold out a test set for evaluation), this is meant as the production
+# embedding, so give it a generous epoch budget if you can afford to.
+final_fit:
+  # max_epochs: 100000
+  resources:
+    request_cpus: 1
+    request_memory: 8GB
+    request_disk: 2GB

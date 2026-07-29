@@ -631,6 +631,69 @@ plan(sequential)
 
 **Prerequisite:** every worker node must have R, `tripletTools`, and the `triplet-embeddings` conda environment already installed.  This is a one-time setup task; ask your cluster administrator or follow your site's software installation guide.
 
+### An end-to-end Condor workflow
+
+For the common case of "pick a dimension, check it against a learning curve, and fit the best embedding," `tripletTools` ships a driver script that runs all three steps back to back, dispatching every individual fit to HTCondor via `future.batchtools` as above:
+
+```
+inst/condor/condor_workflow.R      # driver script
+inst/condor/condor_helpers.R       # small config-parsing helpers it sources
+inst/condor/condor.tmpl            # batchtools HTCondor cluster template
+inst/condor/params_template.yml    # template configuration file
+```
+
+Locate them with:
+
+```{r condor-locate}
+system.file("condor", package = "tripletTools")
+```
+
+**One-time setup**, on your CHTC submit node:
+
+```{r condor-setup, engine = "bash"}
+cp $(Rscript -e 'cat(system.file("condor", "condor.tmpl", package = "tripletTools"))') \
+   ~/.batchtools.condor.tmpl
+# Adjust request_cpus/request_memory/request_disk defaults or add site-specific
+# lines (e.g. a `requirements` clause) if needed -- see the comments in the
+# template itself.
+```
+
+**Per run:**
+
+1. Save your triplet data as the named list of participant data frames these functions already expect (the same format `get.combined()` returns and `icon_triplets` uses):
+
+   ```{r condor-save-data}
+   saveRDS(icon_triplets, "triplet_data.rds")
+   ```
+
+2. Copy `params_template.yml` and edit it for your run — the shipped copy documents every field inline:
+
+   ```{r condor-copy-config, engine = "bash"}
+   cp $(Rscript -e 'cat(system.file("condor", "params_template.yml", package = "tripletTools"))') \
+      my_params.yml
+   ```
+
+3. Run the driver script. Since it only *orchestrates* — every actual embedding fit runs as its own Condor job — it's safe to run directly on the submit node inside a persistent session (`screen`/`tmux`/`nohup`) rather than as a Condor job itself:
+
+   ```{r condor-run-workflow, engine = "bash"}
+   Rscript $(Rscript -e 'cat(system.file("condor", "condor_workflow.R", package = "tripletTools"))') \
+     triplet_data.rds my_params.yml
+   ```
+
+This produces, in the `output_dir` set in `my_params.yml`:
+
+| File | Contents |
+|---|---|
+| `dimensionality_results.csv` / `dimensionality_summary.csv` | `estimate_dimensionality()`'s `results`/`summary`, one Condor job per (dimension, restart) |
+| `learning_curve_results.csv` / `learning_curve_summary.csv` | `estimate_learning_curve()`'s `results`/`summary`, at the `best_d` selected above, one Condor job per (fraction, restart) |
+| `best_embedding.csv` | The final embedding, fit at `best_d` on the *full* dataset (item names in the `item` column) |
+| `best_embedding_history.csv` | That final fit's per-epoch training history (loss, accuracy, `norm_ratio`, ...) |
+| `run_manifest.txt` | Package version, input paths, `best_d`, and final loss, for provenance |
+
+The final embedding is a dedicated fit rather than a reused fraction = 1.0 restart from the learning-curve stage: `estimate_learning_curve()` deliberately holds out the same test set at every fraction so hold-out loss stays comparable across fractions, whereas the production embedding should use ordinary train/test early stopping over *all* available data.
+
+`seed`, `geometry`, `radius`, and `norm_penalty` in the config apply to all three stages, so they describe one coherent embedding space throughout; `max_epochs`/`tolerance`/`tol_window`/`device`/Condor `resources` can be overridden per stage (e.g. a faster budget for the dimensionality search, a more generous one for the final fit) — see the comments in `params_template.yml`.
+
 ### Checking the active plan
 
 At any point you can confirm which plan is in effect:
