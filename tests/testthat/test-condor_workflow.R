@@ -91,8 +91,11 @@ test_that("params_template.yml loads and has the fields condor_workflow.R expect
   expect_true(all(c("template", "workers") %in% names(config$condor)))
   expect_true(all(c("max_epochs", "tolerance", "tol_window", "device",
                      "resources") %in% names(config$defaults)))
-  expect_true(all(c("request_cpus", "request_memory", "request_disk") %in%
+  expect_true(all(c("request_cpus", "request_memory") %in%
                     names(config$defaults$resources)))
+  # request_disk is deliberately left unset in defaults: so condor.tmpl and
+  # condor_apptainer.tmpl each fall back to their own appropriate default.
+  expect_false("request_disk" %in% names(config$defaults$resources))
   expect_true("dims" %in% names(config$dimensionality))
   expect_true("by" %in% names(config$learning_curve))
 
@@ -126,5 +129,12 @@ test_that("condor_apptainer.tmpl references the container image and shares core 
   expect_true(grepl("request_cpus", tmpl_text))
   expect_true(grepl("request_memory", tmpl_text))
   expect_true(grepl("request_disk", tmpl_text))
+  # Larger default disk than condor.tmpl's 2GB, to also cover the pulled/
+  # unpacked container image.
+  expect_true(grepl('else "8GB"', tmpl_text, fixed = TRUE))
+  # Staged-.sif alternative to pulling docker:// every job, using the
+  # confirmed CHTC OSDF/Pelican staging path convention.
+  expect_true(grepl("osdf:///chtc\\$ENV\\(STAGING\\)", tmpl_text))
+  expect_true(grepl("HasCHTCStaging", tmpl_text))
   expect_true(any(grepl("^queue\\s*$", tmpl)))
 })

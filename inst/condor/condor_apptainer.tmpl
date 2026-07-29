@@ -8,12 +8,10 @@
 # Uses HTCondor's `container` universe, which CHTC's execute nodes resolve
 # via Apptainer for a `docker://` image reference (Apptainer pulls and
 # caches Docker images directly -- no separate native .sif build needed).
-# This is the current general-purpose HTCondor mechanism as of this
-# writing; it has NOT been tested against a live CHTC access point from
-# here, so if your access point rejects `universe = container`, see the
-# commented-out fallback below using the older +SingularityImage
-# classad, or check CHTC's current container documentation / ask CHTC
-# support which form your access point expects.
+# `universe = container` + `container_image = docker://...` is confirmed
+# working on UW-Madison CHTC access points; other HTCondor pools may
+# still expect the older +SingularityImage classad instead -- see the
+# commented-out fallback below if yours does.
 #
 # Set the image via `resources = list(container_image = "docker://...")`
 # in plan(); otherwise defaults to the image this repo's own GitHub
@@ -26,6 +24,20 @@ container_image = <%= if (!is.null(resources$container_image)) resources$contain
 # --- Fallback for access points that don't yet support `universe = container` ---
 # universe = vanilla
 # +SingularityImage = "<%= if (!is.null(resources$container_image)) resources$container_image else "docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest" %>"
+
+# --- Optional: pull a pre-staged .sif instead of `docker://` every job ---
+# HTCondor pulls/caches the docker:// image per execute node on its own,
+# which is fine at the job counts this workflow generates (dozens to a
+# few hundred). If you're running this often enough that repeated pulls
+# become a bottleneck, build the image into a .sif once (e.g. in an
+# interactive CHTC build job: `apptainer build tripletTools.sif
+# docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest`),
+# stage it under your personal staging area
+# (/staging/<first-letter-of-netid>/<netid>, exposed as $STAGING on
+# Access Points), and reference it via the OSDF/Pelican path instead --
+# rename the .sif on rebuild, since OSDF/Pelican caches by path:
+#   container_image = osdf:///chtc$ENV(STAGING)/containers/tripletTools_v1.sif
+#   requirements = (Target.HasCHTCStaging == true)
 -%>
 
 executable   = Rscript
@@ -37,7 +49,12 @@ when_to_transfer_output = ON_EXIT
 
 request_cpus   = <%= if (!is.null(resources$request_cpus))   resources$request_cpus   else 1 %>
 request_memory = <%= if (!is.null(resources$request_memory)) resources$request_memory else "4GB" %>
-request_disk   = <%= if (!is.null(resources$request_disk))   resources$request_disk   else "2GB" %>
+<%
+# Larger default than condor.tmpl's 2GB: this must also cover the pulled/
+# unpacked container image (R + conda + PyTorch is several GB), not just
+# the job's own transferred inputs and outputs.
+-%>
+request_disk   = <%= if (!is.null(resources$request_disk))   resources$request_disk   else "8GB" %>
 
 log    = $(log)
 output = $(output)

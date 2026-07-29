@@ -720,7 +720,20 @@ cp $(Rscript -e 'cat(system.file("condor", "condor_apptainer.tmpl", package = "t
    ~/.batchtools.condor_apptainer.tmpl
 ```
 
-`condor_apptainer.tmpl` uses HTCondor's `container` universe with `container_image = docker://ghcr.io/...`, the current general-purpose mechanism for this as of this writing. This has **not** been validated against a live HTCondor access point — if your access point rejects `universe = container`, the template includes a commented-out fallback using the older `+SingularityImage` classad; check CHTC's current container documentation, or ask CHTC support, for what your access point expects.
+`condor_apptainer.tmpl` uses HTCondor's `container` universe with `container_image = docker://ghcr.io/...` — confirmed working on UW–Madison CHTC access points. If you're on a different HTCondor pool and it rejects `universe = container`, the template includes a commented-out fallback using the older `+SingularityImage` classad.
+
+**Disk requests are larger than `condor.tmpl`'s.** Pulling and unpacking the container image (R + conda + PyTorch) adds several GB on top of whatever the job itself transfers, so `condor_apptainer.tmpl` defaults `request_disk` to `8GB` instead of `2GB`. `params_template.yml` deliberately leaves `request_disk` unset under `defaults:`/`final_fit:` so each template's own default applies rather than one template's value silently overriding the other's — set it explicitly only if you need to raise it further.
+
+**CHTC staging paths**, if your triplet dataset is large enough to need `/staging` rather than ordinary `transfer_input_files` (CHTC's general guidance: under 1GB per file stays in `/home`; 1–30GB goes to personal staging): personal staging areas are at `/staging/<first letter of your netid>/<netid>`, exposed as `$STAGING` on Access Points and `$ENV(STAGING)` in submit files. A job that reads staging directly needs `requirements = (Target.HasCHTCStaging == true)`.
+
+**Avoiding a `docker://` pull on every job:** HTCondor/Apptainer caches the image per execute node, which is fine at the job counts this workflow generates (dozens to a few hundred per stage). If you're running this often enough that repeated pulls become a bottleneck, build the image into a `.sif` once and stage it instead of pulling from the registry every time — see the commented-out alternative at the bottom of `condor_apptainer.tmpl`, which uses CHTC's OSDF/Pelican staging path convention:
+
+```
+container_image = osdf:///chtc$ENV(STAGING)/containers/tripletTools_v1.sif
+requirements = (Target.HasCHTCStaging == true)
+```
+
+Give the `.sif` a version suffix and update the submit template's path when you rebuild it, rather than overwriting the old filename — OSDF/Pelican caches by path, so reusing a filename can serve stale content.
 
 ### Checking the active plan
 

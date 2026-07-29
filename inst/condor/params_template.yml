@@ -62,7 +62,12 @@ defaults:
   resources:
     request_cpus: 1
     request_memory: 4GB
-    request_disk: 2GB
+    # request_disk is deliberately left unset here: condor.tmpl and
+    # condor_apptainer.tmpl each fall back to a different sensible default
+    # (2GB vs. 8GB, since the container template's disk footprint also has
+    # to cover the pulled/unpacked image) when it isn't set explicitly.
+    # Uncomment to force a specific value for both templates:
+    # request_disk: 2GB
     # Only read by condor_apptainer.tmpl; ignored by condor.tmpl.
     # container_image: docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest
 
@@ -93,4 +98,5 @@ final_fit:
   resources:
     request_cpus: 1
     request_memory: 8GB
-    request_disk: 2GB
+    # See the note on request_disk under defaults: above -- left unset so
+    # each template's own default applies.
