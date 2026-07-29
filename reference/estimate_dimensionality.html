@@ -64,7 +64,9 @@ dimensionality that achieves near-minimum hold-out loss.</p>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  group <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  geometry <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"euclidean"</span>, <span class="st">"sphere"</span><span class="op">)</span>,</span>
-<span>  radius <span class="op">=</span> <span class="fl">1</span></span>
+<span>  radius <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  norm_penalty <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  best_d_norm_penalty <span class="op">=</span> <span class="fl">0</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -144,19 +146,64 @@ comparable to a <code>geometry = "euclidean"</code> search over the same
 <dd><p>Radius of the sphere used when <code>geometry = "sphere"</code>.
 Ignored when <code>geometry = "euclidean"</code>.  Default <code>1</code>.</p></dd>
 
+
+<dt id="arg-norm-penalty">norm_penalty<a class="anchor" aria-label="anchor" href="#arg-norm-penalty"></a></dt>
+<dd><p>Non-negative number, forwarded to <code><a href="train_embedding.html">train_embedding</a></code>'s
+<code>norm_penalty</code> argument for every restart, controlling how each
+individual fit chooses its "best" training checkpoint.  Default
+<code>0</code> preserves prior behavior exactly (checkpoints are chosen by
+raw test loss).  This changes the actual fitted embeddings and the
+<code>loss</code>/<code>norm_ratio</code> values reported in <code>results</code>; it is
+independent of <code>best_d_norm_penalty</code> below, which only affects
+<em>which already-fitted dimension</em> gets flagged <code>best_d</code>.  See
+the <em>Diagnosing outlier items</em> section of
+<code><a href="train_embedding.html">train_embedding</a></code> for details.</p></dd>
+
+
+<dt id="arg-best-d-norm-penalty">best_d_norm_penalty<a class="anchor" aria-label="anchor" href="#arg-best-d-norm-penalty"></a></dt>
+<dd><p>Non-negative number controlling how much
+<code>best_d</code> selection penalizes dimensions whose fits show outlier
+items (see <code>norm_ratio</code> in the <em>Diagnosing outlier items</em>
+section of <code><a href="train_embedding.html">train_embedding</a></code>).  <code>best_d</code> is chosen by
+applying the same one-standard-error rule described below to
+<code>penalized_loss = mean_loss + best_d_norm_penalty * (max_norm_ratio - 1)</code>
+instead of <code>mean_loss</code> directly.  Default <code>0</code> leaves
+selection based purely on <code>mean_loss</code>, matching prior behavior;
+increase it to make dimensions with a high <code>max_norm_ratio</code> less
+likely to be selected as <code>best_d</code> even if their mean loss is
+lowest.  This is a purely post-hoc selection rule applied to already-
+fitted results — <code>results</code>/<code>summary</code> always report the raw,
+unpenalized <code>loss</code>/<code>mean_loss</code> regardless of this setting,
+and it does not affect fitting itself (see <code>norm_penalty</code> above
+for that).</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>When <code>group = TRUE</code> (the default), a named list with two
 elements:</p><dl><dt><code>results</code></dt>
 <dd><p>Data frame with one row per (dimension, restart) and
-columns <code>d</code>, <code>restart</code>, <code>loss</code>, <code>epoch</code>.</p></dd>
+columns <code>d</code>, <code>restart</code>, <code>loss</code>, <code>epoch</code>,
+<code>norm_ratio</code>.  <code>norm_ratio</code> is the ratio of the largest to
+median per-item embedding norm at the epoch of best test loss — see
+the <em>Diagnosing outlier items</em> section of
+<code><a href="train_embedding.html">train_embedding</a></code>.  Only meaningful for
+<code>geometry = "euclidean"</code>; always <code>~1</code> under
+<code>geometry = "sphere"</code>.</p></dd>
 
 <dt><code>summary</code></dt>
 <dd><p>Data frame with one row per dimension and columns
-<code>d</code>, <code>mean_loss</code>, <code>min_loss</code>, <code>sd_loss</code>.
-The logical column <code>best_d</code> marks the smallest <code>d</code> within
-one standard error of the global minimum mean loss.</p></dd>
+<code>d</code>, <code>mean_loss</code>, <code>min_loss</code>, <code>sd_loss</code>,
+<code>mean_norm_ratio</code>, <code>max_norm_ratio</code>, <code>penalized_loss</code>.
+<code>penalized_loss</code> equals <code>mean_loss</code> whenever
+<code>best_d_norm_penalty = 0</code> (the default) — see the
+<code>best_d_norm_penalty</code> argument.  The logical column
+<code>best_d</code> marks the smallest <code>d</code> within one standard error
+of the global minimum <code>penalized_loss</code>.  A <code>d</code> with low
+<code>mean_loss</code> but a high <code>max_norm_ratio</code> relative to
+smaller dimensions is a sign that the loss improvement may be coming
+from an outlier item being pushed away rather than genuinely better
+structure.</p></dd>
 
 
 </dl><p>When <code>group = FALSE</code>, a named list with one element per participant,
@@ -250,6 +297,27 @@ If no <code>sampleSet</code> column is present or all values are <code>NA</code>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="co"># Best dimensionality for the first participant:</span></span></span>
 <span class="r-in"><span><span class="va">dim_est_ind</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">summary</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Penalize dimensions whose fits show a strong outlier item when</span></span></span>
+<span class="r-in"><span><span class="co"># choosing best_d, rather than selecting on raw mean loss alone</span></span></span>
+<span class="r-in"><span><span class="co"># (post-hoc selection only -- does not change the fits themselves)</span></span></span>
+<span class="r-in"><span><span class="va">dim_est_penalized</span> <span class="op">&lt;-</span> <span class="fu">estimate_dimensionality</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  triplet_list      <span class="op">=</span> <span class="va">icon_triplets</span>,</span></span>
+<span class="r-in"><span>  dims              <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span></span>
+<span class="r-in"><span>  n_restarts        <span class="op">=</span> <span class="fl">5L</span>,</span></span>
+<span class="r-in"><span>  best_d_norm_penalty <span class="op">=</span> <span class="fl">0.05</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">dim_est_penalized</span><span class="op">$</span><span class="va">summary</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"d"</span>, <span class="st">"mean_loss"</span>, <span class="st">"max_norm_ratio"</span>,</span></span>
+<span class="r-in"><span>                               <span class="st">"penalized_loss"</span>, <span class="st">"best_d"</span><span class="op">)</span><span class="op">]</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Discourage outlier-chasing checkpoints during fitting itself, at every</span></span></span>
+<span class="r-in"><span><span class="co"># dimension/restart (changes the fits and reported loss/norm_ratio)</span></span></span>
+<span class="r-in"><span><span class="va">dim_est_fit_penalized</span> <span class="op">&lt;-</span> <span class="fu">estimate_dimensionality</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span></span>
+<span class="r-in"><span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span></span>
+<span class="r-in"><span>  n_restarts   <span class="op">=</span> <span class="fl">5L</span>,</span></span>
+<span class="r-in"><span>  norm_penalty <span class="op">=</span> <span class="fl">0.05</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Parallel: use 4 local cores (requires future.apply)</span></span></span>
 <span class="r-in"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span></span>

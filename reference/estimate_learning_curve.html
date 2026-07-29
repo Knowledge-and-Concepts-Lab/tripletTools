@@ -63,7 +63,8 @@ hold-out loss and accuracy improve as more training data is added.</p>
 <span>  device <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  group <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  group <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  norm_penalty <span class="op">=</span> <span class="fl">0</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -132,6 +133,15 @@ trials and estimate a single learning curve on the combined data. If
 <code>FALSE</code>, estimate the learning curve independently for each
 participant and return a named list of result objects.</p></dd>
 
+
+<dt id="arg-norm-penalty">norm_penalty<a class="anchor" aria-label="anchor" href="#arg-norm-penalty"></a></dt>
+<dd><p>Non-negative number, forwarded to
+<code><a href="train_embedding.html">train_embedding</a></code>'s <code>norm_penalty</code> argument for every
+fit, controlling how each fit chooses its "best" training checkpoint.
+Default <code>0</code> preserves prior behavior exactly (checkpoints are
+chosen by raw test loss).  See the <em>Diagnosing outlier items</em>
+section of <code><a href="train_embedding.html">train_embedding</a></code> for details.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -139,13 +149,21 @@ participant and return a named list of result objects.</p></dd>
 elements:</p><dl><dt><code>results</code></dt>
 <dd><p>Data frame with one row per (fraction, restart) and
 columns <code>fraction</code>, <code>n_train</code>, <code>restart</code>, <code>loss</code>,
-<code>accuracy</code>, <code>epoch</code>. <code>loss</code> and <code>accuracy</code> are the
-hold-out test loss and accuracy at the epoch of best test loss.</p></dd>
+<code>accuracy</code>, <code>epoch</code>, <code>norm_ratio</code>. <code>loss</code> and
+<code>accuracy</code> are the hold-out test loss and accuracy at the epoch
+of best test loss; <code>norm_ratio</code> is the ratio of the largest to
+median per-item embedding norm at that same epoch — see the
+<em>Diagnosing outlier items</em> section of
+<code><a href="train_embedding.html">train_embedding</a></code>.</p></dd>
 
 <dt><code>summary</code></dt>
 <dd><p>Data frame with one row per fraction and columns
 <code>fraction</code>, <code>n_train</code>, <code>mean_loss</code>, <code>sd_loss</code>,
-<code>mean_accuracy</code>, <code>sd_accuracy</code>.</p></dd>
+<code>mean_accuracy</code>, <code>sd_accuracy</code>, <code>mean_norm_ratio</code>,
+<code>max_norm_ratio</code>.  A rising <code>max_norm_ratio</code> across
+fractions alongside improving loss can mean the fit is relying more
+on an outlier item as more data comes in, rather than genuinely
+stabilizing.</p></dd>
 
 
 </dl><p>When <code>group = FALSE</code>, a named list with one element per participant,
@@ -249,6 +267,15 @@ random train/test split is used instead.</p>
 <span class="r-in"><span><span class="va">s</span> <span class="op">&lt;-</span> <span class="va">curve</span><span class="op">$</span><span class="va">summary</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">s</span><span class="op">$</span><span class="va">fraction</span>, <span class="va">s</span><span class="op">$</span><span class="va">mean_loss</span>, type <span class="op">=</span> <span class="st">"b"</span>, pch <span class="op">=</span> <span class="fl">19</span>,</span></span>
 <span class="r-in"><span>     xlab <span class="op">=</span> <span class="st">"Fraction of training data"</span>, ylab <span class="op">=</span> <span class="st">"Mean hold-out loss"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Discourage outlier-chasing checkpoints during fitting itself</span></span></span>
+<span class="r-in"><span><span class="va">curve_penalized</span> <span class="op">&lt;-</span> <span class="fu">estimate_learning_curve</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span></span>
+<span class="r-in"><span>  d            <span class="op">=</span> <span class="fl">3L</span>,</span></span>
+<span class="r-in"><span>  by           <span class="op">=</span> <span class="fl">0.2</span>,</span></span>
+<span class="r-in"><span>  n_restarts   <span class="op">=</span> <span class="fl">5L</span>,</span></span>
+<span class="r-in"><span>  norm_penalty <span class="op">=</span> <span class="fl">0.05</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>

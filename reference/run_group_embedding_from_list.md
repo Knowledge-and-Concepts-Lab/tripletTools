@@ -19,7 +19,8 @@ run_group_embedding_from_list(
   device = NULL,
   geometry = c("euclidean", "sphere"),
   radius = 1,
-  warm_start = NULL
+  warm_start = NULL,
+  norm_penalty = 0
 )
 ```
 
@@ -92,6 +93,14 @@ run_group_embedding_from_list(
   used directly as the starting point for training. `NULL` (default)
   starts from a random initialization.
 
+- norm_penalty:
+
+  Non-negative number controlling how the "best" checkpoint is chosen
+  during training. Default `0` preserves prior behavior exactly. See the
+  `norm_penalty` argument of
+  [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
+  for details.
+
 ## Value
 
 A named list with three elements:
@@ -108,7 +117,9 @@ A named list with three elements:
 - `history`:
 
   Data frame with one row per epoch and columns `epoch`, `train_loss`,
-  `test_loss`, `train_acc`, `test_acc`.
+  `test_loss`, `train_acc`, `test_acc`, `max_norm`, `median_norm`,
+  `norm_ratio` — see the *Diagnosing outlier items* section of
+  [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md).
 
 ## Item indexing
 

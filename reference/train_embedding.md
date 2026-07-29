@@ -20,7 +20,8 @@ train_embedding(
   random_state = NULL,
   geometry = c("euclidean", "sphere"),
   radius = 1,
-  warm_start = NULL
+  warm_start = NULL,
+  norm_penalty = 0
 )
 ```
 
@@ -105,6 +106,22 @@ train_embedding(
   (and, for `geometry = "sphere"`, still runs the internal Euclidean
   warm-start stage).
 
+- norm_penalty:
+
+  Non-negative number controlling how the "best" checkpoint is chosen
+  during training (see *Early stopping* and *Diagnosing outlier items*
+  below). Default `0` preserves prior behavior exactly: the checkpoint
+  with the lowest raw `test_loss` is kept. A positive value instead
+  keeps the checkpoint with the lowest
+  `test_loss + norm_penalty * (norm_ratio - 1)`, so an epoch that only
+  improved `test_loss` by growing an outlier item's norm is not
+  necessarily preferred over an earlier, more compact epoch. The
+  returned `loss` is always the raw `test_loss` of whichever checkpoint
+  was selected, never the penalized value. Applied to every internal fit
+  stage, including the Euclidean warm-start stage of
+  `geometry = "sphere"`; has no effect on the constrained spherical
+  stage itself, since `norm_ratio` is always `~1` there by construction.
+
 ## Value
 
 A named list with five elements:
@@ -130,7 +147,8 @@ A named list with five elements:
 - `history`:
 
   Data frame with one row per epoch and columns `epoch`, `train_loss`,
-  `test_loss`, `train_acc`, `test_acc`.
+  `test_loss`, `train_acc`, `test_acc`, `max_norm`, `median_norm`,
+  `norm_ratio` — see *Diagnosing outlier items* below.
 
 ## Details
 
@@ -145,7 +163,10 @@ Training runs for up to `max_epochs` passes through the training data.
 It stops early if the test loss is within `tolerance` of the best
 observed test loss for more than `tol_window` consecutive epochs. The
 embedding that achieved the best test loss during training is returned,
-not necessarily the final-epoch embedding.
+not necessarily the final-epoch embedding — unless `norm_penalty` is set
+above `0`, in which case "best" is redefined as described under that
+argument below, to avoid preferring an epoch that only improved loss by
+growing an outlier item's norm.
 
 ## Item indices
 
@@ -183,6 +204,28 @@ and the constrained stage. If you already have a Euclidean embedding of
 the same items (e.g. from a previous `geometry = "euclidean"` call),
 pass it as `warm_start` to skip this first stage entirely.
 
+## Diagnosing outlier items
+
+Hold-out loss can sometimes improve not because the fit is capturing
+more shared structure, but because the optimizer has pushed one or two
+weakly constrained items (e.g. ones involved in few triplets) far from
+everything else — cheaply satisfying their few comparisons without
+materially affecting the rest of the loss. `history` includes per-epoch
+`max_norm`, `median_norm`, and `norm_ratio` (their ratio) to help catch
+this: a `norm_ratio` that stays near `1` means items are roughly
+equidistant from the origin, while a ratio that keeps growing across
+epochs, dimensions, or restarts flags a drifting outlier worth
+inspecting directly in `embedding`. This is only informative for
+`geometry = "euclidean"` — under `geometry = "sphere"` every item's norm
+is fixed at `radius` by construction, so `norm_ratio` is always `~1`
+regardless of fit quality.
+
+Once you've confirmed outlier drift is happening, `norm_penalty` lets
+you push back on it directly rather than just observing it: it changes
+which epoch's embedding training keeps as "best," discouraging (but not
+forbidding) checkpoints that improved loss mainly by growing
+`norm_ratio`. See the `norm_penalty` argument above.
+
 ## Examples
 
 ``` r
@@ -214,5 +257,9 @@ out_euclid <- train_embedding(X_train, X_test, d = 2L)
 out_circle2 <- train_embedding(X_train, X_test, d = 2L,
                                 geometry = "sphere", radius = 1,
                                 warm_start = out_euclid$embedding)
+
+# Discourage checkpoints whose loss improvement came from an outlier
+# item's norm growing rather than genuinely better structure
+out_penalized <- train_embedding(X_train, X_test, d = 5L, norm_penalty = 0.05)
 } # }
 ```

@@ -19,7 +19,8 @@ estimate_learning_curve(
   device = NULL,
   seed = 1L,
   verbose = TRUE,
-  group = TRUE
+  group = TRUE,
+  norm_penalty = 0
 )
 ```
 
@@ -86,6 +87,17 @@ estimate_learning_curve(
   estimate the learning curve independently for each participant and
   return a named list of result objects.
 
+- norm_penalty:
+
+  Non-negative number, forwarded to
+  [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)'s
+  `norm_penalty` argument for every fit, controlling how each fit
+  chooses its "best" training checkpoint. Default `0` preserves prior
+  behavior exactly (checkpoints are chosen by raw test loss). See the
+  *Diagnosing outlier items* section of
+  [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
+  for details.
+
 ## Value
 
 When `group = TRUE` (the default), a named list with two elements:
@@ -93,14 +105,21 @@ When `group = TRUE` (the default), a named list with two elements:
 - `results`:
 
   Data frame with one row per (fraction, restart) and columns
-  `fraction`, `n_train`, `restart`, `loss`, `accuracy`, `epoch`. `loss`
-  and `accuracy` are the hold-out test loss and accuracy at the epoch of
-  best test loss.
+  `fraction`, `n_train`, `restart`, `loss`, `accuracy`, `epoch`,
+  `norm_ratio`. `loss` and `accuracy` are the hold-out test loss and
+  accuracy at the epoch of best test loss; `norm_ratio` is the ratio of
+  the largest to median per-item embedding norm at that same epoch — see
+  the *Diagnosing outlier items* section of
+  [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md).
 
 - `summary`:
 
   Data frame with one row per fraction and columns `fraction`,
-  `n_train`, `mean_loss`, `sd_loss`, `mean_accuracy`, `sd_accuracy`.
+  `n_train`, `mean_loss`, `sd_loss`, `mean_accuracy`, `sd_accuracy`,
+  `mean_norm_ratio`, `max_norm_ratio`. A rising `max_norm_ratio` across
+  fractions alongside improving loss can mean the fit is relying more on
+  an outlier item as more data comes in, rather than genuinely
+  stabilizing.
 
 When `group = FALSE`, a named list with one element per participant,
 each of which has the same `results` / `summary` structure described
@@ -192,5 +211,14 @@ plan(sequential)  # restore serial execution afterwards
 s <- curve$summary
 plot(s$fraction, s$mean_loss, type = "b", pch = 19,
      xlab = "Fraction of training data", ylab = "Mean hold-out loss")
+
+# Discourage outlier-chasing checkpoints during fitting itself
+curve_penalized <- estimate_learning_curve(
+  triplet_list = icon_triplets,
+  d            = 3L,
+  by           = 0.2,
+  n_restarts   = 5L,
+  norm_penalty = 0.05
+)
 } # }
 ```

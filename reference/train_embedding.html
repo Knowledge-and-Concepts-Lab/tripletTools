@@ -64,7 +64,8 @@ embedding on a single subset of responses.</p>
 <span>  random_state <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  geometry <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"euclidean"</span>, <span class="st">"sphere"</span><span class="op">)</span>,</span>
 <span>  radius <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  warm_start <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  warm_start <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  norm_penalty <span class="op">=</span> <span class="fl">0</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -152,6 +153,23 @@ directly as the starting point for training.  <code>NULL</code> (default)
 starts from a random initialization (and, for <code>geometry = "sphere"</code>,
 still runs the internal Euclidean warm-start stage).</p></dd>
 
+
+<dt id="arg-norm-penalty">norm_penalty<a class="anchor" aria-label="anchor" href="#arg-norm-penalty"></a></dt>
+<dd><p>Non-negative number controlling how the "best"
+checkpoint is chosen during training (see <em>Early stopping</em> and
+<em>Diagnosing outlier items</em> below).  Default <code>0</code> preserves
+prior behavior exactly: the checkpoint with the lowest raw
+<code>test_loss</code> is kept.  A positive value instead keeps the
+checkpoint with the lowest <code>test_loss + norm_penalty * (norm_ratio - 1)</code>,
+so an epoch that only improved <code>test_loss</code> by growing an outlier
+item's norm is not necessarily preferred over an earlier, more compact
+epoch.  The returned <code>loss</code> is always the raw <code>test_loss</code> of
+whichever checkpoint was selected, never the penalized value.  Applied
+to every internal fit stage, including the Euclidean warm-start stage
+of <code>geometry = "sphere"</code>; has no effect on the constrained
+spherical stage itself, since <code>norm_ratio</code> is always <code>~1</code>
+there by construction.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -173,7 +191,8 @@ improvement at the point training stopped.</p></dd>
 <dt><code>history</code></dt>
 <dd><p>Data frame with one row per epoch and columns
 <code>epoch</code>, <code>train_loss</code>, <code>test_loss</code>, <code>train_acc</code>,
-<code>test_acc</code>.</p></dd>
+<code>test_acc</code>, <code>max_norm</code>, <code>median_norm</code>,
+<code>norm_ratio</code> — see <em>Diagnosing outlier items</em> below.</p></dd>
 
 
 </dl></div>
@@ -190,7 +209,10 @@ improvement at the point training stopped.</p></dd>
 It stops early if the test loss is within <code>tolerance</code> of the best
 observed test loss for more than <code>tol_window</code> consecutive epochs.
 The embedding that achieved the best test loss during training is returned,
-not necessarily the final-epoch embedding.</p>
+not necessarily the final-epoch embedding — unless <code>norm_penalty</code> is
+set above <code>0</code>, in which case "best" is redefined as described under
+that argument below, to avoid preferring an epoch that only improved loss
+by growing an outlier item's norm.</p>
     </div>
     <div class="section level2">
     <h2 id="item-indices">Item indices<a class="anchor" aria-label="anchor" href="#item-indices"></a></h2>
@@ -235,6 +257,29 @@ a Euclidean embedding of the same items (e.g. from a previous
 <code>geometry = "euclidean"</code> call), pass it as <code>warm_start</code> to skip
 this first stage entirely.</p>
     </div>
+    <div class="section level2">
+    <h2 id="diagnosing-outlier-items">Diagnosing outlier items<a class="anchor" aria-label="anchor" href="#diagnosing-outlier-items"></a></h2>
+
+
+<p>Hold-out loss can sometimes improve not because the fit is capturing more
+shared structure, but because the optimizer has pushed one or two weakly
+constrained items (e.g. ones involved in few triplets) far from everything
+else — cheaply satisfying their few comparisons without materially
+affecting the rest of the loss.  <code>history</code> includes per-epoch
+<code>max_norm</code>, <code>median_norm</code>, and <code>norm_ratio</code> (their ratio)
+to help catch this: a <code>norm_ratio</code> that stays near <code>1</code> means
+items are roughly equidistant from the origin, while a ratio that keeps
+growing across epochs, dimensions, or restarts flags a drifting outlier
+worth inspecting directly in <code>embedding</code>.  This is only informative
+for <code>geometry = "euclidean"</code> — under <code>geometry = "sphere"</code> every
+item's norm is fixed at <code>radius</code> by construction, so
+<code>norm_ratio</code> is always <code>~1</code> regardless of fit quality.</p>
+<p>Once you've confirmed outlier drift is happening, <code>norm_penalty</code> lets
+you push back on it directly rather than just observing it: it changes
+which epoch's embedding training keeps as "best," discouraging (but not
+forbidding) checkpoints that improved loss mainly by growing
+<code>norm_ratio</code>.  See the <code>norm_penalty</code> argument above.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
@@ -266,6 +311,10 @@ this first stage entirely.</p>
 <span class="r-in"><span><span class="va">out_circle2</span> <span class="op">&lt;-</span> <span class="fu">train_embedding</span><span class="op">(</span><span class="va">X_train</span>, <span class="va">X_test</span>, d <span class="op">=</span> <span class="fl">2L</span>,</span></span>
 <span class="r-in"><span>                                geometry <span class="op">=</span> <span class="st">"sphere"</span>, radius <span class="op">=</span> <span class="fl">1</span>,</span></span>
 <span class="r-in"><span>                                warm_start <span class="op">=</span> <span class="va">out_euclid</span><span class="op">$</span><span class="va">embedding</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Discourage checkpoints whose loss improvement came from an outlier</span></span></span>
+<span class="r-in"><span><span class="co"># item's norm growing rather than genuinely better structure</span></span></span>
+<span class="r-in"><span><span class="va">out_penalized</span> <span class="op">&lt;-</span> <span class="fu">train_embedding</span><span class="op">(</span><span class="va">X_train</span>, <span class="va">X_test</span>, d <span class="op">=</span> <span class="fl">5L</span>, norm_penalty <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>
