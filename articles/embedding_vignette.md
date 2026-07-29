@@ -860,7 +860,8 @@ to HTCondor via `future.batchtools` as above:
 
     inst/condor/condor_workflow.R      # driver script
     inst/condor/condor_helpers.R       # small config-parsing helpers it sources
-    inst/condor/condor.tmpl            # batchtools HTCondor cluster template
+    inst/condor/condor.tmpl            # batchtools template: pre-installed execute nodes
+    inst/condor/condor_apptainer.tmpl  # batchtools template: containerized (see below)
     inst/condor/params_template.yml    # template configuration file
 
 Locate them with:
@@ -933,6 +934,53 @@ throughout; `max_epochs`/`tolerance`/`tol_window`/`device`/Condor
 `resources` can be overridden per stage (e.g. a faster budget for the
 dimensionality search, a more generous one for the final fit) — see the
 comments in `params_template.yml`.
+
+### Running in a container, instead of assuming pre-installed software
+
+The setup above assumes R, `tripletTools`, and the `triplet-embeddings`
+conda environment are already installed on whatever execute node
+HTCondor matches each job to. If that isn’t true everywhere in your pool
+— or you’d rather not depend on it — this repo also ships everything
+needed to run each job inside a container instead, via Apptainer (which
+CHTC’s execute nodes use to run Docker images directly, no separate
+native build required):
+
+    Dockerfile                                # builds the runtime image
+    .github/workflows/docker-publish.yml      # builds + publishes it to ghcr.io on push
+    inst/condor/condor_apptainer.tmpl         # batchtools template that uses the image
+
+The image layers a base R install, Miniconda, the `triplet-embeddings`
+conda environment (built via this package’s own
+[`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md),
+so it’s created exactly the way a local install would be), and
+`tripletTools` itself installed from GitHub. The GitHub Actions workflow
+builds and pushes it to `ghcr.io/<org>/<repo>` automatically whenever
+`Dockerfile`, `R/`, `inst/python/`, `inst/requirements.txt`, or
+`DESCRIPTION` change on `main` — you don’t need Docker installed locally
+to use it, only to debug a failing build.
+
+To use it, point `condor:` at the container template instead in your
+`params_template.yml` copy:
+
+``` yaml
+condor:
+  template: ~/.batchtools.condor_apptainer.tmpl
+  workers: 80
+```
+
+``` bash
+cp $(Rscript -e 'cat(system.file("condor", "condor_apptainer.tmpl", package = "tripletTools"))') \
+   ~/.batchtools.condor_apptainer.tmpl
+```
+
+`condor_apptainer.tmpl` uses HTCondor’s `container` universe with
+`container_image = docker://ghcr.io/...`, the current general-purpose
+mechanism for this as of this writing. This has **not** been validated
+against a live HTCondor access point — if your access point rejects
+`universe = container`, the template includes a commented-out fallback
+using the older `+SingularityImage` classad; check CHTC’s current
+container documentation, or ask CHTC support, for what your access point
+expects.
 
 ### Checking the active plan
 
