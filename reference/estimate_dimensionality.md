@@ -140,25 +140,27 @@ When `group = TRUE` (the default), a named list with two elements:
 - `results`:
 
   Data frame with one row per (dimension, restart) and columns `d`,
-  `restart`, `loss`, `epoch`, `norm_ratio`. `norm_ratio` is the ratio of
-  the largest to median per-item embedding norm at the epoch of best
-  test loss — see the *Diagnosing outlier items* section of
+  `restart`, `loss`, `accuracy`, `epoch`, `norm_ratio`. `loss` and
+  `accuracy` are the hold-out test loss and accuracy at the epoch of
+  best test loss. `norm_ratio` is the ratio of the largest to median
+  per-item embedding norm at that same epoch — see the *Diagnosing
+  outlier items* section of
   [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md).
-  Only meaningful for `geometry = "euclidean"`; always `~1` under
-  `geometry = "sphere"`.
+  `norm_ratio` is only meaningful for `geometry = "euclidean"`; always
+  `~1` under `geometry = "sphere"`.
 
 - `summary`:
 
   Data frame with one row per dimension and columns `d`, `mean_loss`,
-  `min_loss`, `sd_loss`, `mean_norm_ratio`, `max_norm_ratio`,
-  `penalized_loss`. `penalized_loss` equals `mean_loss` whenever
-  `best_d_norm_penalty = 0` (the default) — see the
-  `best_d_norm_penalty` argument. The logical column `best_d` marks the
-  smallest `d` within one standard error of the global minimum
-  `penalized_loss`. A `d` with low `mean_loss` but a high
-  `max_norm_ratio` relative to smaller dimensions is a sign that the
-  loss improvement may be coming from an outlier item being pushed away
-  rather than genuinely better structure.
+  `min_loss`, `sd_loss`, `mean_accuracy`, `sd_accuracy`,
+  `mean_norm_ratio`, `max_norm_ratio`, `penalized_loss`.
+  `penalized_loss` equals `mean_loss` whenever `best_d_norm_penalty = 0`
+  (the default) — see the `best_d_norm_penalty` argument. The logical
+  column `best_d` marks the smallest `d` within one standard error of
+  the global minimum `penalized_loss`. A `d` with low `mean_loss` but a
+  high `max_norm_ratio` relative to smaller dimensions is a sign that
+  the loss improvement may be coming from an outlier item being pushed
+  away rather than genuinely better structure.
 
 When `group = FALSE`, a named list with one element per participant,
 each of which has the same `results` / `summary` structure described
@@ -279,5 +281,8 @@ plot(s$d, s$mean_loss, type = "b", pch = 19,
 arrows(s$d, s$mean_loss - s$sd_loss, s$d, s$mean_loss + s$sd_loss,
        angle = 90, code = 3, length = 0.05)
 abline(v = s$d[s$best_d], lty = 2)
+
+# Compare loss, accuracy, and norm_ratio side by side across dimensions
+s[, c("d", "mean_loss", "mean_accuracy", "mean_norm_ratio", "max_norm_ratio")]
 } # }
 ```
