@@ -931,10 +931,120 @@ cluster administrator or follow your site’s software installation
 guide.</p>
 </div>
 <div class="section level3">
+<h3 id="an-end-to-end-condor-workflow">An end-to-end Condor workflow<a class="anchor" aria-label="anchor" href="#an-end-to-end-condor-workflow"></a>
+</h3>
+<p>For the common case of “pick a dimension, check it against a learning
+curve, and fit the best embedding,” <code>tripletTools</code> ships a
+driver script that runs all three steps back to back, dispatching every
+individual fit to HTCondor via <code>future.batchtools</code> as
+above:</p>
+<pre><code><span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor_workflow.R</span>      <span class="co"># driver script</span></span>
+<span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor_helpers.R</span>       <span class="co"># small config-parsing helpers it sources</span></span>
+<span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor.tmpl</span>            <span class="co"># batchtools HTCondor cluster template</span></span>
+<span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">params_template.yml</span>    <span class="co"># template configuration file</span></span></code></pre>
+<p>Locate them with:</p>
+<div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"condor"</span>, package <span class="op">=</span> <span class="st">"tripletTools"</span><span class="op">)</span></span></code></pre></div>
+<p><strong>One-time setup</strong>, on your CHTC submit node:</p>
+<div class="sourceCode" id="cb37"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" tabindex="-1"></a><span class="fu">cp</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "condor.tmpl", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
+<span id="cb37-2"><a href="#cb37-2" tabindex="-1"></a>   ~/.batchtools.condor.tmpl</span>
+<span id="cb37-3"><a href="#cb37-3" tabindex="-1"></a><span class="co"># Adjust request_cpus/request_memory/request_disk defaults or add site-specific</span></span>
+<span id="cb37-4"><a href="#cb37-4" tabindex="-1"></a><span class="co"># lines (e.g. a `requirements` clause) if needed -- see the comments in the</span></span>
+<span id="cb37-5"><a href="#cb37-5" tabindex="-1"></a><span class="co"># template itself.</span></span></code></pre></div>
+<p><strong>Per run:</strong></p>
+<ol style="list-style-type: decimal">
+<li>
+<p>Save your triplet data as the named list of participant data
+frames these functions already expect (the same format
+<code><a href="../reference/get.combined.html">get.combined()</a></code> returns and <code>icon_triplets</code>
+uses):</p>
+<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">icon_triplets</span>, <span class="st">"triplet_data.rds"</span><span class="op">)</span></span></code></pre></div>
+</li>
+<li>
+<p>Copy <code>params_template.yml</code> and edit it for your run —
+the shipped copy documents every field inline:</p>
+<div class="sourceCode" id="cb39"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" tabindex="-1"></a><span class="fu">cp</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "params_template.yml", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
+<span id="cb39-2"><a href="#cb39-2" tabindex="-1"></a>   my_params.yml</span></code></pre></div>
+</li>
+<li>
+<p>Run the driver script. Since it only <em>orchestrates</em> —
+every actual embedding fit runs as its own Condor job — it’s safe to run
+directly on the submit node inside a persistent session
+(<code>screen</code>/<code>tmux</code>/<code>nohup</code>) rather than
+as a Condor job itself:</p>
+<div class="sourceCode" id="cb40"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" tabindex="-1"></a><span class="ex">Rscript</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "condor_workflow.R", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
+<span id="cb40-2"><a href="#cb40-2" tabindex="-1"></a>  triplet_data.rds my_params.yml</span></code></pre></div>
+</li>
+</ol>
+<p>This produces, in the <code>output_dir</code> set in
+<code>my_params.yml</code>:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>File</th>
+<th>Contents</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>
+<code>dimensionality_results.csv</code> /
+<code>dimensionality_summary.csv</code>
+</td>
+<td>
+<code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code>’s
+<code>results</code>/<code>summary</code>, one Condor job per
+(dimension, restart)</td>
+</tr>
+<tr class="even">
+<td>
+<code>learning_curve_results.csv</code> /
+<code>learning_curve_summary.csv</code>
+</td>
+<td>
+<code><a href="../reference/estimate_learning_curve.html">estimate_learning_curve()</a></code>’s
+<code>results</code>/<code>summary</code>, at the <code>best_d</code>
+selected above, one Condor job per (fraction, restart)</td>
+</tr>
+<tr class="odd">
+<td><code>best_embedding.csv</code></td>
+<td>The final embedding, fit at <code>best_d</code> on the <em>full</em>
+dataset (item names in the <code>item</code> column)</td>
+</tr>
+<tr class="even">
+<td><code>best_embedding_history.csv</code></td>
+<td>That final fit’s per-epoch training history (loss, accuracy,
+<code>norm_ratio</code>, …)</td>
+</tr>
+<tr class="odd">
+<td><code>run_manifest.txt</code></td>
+<td>Package version, input paths, <code>best_d</code>, and final loss,
+for provenance</td>
+</tr>
+</tbody>
+</table>
+<p>The final embedding is a dedicated fit rather than a reused fraction
+= 1.0 restart from the learning-curve stage:
+<code><a href="../reference/estimate_learning_curve.html">estimate_learning_curve()</a></code> deliberately holds out the same
+test set at every fraction so hold-out loss stays comparable across
+fractions, whereas the production embedding should use ordinary
+train/test early stopping over <em>all</em> available data.</p>
+<p><code>seed</code>, <code>geometry</code>, <code>radius</code>, and
+<code>norm_penalty</code> in the config apply to all three stages, so
+they describe one coherent embedding space throughout;
+<code>max_epochs</code>/<code>tolerance</code>/<code>tol_window</code>/<code>device</code>/Condor
+<code>resources</code> can be overridden per stage (e.g. a faster budget
+for the dimensionality search, a more generous one for the final fit) —
+see the comments in <code>params_template.yml</code>.</p>
+</div>
+<div class="section level3">
 <h3 id="checking-the-active-plan">Checking the active plan<a class="anchor" aria-label="anchor" href="#checking-the-active-plan"></a>
 </h3>
 <p>At any point you can confirm which plan is in effect:</p>
-<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb41"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># prints a description of the current plan</span></span></code></pre></div>
 <p><code>plan(sequential)</code> (the default) runs everything serially
