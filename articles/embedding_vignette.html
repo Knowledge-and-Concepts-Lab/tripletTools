@@ -1074,20 +1074,51 @@ instead in your <code>params_template.yml</code> copy:</p>
 <span id="cb43-2"><a href="#cb43-2" tabindex="-1"></a>   ~/.batchtools.condor_apptainer.tmpl</span></code></pre></div>
 <p><code>condor_apptainer.tmpl</code> uses HTCondor’s
 <code>container</code> universe with
-<code>container_image = docker://ghcr.io/...</code>, the current
-general-purpose mechanism for this as of this writing. This has
-<strong>not</strong> been validated against a live HTCondor access point
-— if your access point rejects <code>universe = container</code>, the
-template includes a commented-out fallback using the older
-<code>+SingularityImage</code> classad; check CHTC’s current container
-documentation, or ask CHTC support, for what your access point
-expects.</p>
+<code>container_image = docker://ghcr.io/...</code> — confirmed working
+on UW–Madison CHTC access points. If you’re on a different HTCondor pool
+and it rejects <code>universe = container</code>, the template includes
+a commented-out fallback using the older <code>+SingularityImage</code>
+classad.</p>
+<p><strong>Disk requests are larger than
+<code>condor.tmpl</code>’s.</strong> Pulling and unpacking the container
+image (R + conda + PyTorch) adds several GB on top of whatever the job
+itself transfers, so <code>condor_apptainer.tmpl</code> defaults
+<code>request_disk</code> to <code>8GB</code> instead of
+<code>2GB</code>. <code>params_template.yml</code> deliberately leaves
+<code>request_disk</code> unset under
+<code>defaults:</code>/<code>final_fit:</code> so each template’s own
+default applies rather than one template’s value silently overriding the
+other’s — set it explicitly only if you need to raise it further.</p>
+<p><strong>CHTC staging paths</strong>, if your triplet dataset is large
+enough to need <code>/staging</code> rather than ordinary
+<code>transfer_input_files</code> (CHTC’s general guidance: under 1GB
+per file stays in <code>/home</code>; 1–30GB goes to personal staging):
+personal staging areas are at
+<code>/staging/&lt;first letter of your netid&gt;/&lt;netid&gt;</code>,
+exposed as <code>$STAGING</code> on Access Points and
+<code>$ENV(STAGING)</code> in submit files. A job that reads staging
+directly needs
+<code>requirements = (Target.HasCHTCStaging == true)</code>.</p>
+<p><strong>Avoiding a <code>docker://</code> pull on every job:</strong>
+HTCondor/Apptainer caches the image per execute node, which is fine at
+the job counts this workflow generates (dozens to a few hundred per
+stage). If you’re running this often enough that repeated pulls become a
+bottleneck, build the image into a <code>.sif</code> once and stage it
+instead of pulling from the registry every time — see the commented-out
+alternative at the bottom of <code>condor_apptainer.tmpl</code>, which
+uses CHTC’s OSDF/Pelican staging path convention:</p>
+<pre><code>container_image = osdf:///chtc$ENV(STAGING)/containers/tripletTools_v1.sif
+requirements = (Target.HasCHTCStaging == true)</code></pre>
+<p>Give the <code>.sif</code> a version suffix and update the submit
+template’s path when you rebuild it, rather than overwriting the old
+filename — OSDF/Pelican caches by path, so reusing a filename can serve
+stale content.</p>
 </div>
 <div class="section level3">
 <h3 id="checking-the-active-plan">Checking the active plan<a class="anchor" aria-label="anchor" href="#checking-the-active-plan"></a>
 </h3>
 <p>At any point you can confirm which plan is in effect:</p>
-<div class="sourceCode" id="cb44"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb45"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># prints a description of the current plan</span></span></code></pre></div>
 <p><code>plan(sequential)</code> (the default) runs everything serially
