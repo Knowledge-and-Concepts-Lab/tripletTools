@@ -86,3 +86,26 @@ test_that("norm_penalty is accepted and forwarded without error", {
   )
   expect_equal(nrow(dim_est$results), 4L)
 })
+
+test_that("best_d_norm_penalty defaults to norm_penalty's value when left NULL", {
+  dim_est <- estimate_dimensionality(
+    triplet_list = trips, dims = 1:2, n_restarts = 2L,
+    max_epochs = 20L, tol_window = 10L, seed = 1L, verbose = FALSE,
+    norm_penalty = 5
+  )
+  # best_d_norm_penalty was left NULL -> resolves to norm_penalty (5), so
+  # penalized_loss should reflect that, not be identical to mean_loss.
+  expected <- dim_est$summary$mean_loss + 5 * (dim_est$summary$max_norm_ratio - 1)
+  expect_equal(dim_est$summary$penalized_loss, expected)
+
+  # Explicitly passing best_d_norm_penalty = 0 overrides that inheritance,
+  # even though norm_penalty is nonzero -- the two knobs stay independent
+  # whenever the caller sets both explicitly.
+  dim_est_unweighted_selection <- estimate_dimensionality(
+    triplet_list = trips, dims = 1:2, n_restarts = 2L,
+    max_epochs = 20L, tol_window = 10L, seed = 1L, verbose = FALSE,
+    norm_penalty = 5, best_d_norm_penalty = 0
+  )
+  expect_equal(dim_est_unweighted_selection$summary$penalized_loss,
+               dim_est_unweighted_selection$summary$mean_loss)
+})

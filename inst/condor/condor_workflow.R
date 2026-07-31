@@ -122,7 +122,9 @@ dim_est <- estimate_dimensionality(
   geometry            = geometry,
   radius              = radius,
   norm_penalty        = norm_penalty,
-  best_d_norm_penalty = dim_cfg$best_d_norm_penalty %||% 0
+  # NULL (unset in dimensionality:) lets estimate_dimensionality() apply
+  # its own default of matching norm_penalty, rather than forcing 0 here.
+  best_d_norm_penalty = dim_cfg$best_d_norm_penalty
 )
 
 write.csv(dim_est$results, file.path(output_dir, "dimensionality_results.csv"), row.names = FALSE)

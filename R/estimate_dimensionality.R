@@ -110,15 +110,17 @@
 #'   section of \code{\link{train_embedding}}).  \code{best_d} is chosen by
 #'   applying the same one-standard-error rule described below to
 #'   \code{penalized_loss = mean_loss + best_d_norm_penalty * (max_norm_ratio - 1)}
-#'   instead of \code{mean_loss} directly.  Default \code{0} leaves
-#'   selection based purely on \code{mean_loss}, matching prior behavior;
-#'   increase it to make dimensions with a high \code{max_norm_ratio} less
-#'   likely to be selected as \code{best_d} even if their mean loss is
-#'   lowest.  This is a purely post-hoc selection rule applied to already-
+#'   instead of \code{mean_loss} directly.  Default \code{NULL} sets it equal
+#'   to \code{norm_penalty}, so by default the two stay in sync and
+#'   \code{penalized_loss} reflects the same outlier-aversion already
+#'   applied during fitting; pass an explicit number (\code{0} to disable,
+#'   or any other value) when you want \code{best_d} selection to use a
+#'   \emph{different} amount of outlier-aversion than the fits themselves
+#'   used.  This is a purely post-hoc selection rule applied to already-
 #'   fitted results — \code{results}/\code{summary} always report the raw,
 #'   unpenalized \code{loss}/\code{mean_loss} regardless of this setting,
-#'   and it does not affect fitting itself (see \code{norm_penalty} above
-#'   for that).
+#'   and setting it (unlike \code{norm_penalty}) never changes the fits
+#'   themselves.
 #'
 #' @return When \code{group = TRUE} (the default), a named list with two
 #'   elements:
@@ -136,9 +138,10 @@
 #'     \code{d}, \code{mean_loss}, \code{min_loss}, \code{sd_loss},
 #'     \code{mean_accuracy}, \code{sd_accuracy}, \code{mean_norm_ratio},
 #'     \code{max_norm_ratio}, \code{penalized_loss}.
-#'     \code{penalized_loss} equals \code{mean_loss} whenever
-#'     \code{best_d_norm_penalty = 0} (the default) — see the
-#'     \code{best_d_norm_penalty} argument.  The logical column
+#'     \code{penalized_loss} equals \code{mean_loss} whenever the
+#'     resolved \code{best_d_norm_penalty} (which defaults to
+#'     \code{norm_penalty}) is \code{0} — see the \code{best_d_norm_penalty}
+#'     argument.  The logical column
 #'     \code{best_d} marks the smallest \code{d} within one standard error
 #'     of the global minimum \code{penalized_loss}.  A \code{d} with low
 #'     \code{mean_loss} but a high \code{max_norm_ratio} relative to
@@ -187,12 +190,23 @@
 #'                                "penalized_loss", "best_d")]
 #'
 #' # Discourage outlier-chasing checkpoints during fitting itself, at every
-#' # dimension/restart (changes the fits and reported loss/norm_ratio)
+#' # dimension/restart (changes the fits and reported loss/norm_ratio).
+#' # best_d_norm_penalty defaults to norm_penalty, so best_d selection
+#' # picks up the same outlier-aversion automatically here.
 #' dim_est_fit_penalized <- estimate_dimensionality(
 #'   triplet_list = icon_triplets,
 #'   dims         = 1:6,
 #'   n_restarts   = 5L,
 #'   norm_penalty = 0.05
+#' )
+#'
+#' # Same fit-time penalty, but best_d selection back on raw mean_loss
+#' dim_est_fit_penalized_unweighted_selection <- estimate_dimensionality(
+#'   triplet_list         = icon_triplets,
+#'   dims                 = 1:6,
+#'   n_restarts           = 5L,
+#'   norm_penalty         = 0.05,
+#'   best_d_norm_penalty  = 0
 #' )
 #'
 #' # Parallel: use 4 local cores (requires future.apply)
@@ -225,8 +239,9 @@ estimate_dimensionality <- function(triplet_list,
                                     geometry    = c("euclidean", "sphere"),
                                     radius      = 1,
                                     norm_penalty = 0,
-                                    best_d_norm_penalty = 0) {
+                                    best_d_norm_penalty = NULL) {
   geometry <- match.arg(geometry)
+  if (is.null(best_d_norm_penalty)) best_d_norm_penalty <- norm_penalty
 
   # Build X_train / X_test matrices from a list of participant data frames
   .prepare_matrices <- function(dfs) {
@@ -335,9 +350,9 @@ estimate_dimensionality <- function(triplet_list,
       )
     }))
 
-    # penalized_loss == mean_loss whenever best_d_norm_penalty == 0 (the
-    # default), so best_d selection below is unaffected unless a caller
-    # opts in.
+    # best_d_norm_penalty defaults to norm_penalty (resolved above), so
+    # penalized_loss == mean_loss unless norm_penalty is also nonzero or
+    # the caller passed an explicit, different best_d_norm_penalty.
     summary_df$penalized_loss <- summary_df$mean_loss +
       best_d_norm_penalty * (summary_df$max_norm_ratio - 1)
 

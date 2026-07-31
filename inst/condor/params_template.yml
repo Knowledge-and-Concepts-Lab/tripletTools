@@ -77,8 +77,11 @@ dimensionality:
   n_restarts: 10
   # Purely a post-hoc penalty on *which dimension* gets flagged best_d --
   # unlike norm_penalty above, this never changes the fits themselves.
-  # See estimate_dimensionality()'s best_d_norm_penalty argument.
-  best_d_norm_penalty: 0
+  # Left unset here so it defaults to norm_penalty's value (see
+  # estimate_dimensionality()'s best_d_norm_penalty argument); uncomment
+  # to make best_d selection use a different amount of outlier-aversion
+  # than the fits themselves used.
+  # best_d_norm_penalty: 0
   # max_epochs: 20000   # e.g. run the search faster than the final fit
 
 # --- Stage 2: learning curve at the dimension selected in stage 1 ----------
