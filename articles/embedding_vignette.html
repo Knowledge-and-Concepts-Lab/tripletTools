@@ -995,12 +995,24 @@ above — no separate setup step needed.</p>
 <p><strong>Per run:</strong></p>
 <ol style="list-style-type: decimal">
 <li>
-<p>Save your triplet data as the named list of participant data
-frames these functions already expect (the same format
-<code><a href="../reference/get.combined.html">get.combined()</a></code> returns and <code>icon_triplets</code>
-uses):</p>
+<p>Provide your triplet data as either a combined CSV or an RDS file
+— <code>condor_workflow.R</code> picks the right loader from the file
+extension:</p>
+<ul>
+<li><p><strong>CSV</strong> (recommended): a single file with one row
+per triplet judgment and a <code>worker_id</code> column, in the same
+format <code><a href="../reference/get.combined.html">get.combined()</a></code> reads (see
+<code>inst/extdata/icon_all_triplets.csv</code> for an example). This is
+usually already what you have on disk, so there’s no R-side step to
+produce it.</p></li>
+<li>
+<p><strong>RDS</strong>: a named list of participant data frames
+already built in R — the same object <code><a href="../reference/get.combined.html">get.combined()</a></code>
+returns, and the format <code>icon_triplets</code> uses:</p>
 <div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">icon_triplets</span>, <span class="st">"triplet_data.rds"</span><span class="op">)</span></span></code></pre></div>
+</li>
+</ul>
 </li>
 <li>
 <p>Copy <code>params_template.yml</code> and edit it for your run —
@@ -1015,7 +1027,7 @@ directly on the submit node inside a persistent session
 (<code>screen</code>/<code>tmux</code>/<code>nohup</code>) rather than
 as a Condor job itself:</p>
 <div class="sourceCode" id="cb41"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" tabindex="-1"></a><span class="ex">Rscript</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "condor_workflow.R", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
-<span id="cb41-2"><a href="#cb41-2" tabindex="-1"></a>  triplet_data.rds my_params.yml</span></code></pre></div>
+<span id="cb41-2"><a href="#cb41-2" tabindex="-1"></a>  triplet_data.csv my_params.yml   <span class="co"># or triplet_data.rds</span></span></code></pre></div>
 </li>
 </ol>
 <p>This produces, in the <code>output_dir</code> set in

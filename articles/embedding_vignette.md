@@ -922,15 +922,25 @@ separate setup step needed.
 
 **Per run:**
 
-1.  Save your triplet data as the named list of participant data frames
-    these functions already expect (the same format
-    [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
-    returns and `icon_triplets` uses):
+1.  Provide your triplet data as either a combined CSV or an RDS file —
+    `condor_workflow.R` picks the right loader from the file extension:
 
-    ``` r
+    - **CSV** (recommended): a single file with one row per triplet
+      judgment and a `worker_id` column, in the same format
+      [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
+      reads (see `inst/extdata/icon_all_triplets.csv` for an example).
+      This is usually already what you have on disk, so there’s no
+      R-side step to produce it.
 
-    saveRDS(icon_triplets, "triplet_data.rds")
-    ```
+    - **RDS**: a named list of participant data frames already built in
+      R — the same object
+      [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
+      returns, and the format `icon_triplets` uses:
+
+      ``` r
+
+      saveRDS(icon_triplets, "triplet_data.rds")
+      ```
 
 2.  Copy `params_template.yml` and edit it for your run — the shipped
     copy documents every field inline:
@@ -947,7 +957,7 @@ separate setup step needed.
 
     ``` bash
     Rscript $(Rscript -e 'cat(system.file("condor", "condor_workflow.R", package = "tripletTools"))') \
-      triplet_data.rds my_params.yml
+      triplet_data.csv my_params.yml   # or triplet_data.rds
     ```
 
 This produces, in the `output_dir` set in `my_params.yml`:
