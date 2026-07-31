@@ -22,7 +22,7 @@ estimate_dimensionality(
   geometry = c("euclidean", "sphere"),
   radius = 1,
   norm_penalty = 0,
-  best_d_norm_penalty = 0
+  best_d_norm_penalty = NULL
 )
 ```
 
@@ -124,14 +124,16 @@ estimate_dimensionality(
   `best_d` is chosen by applying the same one-standard-error rule
   described below to
   `penalized_loss = mean_loss + best_d_norm_penalty * (max_norm_ratio - 1)`
-  instead of `mean_loss` directly. Default `0` leaves selection based
-  purely on `mean_loss`, matching prior behavior; increase it to make
-  dimensions with a high `max_norm_ratio` less likely to be selected as
-  `best_d` even if their mean loss is lowest. This is a purely post-hoc
-  selection rule applied to already- fitted results —
+  instead of `mean_loss` directly. Default `NULL` sets it equal to
+  `norm_penalty`, so by default the two stay in sync and
+  `penalized_loss` reflects the same outlier-aversion already applied
+  during fitting; pass an explicit number (`0` to disable, or any other
+  value) when you want `best_d` selection to use a *different* amount of
+  outlier-aversion than the fits themselves used. This is a purely
+  post-hoc selection rule applied to already- fitted results —
   `results`/`summary` always report the raw, unpenalized
-  `loss`/`mean_loss` regardless of this setting, and it does not affect
-  fitting itself (see `norm_penalty` above for that).
+  `loss`/`mean_loss` regardless of this setting, and setting it (unlike
+  `norm_penalty`) never changes the fits themselves.
 
 ## Value
 
@@ -154,13 +156,14 @@ When `group = TRUE` (the default), a named list with two elements:
   Data frame with one row per dimension and columns `d`, `mean_loss`,
   `min_loss`, `sd_loss`, `mean_accuracy`, `sd_accuracy`,
   `mean_norm_ratio`, `max_norm_ratio`, `penalized_loss`.
-  `penalized_loss` equals `mean_loss` whenever `best_d_norm_penalty = 0`
-  (the default) — see the `best_d_norm_penalty` argument. The logical
-  column `best_d` marks the smallest `d` within one standard error of
-  the global minimum `penalized_loss`. A `d` with low `mean_loss` but a
-  high `max_norm_ratio` relative to smaller dimensions is a sign that
-  the loss improvement may be coming from an outlier item being pushed
-  away rather than genuinely better structure.
+  `penalized_loss` equals `mean_loss` whenever the resolved
+  `best_d_norm_penalty` (which defaults to `norm_penalty`) is `0` — see
+  the `best_d_norm_penalty` argument. The logical column `best_d` marks
+  the smallest `d` within one standard error of the global minimum
+  `penalized_loss`. A `d` with low `mean_loss` but a high
+  `max_norm_ratio` relative to smaller dimensions is a sign that the
+  loss improvement may be coming from an outlier item being pushed away
+  rather than genuinely better structure.
 
 When `group = FALSE`, a named list with one element per participant,
 each of which has the same `results` / `summary` structure described
@@ -260,12 +263,23 @@ dim_est_penalized$summary[, c("d", "mean_loss", "max_norm_ratio",
                                "penalized_loss", "best_d")]
 
 # Discourage outlier-chasing checkpoints during fitting itself, at every
-# dimension/restart (changes the fits and reported loss/norm_ratio)
+# dimension/restart (changes the fits and reported loss/norm_ratio).
+# best_d_norm_penalty defaults to norm_penalty, so best_d selection
+# picks up the same outlier-aversion automatically here.
 dim_est_fit_penalized <- estimate_dimensionality(
   triplet_list = icon_triplets,
   dims         = 1:6,
   n_restarts   = 5L,
   norm_penalty = 0.05
+)
+
+# Same fit-time penalty, but best_d selection back on raw mean_loss
+dim_est_fit_penalized_unweighted_selection <- estimate_dimensionality(
+  triplet_list         = icon_triplets,
+  dims                 = 1:6,
+  n_restarts           = 5L,
+  norm_penalty         = 0.05,
+  best_d_norm_penalty  = 0
 )
 
 # Parallel: use 4 local cores (requires future.apply)

@@ -66,7 +66,7 @@ dimensionality that achieves near-minimum hold-out loss.</p>
 <span>  geometry <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"euclidean"</span>, <span class="st">"sphere"</span><span class="op">)</span>,</span>
 <span>  radius <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  norm_penalty <span class="op">=</span> <span class="fl">0</span>,</span>
-<span>  best_d_norm_penalty <span class="op">=</span> <span class="fl">0</span></span>
+<span>  best_d_norm_penalty <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -167,15 +167,17 @@ items (see <code>norm_ratio</code> in the <em>Diagnosing outlier items</em>
 section of <code><a href="train_embedding.html">train_embedding</a></code>).  <code>best_d</code> is chosen by
 applying the same one-standard-error rule described below to
 <code>penalized_loss = mean_loss + best_d_norm_penalty * (max_norm_ratio - 1)</code>
-instead of <code>mean_loss</code> directly.  Default <code>0</code> leaves
-selection based purely on <code>mean_loss</code>, matching prior behavior;
-increase it to make dimensions with a high <code>max_norm_ratio</code> less
-likely to be selected as <code>best_d</code> even if their mean loss is
-lowest.  This is a purely post-hoc selection rule applied to already-
+instead of <code>mean_loss</code> directly.  Default <code>NULL</code> sets it equal
+to <code>norm_penalty</code>, so by default the two stay in sync and
+<code>penalized_loss</code> reflects the same outlier-aversion already
+applied during fitting; pass an explicit number (<code>0</code> to disable,
+or any other value) when you want <code>best_d</code> selection to use a
+<em>different</em> amount of outlier-aversion than the fits themselves
+used.  This is a purely post-hoc selection rule applied to already-
 fitted results — <code>results</code>/<code>summary</code> always report the raw,
 unpenalized <code>loss</code>/<code>mean_loss</code> regardless of this setting,
-and it does not affect fitting itself (see <code>norm_penalty</code> above
-for that).</p></dd>
+and setting it (unlike <code>norm_penalty</code>) never changes the fits
+themselves.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -197,9 +199,10 @@ is only meaningful for <code>geometry = "euclidean"</code>; always
 <code>d</code>, <code>mean_loss</code>, <code>min_loss</code>, <code>sd_loss</code>,
 <code>mean_accuracy</code>, <code>sd_accuracy</code>, <code>mean_norm_ratio</code>,
 <code>max_norm_ratio</code>, <code>penalized_loss</code>.
-<code>penalized_loss</code> equals <code>mean_loss</code> whenever
-<code>best_d_norm_penalty = 0</code> (the default) — see the
-<code>best_d_norm_penalty</code> argument.  The logical column
+<code>penalized_loss</code> equals <code>mean_loss</code> whenever the
+resolved <code>best_d_norm_penalty</code> (which defaults to
+<code>norm_penalty</code>) is <code>0</code> — see the <code>best_d_norm_penalty</code>
+argument.  The logical column
 <code>best_d</code> marks the smallest <code>d</code> within one standard error
 of the global minimum <code>penalized_loss</code>.  A <code>d</code> with low
 <code>mean_loss</code> but a high <code>max_norm_ratio</code> relative to
@@ -313,12 +316,23 @@ If no <code>sampleSet</code> column is present or all values are <code>NA</code>
 <span class="r-in"><span>                               <span class="st">"penalized_loss"</span>, <span class="st">"best_d"</span><span class="op">)</span><span class="op">]</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Discourage outlier-chasing checkpoints during fitting itself, at every</span></span></span>
-<span class="r-in"><span><span class="co"># dimension/restart (changes the fits and reported loss/norm_ratio)</span></span></span>
+<span class="r-in"><span><span class="co"># dimension/restart (changes the fits and reported loss/norm_ratio).</span></span></span>
+<span class="r-in"><span><span class="co"># best_d_norm_penalty defaults to norm_penalty, so best_d selection</span></span></span>
+<span class="r-in"><span><span class="co"># picks up the same outlier-aversion automatically here.</span></span></span>
 <span class="r-in"><span><span class="va">dim_est_fit_penalized</span> <span class="op">&lt;-</span> <span class="fu">estimate_dimensionality</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span></span>
 <span class="r-in"><span>  dims         <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span></span>
 <span class="r-in"><span>  n_restarts   <span class="op">=</span> <span class="fl">5L</span>,</span></span>
 <span class="r-in"><span>  norm_penalty <span class="op">=</span> <span class="fl">0.05</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Same fit-time penalty, but best_d selection back on raw mean_loss</span></span></span>
+<span class="r-in"><span><span class="va">dim_est_fit_penalized_unweighted_selection</span> <span class="op">&lt;-</span> <span class="fu">estimate_dimensionality</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  triplet_list         <span class="op">=</span> <span class="va">icon_triplets</span>,</span></span>
+<span class="r-in"><span>  dims                 <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span></span>
+<span class="r-in"><span>  n_restarts           <span class="op">=</span> <span class="fl">5L</span>,</span></span>
+<span class="r-in"><span>  norm_penalty         <span class="op">=</span> <span class="fl">0.05</span>,</span></span>
+<span class="r-in"><span>  best_d_norm_penalty  <span class="op">=</span> <span class="fl">0</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Parallel: use 4 local cores (requires future.apply)</span></span></span>
