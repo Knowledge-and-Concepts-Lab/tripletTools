@@ -24,11 +24,13 @@
 # as a Condor job via future.batchtools, so it's safe to run this directly
 # on a CHTC submit node inside a persistent session (screen/tmux/nohup),
 # rather than as a Condor job itself. See the "HTCondor cluster" section of
-# the embedding_vignette for one-time cluster setup: a copy of
-# condor.tmpl or condor_apptainer.tmpl on the submit node, and either
-# R/tripletTools/the conda env available on every execute node, or (with
-# condor_apptainer.tmpl) the tripletTools container image built by
-# .github/workflows/docker-publish.yml.
+# the embedding_vignette for one-time cluster setup: save
+# condor_apptainer.tmpl as ~/.batchtools.condor.tmpl, so every job runs
+# inside the tripletTools container image built by
+# .github/workflows/docker-publish.yml, instead of assuming R/tripletTools/
+# the conda env are pre-installed on whatever execute node it lands on
+# (condor.tmpl is also shipped for the rare pool where that's actually
+# true).
 
 .script_dir <- function() {
   file_arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
@@ -80,7 +82,7 @@ if (is.null(condor_cfg)) {
 template <- path.expand(condor_cfg$template %||% "~/.batchtools.condor.tmpl")
 if (!file.exists(template)) {
   stop(sprintf(
-    "Condor template not found at %s. Copy inst/condor/condor.tmpl (pre-installed execute nodes) or inst/condor/condor_apptainer.tmpl (containerized) there and adjust for your site (see the vignette's HTCondor section).",
+    "Condor template not found at %s. Copy inst/condor/condor_apptainer.tmpl there (or inst/condor/condor.tmpl if every execute node genuinely already has R/tripletTools/conda installed) and adjust for your site (see the vignette's HTCondor section).",
     template
   ), call. = FALSE)
 }

@@ -35,18 +35,17 @@ condor:
   # Path to the batchtools cluster template. ~ is expanded to your home
   # directory on the submit node.
   #
-  # Two templates ship in this same directory:
-  #   condor.tmpl            assumes R/tripletTools/the conda env are
-  #                           already installed on whatever execute node
-  #                           the job lands on (see the vignette's
-  #                           "HTCondor cluster" section).
-  #   condor_apptainer.tmpl  runs each job inside the tripletTools
-  #                           container image instead (see the Dockerfile
-  #                           and .github/workflows/docker-publish.yml at
-  #                           the repo root) -- use this if your pool
-  #                           doesn't have the software pre-installed
-  #                           everywhere, or you'd rather not depend on
-  #                           that assumption at all.
+  # By convention this is where the "HTCondor cluster" section of the
+  # vignette has you save inst/condor/condor_apptainer.tmpl, which runs
+  # every job inside the tripletTools container image (see the Dockerfile
+  # and .github/workflows/docker-publish.yml at the repo root) rather than
+  # assuming R/tripletTools/the conda env are pre-installed on whatever
+  # execute node the job lands on -- on a shared/heterogeneous pool like
+  # CHTC's, that assumption essentially never holds.
+  #
+  # inst/condor/condor.tmpl (pre-installed execute nodes, no container) is
+  # also shipped as an alternative for the rare pool where it genuinely is
+  # pre-installed everywhere; point this at a copy of that instead if so.
   template: ~/.batchtools.condor.tmpl
   # Maximum number of simultaneous Condor jobs across all three stages.
   workers: 80

@@ -587,26 +587,13 @@ If you have access to an HTCondor cluster (e.g. UW–Madison's CHTC), install th
 install.packages("future.batchtools")
 ```
 
-You also need a one-time cluster template file that tells `future.batchtools` how to construct HTCondor submit files for your site.  Save the following as `~/.batchtools.condor.tmpl` (adjust `request_memory` and any site-specific lines for your cluster):
+Every job needs R, `tripletTools`, and the `triplet-embeddings` conda environment available wherever HTCondor runs it — in practice, on a shared pool like CHTC's, execute nodes are heterogeneous and ephemeral, so you should not assume any of that is pre-installed. This repo ships a container image with everything already layered in (see [Building and publishing the container image] below) and a batchtools cluster template that runs every job inside it via Apptainer, which CHTC's execute nodes use to run Docker images directly — no separate native container build needed on your end.
 
-```
-universe     = vanilla
-executable   = `r shQuote(file.path(R.home("bin"), "Rscript"))`
-arguments    = -e 'batchtools::doJobCollection("$(job.collection)")'
+**One-time setup**, on your CHTC submit node — save the shipped template as the file `future.batchtools` looks for by default:
 
-transfer_input_files  = $(job.collection)
-should_transfer_files = YES
-when_to_transfer_output = ON_EXIT
-
-request_cpus   = 1
-request_memory = 4GB
-request_disk   = 2GB
-
-log    = $(log)
-output = $(output)
-error  = $(error)
-
-queue
+```{r condor-setup, engine = "bash"}
+cp $(Rscript -e 'cat(system.file("condor", "condor_apptainer.tmpl", package = "tripletTools"))') \
+   ~/.batchtools.condor.tmpl
 ```
 
 Then submit your dimensionality search exactly as before, just with a different plan:
@@ -627,9 +614,32 @@ dim_est <- estimate_dimensionality(
 plan(sequential)
 ```
 
-`future.batchtools` handles job submission, monitors completion, retrieves results, and assembles them — you get back the same `dim_est` list as in the serial case.
+`future.batchtools` handles job submission, monitors completion, retrieves results, and assembles them — you get back the same `dim_est` list as in the serial case. Every job pulls the `tripletTools` container image (public on `ghcr.io`, so no pull credentials needed) rather than depending on anything being pre-installed on the execute node it lands on.
 
-**Prerequisite:** every worker node must have R, `tripletTools`, and the `triplet-embeddings` conda environment already installed.  This is a one-time setup task; ask your cluster administrator or follow your site's software installation guide.
+`condor_apptainer.tmpl` uses HTCondor's `container` universe with `container_image = docker://ghcr.io/...` — confirmed working on UW–Madison CHTC access points. If you're on a different HTCondor pool and it rejects `universe = container`, the template includes a commented-out fallback using the older `+SingularityImage` classad.
+
+### Building and publishing the container image
+
+```
+Dockerfile                                # builds the runtime image
+.github/workflows/docker-publish.yml      # builds + publishes it to ghcr.io on push
+inst/condor/condor_apptainer.tmpl         # batchtools template that uses the image
+```
+
+The image layers a base R install, Miniconda, the `triplet-embeddings` conda environment (built via this package's own `setup_python_env()`, so it's created exactly the way a local install would be), and `tripletTools` itself installed from GitHub. The GitHub Actions workflow builds and pushes it to `ghcr.io/<org>/<repo>` automatically whenever `Dockerfile`, `R/`, `inst/python/`, `inst/requirements.txt`, or `DESCRIPTION` change on `main` — you don't need Docker installed locally to use it, only to debug a failing build.
+
+**Disk requests are sized for the container.** Pulling and unpacking the image (R + conda + PyTorch) adds several GB on top of whatever a job itself transfers, so `condor_apptainer.tmpl` defaults `request_disk` to `8GB`. Override it via `resources = list(request_disk = ...)` in `plan()`, or the `resources:` block in `params_template.yml`, if you need more.
+
+**CHTC staging paths**, if your triplet dataset is large enough to need `/staging` rather than ordinary `transfer_input_files` (CHTC's general guidance: under 1GB per file stays in `/home`; 1–30GB goes to personal staging): personal staging areas are at `/staging/<first letter of your netid>/<netid>`, exposed as `$STAGING` on Access Points and `$ENV(STAGING)` in submit files. A job that reads staging directly needs `requirements = (Target.HasCHTCStaging == true)`.
+
+**Avoiding a `docker://` pull on every job:** HTCondor/Apptainer caches the image per execute node, which is fine at the job counts this workflow generates (dozens to a few hundred per stage). If you're running this often enough that repeated pulls become a bottleneck, build the image into a `.sif` once and stage it instead of pulling from the registry every time — see the commented-out alternative at the bottom of `condor_apptainer.tmpl`, which uses CHTC's OSDF/Pelican staging path convention:
+
+```
+container_image = osdf:///chtc$ENV(STAGING)/containers/tripletTools_v1.sif
+requirements = (Target.HasCHTCStaging == true)
+```
+
+Give the `.sif` a version suffix and update the submit template's path when you rebuild it, rather than overwriting the old filename — OSDF/Pelican caches by path, so reusing a filename can serve stale content.
 
 ### An end-to-end Condor workflow
 
@@ -638,8 +648,6 @@ For the common case of "pick a dimension, check it against a learning curve, and
 ```
 inst/condor/condor_workflow.R      # driver script
 inst/condor/condor_helpers.R       # small config-parsing helpers it sources
-inst/condor/condor.tmpl            # batchtools template: pre-installed execute nodes
-inst/condor/condor_apptainer.tmpl  # batchtools template: containerized (see below)
 inst/condor/params_template.yml    # template configuration file
 ```
 
@@ -649,15 +657,7 @@ Locate them with:
 system.file("condor", package = "tripletTools")
 ```
 
-**One-time setup**, on your CHTC submit node:
-
-```{r condor-setup, engine = "bash"}
-cp $(Rscript -e 'cat(system.file("condor", "condor.tmpl", package = "tripletTools"))') \
-   ~/.batchtools.condor.tmpl
-# Adjust request_cpus/request_memory/request_disk defaults or add site-specific
-# lines (e.g. a `requirements` clause) if needed -- see the comments in the
-# template itself.
-```
+This reuses the same `~/.batchtools.condor.tmpl` set up above — no separate setup step needed.
 
 **Per run:**
 
@@ -695,45 +695,7 @@ The final embedding is a dedicated fit rather than a reused fraction = 1.0 resta
 
 `seed`, `geometry`, `radius`, and `norm_penalty` in the config apply to all three stages, so they describe one coherent embedding space throughout; `max_epochs`/`tolerance`/`tol_window`/`device`/Condor `resources` can be overridden per stage (e.g. a faster budget for the dimensionality search, a more generous one for the final fit) — see the comments in `params_template.yml`.
 
-### Running in a container, instead of assuming pre-installed software
-
-The setup above assumes R, `tripletTools`, and the `triplet-embeddings` conda environment are already installed on whatever execute node HTCondor matches each job to. If that isn't true everywhere in your pool — or you'd rather not depend on it — this repo also ships everything needed to run each job inside a container instead, via Apptainer (which CHTC's execute nodes use to run Docker images directly, no separate native build required):
-
-```
-Dockerfile                                # builds the runtime image
-.github/workflows/docker-publish.yml      # builds + publishes it to ghcr.io on push
-inst/condor/condor_apptainer.tmpl         # batchtools template that uses the image
-```
-
-The image layers a base R install, Miniconda, the `triplet-embeddings` conda environment (built via this package's own `setup_python_env()`, so it's created exactly the way a local install would be), and `tripletTools` itself installed from GitHub. The GitHub Actions workflow builds and pushes it to `ghcr.io/<org>/<repo>` automatically whenever `Dockerfile`, `R/`, `inst/python/`, `inst/requirements.txt`, or `DESCRIPTION` change on `main` — you don't need Docker installed locally to use it, only to debug a failing build.
-
-To use it, point `condor:` at the container template instead in your `params_template.yml` copy:
-
-```yaml
-condor:
-  template: ~/.batchtools.condor_apptainer.tmpl
-  workers: 80
-```
-
-```{r condor-apptainer-setup, engine = "bash"}
-cp $(Rscript -e 'cat(system.file("condor", "condor_apptainer.tmpl", package = "tripletTools"))') \
-   ~/.batchtools.condor_apptainer.tmpl
-```
-
-`condor_apptainer.tmpl` uses HTCondor's `container` universe with `container_image = docker://ghcr.io/...` — confirmed working on UW–Madison CHTC access points. If you're on a different HTCondor pool and it rejects `universe = container`, the template includes a commented-out fallback using the older `+SingularityImage` classad.
-
-**Disk requests are larger than `condor.tmpl`'s.** Pulling and unpacking the container image (R + conda + PyTorch) adds several GB on top of whatever the job itself transfers, so `condor_apptainer.tmpl` defaults `request_disk` to `8GB` instead of `2GB`. `params_template.yml` deliberately leaves `request_disk` unset under `defaults:`/`final_fit:` so each template's own default applies rather than one template's value silently overriding the other's — set it explicitly only if you need to raise it further.
-
-**CHTC staging paths**, if your triplet dataset is large enough to need `/staging` rather than ordinary `transfer_input_files` (CHTC's general guidance: under 1GB per file stays in `/home`; 1–30GB goes to personal staging): personal staging areas are at `/staging/<first letter of your netid>/<netid>`, exposed as `$STAGING` on Access Points and `$ENV(STAGING)` in submit files. A job that reads staging directly needs `requirements = (Target.HasCHTCStaging == true)`.
-
-**Avoiding a `docker://` pull on every job:** HTCondor/Apptainer caches the image per execute node, which is fine at the job counts this workflow generates (dozens to a few hundred per stage). If you're running this often enough that repeated pulls become a bottleneck, build the image into a `.sif` once and stage it instead of pulling from the registry every time — see the commented-out alternative at the bottom of `condor_apptainer.tmpl`, which uses CHTC's OSDF/Pelican staging path convention:
-
-```
-container_image = osdf:///chtc$ENV(STAGING)/containers/tripletTools_v1.sif
-requirements = (Target.HasCHTCStaging == true)
-```
-
-Give the `.sif` a version suffix and update the submit template's path when you rebuild it, rather than overwriting the old filename — OSDF/Pelican caches by path, so reusing a filename can serve stale content.
+If you're on a pool where R/`tripletTools`/the conda environment genuinely are pre-installed on every execute node and you'd rather not use a container at all, `inst/condor/condor.tmpl` is also shipped as an alternative batchtools template for that case — swap it in via `condor: template:` in your config.
 
 ### Checking the active plan
 
