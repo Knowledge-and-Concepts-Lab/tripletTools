@@ -11,12 +11,21 @@
 # stages 2 and 3, so the three stages describe one coherent embedding space.
 #
 # Usage:
-#   Rscript condor_workflow.R <triplet_data.rds> <config.yml>
+#   Rscript condor_workflow.R <triplet_data.csv|.rds> <config.yml>
 #
-# <triplet_data.rds> must contain a named list of participant data frames,
-# each with columns Center, Left, Right, Answer, sampleAlg, sampleSet -- the
-# same format get.combined() returns and icon_triplets uses. Save one with
-# e.g. saveRDS(my_triplet_list, "triplet_data.rds").
+# <triplet_data> is read differently depending on its extension:
+#   .csv  a single combined CSV with one row per triplet judgment and a
+#         worker_id column identifying each participant -- the same
+#         format get.combined() reads (see inst/extdata/icon_all_triplets.csv
+#         for an example). This is the recommended format for Condor
+#         deployment: it's the same file get.combined() would read
+#         locally, no extra R-side step needed to produce it.
+#   .rds  a named list of participant data frames already built in R (the
+#         same object get.combined() returns, and the format
+#         icon_triplets uses) -- saved with e.g.
+#         saveRDS(my_triplet_list, "triplet_data.rds").
+# Either way, each participant's data frame needs columns Center, Left,
+# Right, Answer, sampleAlg, sampleSet.
 #
 # <config.yml> follows params_template.yml in this same directory.
 #
@@ -41,7 +50,7 @@ source(file.path(.script_dir(), "condor_helpers.R"))
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 2L) {
-  stop("Usage: Rscript condor_workflow.R <triplet_data.rds> <config.yml>", call. = FALSE)
+  stop("Usage: Rscript condor_workflow.R <triplet_data.csv|.rds> <config.yml>", call. = FALSE)
 }
 data_path   <- args[[1]]
 config_path <- args[[2]]
@@ -56,9 +65,9 @@ library(tripletTools)
 
 config <- yaml::read_yaml(config_path)
 
-triplet_list <- readRDS(data_path)
+triplet_list <- load_triplet_data(data_path)
 if (!is.list(triplet_list) || is.null(names(triplet_list))) {
-  stop("triplet_data.rds must contain a named list of participant data frames (as returned by get.combined()).", call. = FALSE)
+  stop("triplet_data must yield a named list of participant data frames (as returned by get.combined()).", call. = FALSE)
 }
 
 output_dir <- config$output_dir %||% "condor_output"

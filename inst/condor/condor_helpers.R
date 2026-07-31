@@ -28,3 +28,26 @@ parse_dims <- function(x) {
   }
   as.integer(unlist(x))
 }
+
+# Load triplet data from either:
+#   .csv  a combined CSV in the format get.combined() reads (one row per
+#         triplet judgment, with a worker_id column identifying each
+#         participant) -- dispatched to get.combined(), which tripletTools
+#         must already be loaded/attached for.
+#   .rds  a saved named list of participant data frames (the same object
+#         get.combined() itself returns).
+# Either way the result is the triplet_list format estimate_dimensionality()/
+# estimate_learning_curve()/run_group_embedding_from_list() expect.
+load_triplet_data <- function(path) {
+  ext <- tolower(tools::file_ext(path))
+  if (ext == "csv") {
+    get.combined(path)
+  } else if (ext == "rds") {
+    readRDS(path)
+  } else {
+    stop(sprintf(
+      "Unrecognized triplet data file extension '.%s' for %s -- use .csv (read via get.combined()) or .rds (a saved triplet_list).",
+      ext, path
+    ), call. = FALSE)
+  }
+}

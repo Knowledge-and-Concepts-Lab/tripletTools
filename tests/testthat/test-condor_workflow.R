@@ -42,6 +42,33 @@ test_that("parse_dims handles range strings and explicit lists", {
   expect_equal(helpers$parse_dims(c(2, 4, 6)), c(2L, 4L, 6L))
 })
 
+test_that("load_triplet_data reads a combined CSV via get.combined()", {
+  csv_path <- system.file("extdata", "icon_all_triplets.csv", package = "tripletTools")
+  skip_if(!nzchar(csv_path), "bundled example CSV not found")
+
+  from_helper <- helpers$load_triplet_data(csv_path)
+  from_get_combined <- get.combined(csv_path)
+
+  expect_true(is.list(from_helper))
+  expect_false(is.null(names(from_helper)))
+  expect_equal(from_helper, from_get_combined)
+})
+
+test_that("load_triplet_data reads a saved triplet_list from .rds", {
+  tmp <- tempfile(fileext = ".rds")
+  on.exit(unlink(tmp))
+  saveRDS(icon_triplets, tmp)
+
+  expect_equal(helpers$load_triplet_data(tmp), icon_triplets)
+})
+
+test_that("load_triplet_data errors clearly on an unrecognized extension", {
+  expect_error(
+    helpers$load_triplet_data("triplet_data.txt"),
+    "Unrecognized triplet data file extension"
+  )
+})
+
 test_that("get_config resolves stage override > defaults > hardcoded default", {
   config <- list(
     defaults = list(max_epochs = 50000L, tol_window = 10000L),
