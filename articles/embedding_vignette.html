@@ -882,29 +882,21 @@ install the <code>future.batchtools</code> package, which bridges
 <code>future</code> to HTCondor’s job scheduler:</p>
 <div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"future.batchtools"</span><span class="op">)</span></span></code></pre></div>
-<p>You also need a one-time cluster template file that tells
-<code>future.batchtools</code> how to construct HTCondor submit files
-for your site. Save the following as
-<code>~/.batchtools.condor.tmpl</code> (adjust
-<code>request_memory</code> and any site-specific lines for your
-cluster):</p>
-<pre><code>universe     = vanilla
-executable   = '/opt/R/4.6.1/lib/R/bin/Rscript'
-arguments    = -e 'batchtools::doJobCollection("$(job.collection)")'
-
-transfer_input_files  = $(job.collection)
-should_transfer_files = YES
-when_to_transfer_output = ON_EXIT
-
-request_cpus   = 1
-request_memory = 4GB
-request_disk   = 2GB
-
-log    = $(log)
-output = $(output)
-error  = $(error)
-
-queue</code></pre>
+<p>Every job needs R, <code>tripletTools</code>, and the
+<code>triplet-embeddings</code> conda environment available wherever
+HTCondor runs it — in practice, on a shared pool like CHTC’s, execute
+nodes are heterogeneous and ephemeral, so you should not assume any of
+that is pre-installed. This repo ships a container image with everything
+already layered in (see <a href="#building-and-publishing-the-container-image">Building and
+publishing the container image</a> below) and a batchtools cluster
+template that runs every job inside it via Apptainer, which CHTC’s
+execute nodes use to run Docker images directly — no separate native
+container build needed on your end.</p>
+<p><strong>One-time setup</strong>, on your CHTC submit node — save the
+shipped template as the file <code>future.batchtools</code> looks for by
+default:</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" tabindex="-1"></a><span class="fu">cp</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "condor_apptainer.tmpl", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
+<span id="cb33-2"><a href="#cb33-2" tabindex="-1"></a>   ~/.batchtools.condor.tmpl</span></code></pre></div>
 <p>Then submit your dimensionality search exactly as before, just with a
 different plan:</p>
 <div class="sourceCode" id="cb34"><pre class="downlit sourceCode r">
@@ -923,12 +915,66 @@ different plan:</p>
 <span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="va">sequential</span><span class="op">)</span></span></code></pre></div>
 <p><code>future.batchtools</code> handles job submission, monitors
 completion, retrieves results, and assembles them — you get back the
-same <code>dim_est</code> list as in the serial case.</p>
-<p><strong>Prerequisite:</strong> every worker node must have R,
-<code>tripletTools</code>, and the <code>triplet-embeddings</code> conda
-environment already installed. This is a one-time setup task; ask your
-cluster administrator or follow your site’s software installation
-guide.</p>
+same <code>dim_est</code> list as in the serial case. Every job pulls
+the <code>tripletTools</code> container image (public on
+<code>ghcr.io</code>, so no pull credentials needed) rather than
+depending on anything being pre-installed on the execute node it lands
+on.</p>
+<p><code>condor_apptainer.tmpl</code> uses HTCondor’s
+<code>container</code> universe with
+<code>container_image = docker://ghcr.io/...</code> — confirmed working
+on UW–Madison CHTC access points. If you’re on a different HTCondor pool
+and it rejects <code>universe = container</code>, the template includes
+a commented-out fallback using the older <code>+SingularityImage</code>
+classad.</p>
+</div>
+<div class="section level3">
+<h3 id="building-and-publishing-the-container-image">Building and publishing the container image<a class="anchor" aria-label="anchor" href="#building-and-publishing-the-container-image"></a>
+</h3>
+<pre><code><span><span class="va">Dockerfile</span>                                <span class="co"># builds the runtime image</span></span>
+<span><span class="va">.github</span><span class="op">/</span><span class="va">workflows</span><span class="op">/</span><span class="va">docker</span><span class="op">-</span><span class="va">publish.yml</span>      <span class="co"># builds + publishes it to ghcr.io on push</span></span>
+<span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor_apptainer.tmpl</span>         <span class="co"># batchtools template that uses the image</span></span></code></pre>
+<p>The image layers a base R install, Miniconda, the
+<code>triplet-embeddings</code> conda environment (built via this
+package’s own <code><a href="../reference/setup_python_env.html">setup_python_env()</a></code>, so it’s created exactly
+the way a local install would be), and <code>tripletTools</code> itself
+installed from GitHub. The GitHub Actions workflow builds and pushes it
+to <code>ghcr.io/&lt;org&gt;/&lt;repo&gt;</code> automatically whenever
+<code>Dockerfile</code>, <code>R/</code>, <code>inst/python/</code>,
+<code>inst/requirements.txt</code>, or <code>DESCRIPTION</code> change
+on <code>main</code> — you don’t need Docker installed locally to use
+it, only to debug a failing build.</p>
+<p><strong>Disk requests are sized for the container.</strong> Pulling
+and unpacking the image (R + conda + PyTorch) adds several GB on top of
+whatever a job itself transfers, so <code>condor_apptainer.tmpl</code>
+defaults <code>request_disk</code> to <code>8GB</code>. Override it via
+<code>resources = list(request_disk = ...)</code> in
+<code><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan()</a></code>, or the <code>resources:</code> block in
+<code>params_template.yml</code>, if you need more.</p>
+<p><strong>CHTC staging paths</strong>, if your triplet dataset is large
+enough to need <code>/staging</code> rather than ordinary
+<code>transfer_input_files</code> (CHTC’s general guidance: under 1GB
+per file stays in <code>/home</code>; 1–30GB goes to personal staging):
+personal staging areas are at
+<code>/staging/&lt;first letter of your netid&gt;/&lt;netid&gt;</code>,
+exposed as <code>$STAGING</code> on Access Points and
+<code>$ENV(STAGING)</code> in submit files. A job that reads staging
+directly needs
+<code>requirements = (Target.HasCHTCStaging == true)</code>.</p>
+<p><strong>Avoiding a <code>docker://</code> pull on every job:</strong>
+HTCondor/Apptainer caches the image per execute node, which is fine at
+the job counts this workflow generates (dozens to a few hundred per
+stage). If you’re running this often enough that repeated pulls become a
+bottleneck, build the image into a <code>.sif</code> once and stage it
+instead of pulling from the registry every time — see the commented-out
+alternative at the bottom of <code>condor_apptainer.tmpl</code>, which
+uses CHTC’s OSDF/Pelican staging path convention:</p>
+<pre><code>container_image = osdf:///chtc$ENV(STAGING)/containers/tripletTools_v1.sif
+requirements = (Target.HasCHTCStaging == true)</code></pre>
+<p>Give the <code>.sif</code> a version suffix and update the submit
+template’s path when you rebuild it, rather than overwriting the old
+filename — OSDF/Pelican caches by path, so reusing a filename can serve
+stale content.</p>
 </div>
 <div class="section level3">
 <h3 id="an-end-to-end-condor-workflow">An end-to-end Condor workflow<a class="anchor" aria-label="anchor" href="#an-end-to-end-condor-workflow"></a>
@@ -940,18 +986,12 @@ individual fit to HTCondor via <code>future.batchtools</code> as
 above:</p>
 <pre><code><span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor_workflow.R</span>      <span class="co"># driver script</span></span>
 <span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor_helpers.R</span>       <span class="co"># small config-parsing helpers it sources</span></span>
-<span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor.tmpl</span>            <span class="co"># batchtools template: pre-installed execute nodes</span></span>
-<span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor_apptainer.tmpl</span>  <span class="co"># batchtools template: containerized (see below)</span></span>
 <span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">params_template.yml</span>    <span class="co"># template configuration file</span></span></code></pre>
 <p>Locate them with:</p>
-<div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"condor"</span>, package <span class="op">=</span> <span class="st">"tripletTools"</span><span class="op">)</span></span></code></pre></div>
-<p><strong>One-time setup</strong>, on your CHTC submit node:</p>
-<div class="sourceCode" id="cb37"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" tabindex="-1"></a><span class="fu">cp</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "condor.tmpl", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
-<span id="cb37-2"><a href="#cb37-2" tabindex="-1"></a>   ~/.batchtools.condor.tmpl</span>
-<span id="cb37-3"><a href="#cb37-3" tabindex="-1"></a><span class="co"># Adjust request_cpus/request_memory/request_disk defaults or add site-specific</span></span>
-<span id="cb37-4"><a href="#cb37-4" tabindex="-1"></a><span class="co"># lines (e.g. a `requirements` clause) if needed -- see the comments in the</span></span>
-<span id="cb37-5"><a href="#cb37-5" tabindex="-1"></a><span class="co"># template itself.</span></span></code></pre></div>
+<p>This reuses the same <code>~/.batchtools.condor.tmpl</code> set up
+above — no separate setup step needed.</p>
 <p><strong>Per run:</strong></p>
 <ol style="list-style-type: decimal">
 <li>
@@ -959,14 +999,14 @@ above:</p>
 frames these functions already expect (the same format
 <code><a href="../reference/get.combined.html">get.combined()</a></code> returns and <code>icon_triplets</code>
 uses):</p>
-<div class="sourceCode" id="cb38"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb39"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></span><span class="op">(</span><span class="va">icon_triplets</span>, <span class="st">"triplet_data.rds"</span><span class="op">)</span></span></code></pre></div>
 </li>
 <li>
 <p>Copy <code>params_template.yml</code> and edit it for your run —
 the shipped copy documents every field inline:</p>
-<div class="sourceCode" id="cb39"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" tabindex="-1"></a><span class="fu">cp</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "params_template.yml", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
-<span id="cb39-2"><a href="#cb39-2" tabindex="-1"></a>   my_params.yml</span></code></pre></div>
+<div class="sourceCode" id="cb40"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" tabindex="-1"></a><span class="fu">cp</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "params_template.yml", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
+<span id="cb40-2"><a href="#cb40-2" tabindex="-1"></a>   my_params.yml</span></code></pre></div>
 </li>
 <li>
 <p>Run the driver script. Since it only <em>orchestrates</em> —
@@ -974,8 +1014,8 @@ every actual embedding fit runs as its own Condor job — it’s safe to run
 directly on the submit node inside a persistent session
 (<code>screen</code>/<code>tmux</code>/<code>nohup</code>) rather than
 as a Condor job itself:</p>
-<div class="sourceCode" id="cb40"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" tabindex="-1"></a><span class="ex">Rscript</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "condor_workflow.R", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
-<span id="cb40-2"><a href="#cb40-2" tabindex="-1"></a>  triplet_data.rds my_params.yml</span></code></pre></div>
+<div class="sourceCode" id="cb41"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" tabindex="-1"></a><span class="ex">Rscript</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "condor_workflow.R", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
+<span id="cb41-2"><a href="#cb41-2" tabindex="-1"></a>  triplet_data.rds my_params.yml</span></code></pre></div>
 </li>
 </ol>
 <p>This produces, in the <code>output_dir</code> set in
@@ -1040,85 +1080,17 @@ they describe one coherent embedding space throughout;
 <code>resources</code> can be overridden per stage (e.g. a faster budget
 for the dimensionality search, a more generous one for the final fit) —
 see the comments in <code>params_template.yml</code>.</p>
-</div>
-<div class="section level3">
-<h3 id="running-in-a-container-instead-of-assuming-pre-installed-software">Running in a container, instead of assuming pre-installed
-software<a class="anchor" aria-label="anchor" href="#running-in-a-container-instead-of-assuming-pre-installed-software"></a>
-</h3>
-<p>The setup above assumes R, <code>tripletTools</code>, and the
-<code>triplet-embeddings</code> conda environment are already installed
-on whatever execute node HTCondor matches each job to. If that isn’t
-true everywhere in your pool — or you’d rather not depend on it — this
-repo also ships everything needed to run each job inside a container
-instead, via Apptainer (which CHTC’s execute nodes use to run Docker
-images directly, no separate native build required):</p>
-<pre><code><span><span class="va">Dockerfile</span>                                <span class="co"># builds the runtime image</span></span>
-<span><span class="va">.github</span><span class="op">/</span><span class="va">workflows</span><span class="op">/</span><span class="va">docker</span><span class="op">-</span><span class="va">publish.yml</span>      <span class="co"># builds + publishes it to ghcr.io on push</span></span>
-<span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor_apptainer.tmpl</span>         <span class="co"># batchtools template that uses the image</span></span></code></pre>
-<p>The image layers a base R install, Miniconda, the
-<code>triplet-embeddings</code> conda environment (built via this
-package’s own <code><a href="../reference/setup_python_env.html">setup_python_env()</a></code>, so it’s created exactly
-the way a local install would be), and <code>tripletTools</code> itself
-installed from GitHub. The GitHub Actions workflow builds and pushes it
-to <code>ghcr.io/&lt;org&gt;/&lt;repo&gt;</code> automatically whenever
-<code>Dockerfile</code>, <code>R/</code>, <code>inst/python/</code>,
-<code>inst/requirements.txt</code>, or <code>DESCRIPTION</code> change
-on <code>main</code> — you don’t need Docker installed locally to use
-it, only to debug a failing build.</p>
-<p>To use it, point <code>condor:</code> at the container template
-instead in your <code>params_template.yml</code> copy:</p>
-<div class="sourceCode" id="cb42"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb42-1"><a href="#cb42-1" tabindex="-1"></a><span class="fu">condor</span><span class="kw">:</span></span>
-<span id="cb42-2"><a href="#cb42-2" tabindex="-1"></a><span class="at">  </span><span class="fu">template</span><span class="kw">:</span><span class="at"> ~/.batchtools.condor_apptainer.tmpl</span></span>
-<span id="cb42-3"><a href="#cb42-3" tabindex="-1"></a><span class="at">  </span><span class="fu">workers</span><span class="kw">:</span><span class="at"> </span><span class="dv">80</span></span></code></pre></div>
-<div class="sourceCode" id="cb43"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" tabindex="-1"></a><span class="fu">cp</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "condor_apptainer.tmpl", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
-<span id="cb43-2"><a href="#cb43-2" tabindex="-1"></a>   ~/.batchtools.condor_apptainer.tmpl</span></code></pre></div>
-<p><code>condor_apptainer.tmpl</code> uses HTCondor’s
-<code>container</code> universe with
-<code>container_image = docker://ghcr.io/...</code> — confirmed working
-on UW–Madison CHTC access points. If you’re on a different HTCondor pool
-and it rejects <code>universe = container</code>, the template includes
-a commented-out fallback using the older <code>+SingularityImage</code>
-classad.</p>
-<p><strong>Disk requests are larger than
-<code>condor.tmpl</code>’s.</strong> Pulling and unpacking the container
-image (R + conda + PyTorch) adds several GB on top of whatever the job
-itself transfers, so <code>condor_apptainer.tmpl</code> defaults
-<code>request_disk</code> to <code>8GB</code> instead of
-<code>2GB</code>. <code>params_template.yml</code> deliberately leaves
-<code>request_disk</code> unset under
-<code>defaults:</code>/<code>final_fit:</code> so each template’s own
-default applies rather than one template’s value silently overriding the
-other’s — set it explicitly only if you need to raise it further.</p>
-<p><strong>CHTC staging paths</strong>, if your triplet dataset is large
-enough to need <code>/staging</code> rather than ordinary
-<code>transfer_input_files</code> (CHTC’s general guidance: under 1GB
-per file stays in <code>/home</code>; 1–30GB goes to personal staging):
-personal staging areas are at
-<code>/staging/&lt;first letter of your netid&gt;/&lt;netid&gt;</code>,
-exposed as <code>$STAGING</code> on Access Points and
-<code>$ENV(STAGING)</code> in submit files. A job that reads staging
-directly needs
-<code>requirements = (Target.HasCHTCStaging == true)</code>.</p>
-<p><strong>Avoiding a <code>docker://</code> pull on every job:</strong>
-HTCondor/Apptainer caches the image per execute node, which is fine at
-the job counts this workflow generates (dozens to a few hundred per
-stage). If you’re running this often enough that repeated pulls become a
-bottleneck, build the image into a <code>.sif</code> once and stage it
-instead of pulling from the registry every time — see the commented-out
-alternative at the bottom of <code>condor_apptainer.tmpl</code>, which
-uses CHTC’s OSDF/Pelican staging path convention:</p>
-<pre><code>container_image = osdf:///chtc$ENV(STAGING)/containers/tripletTools_v1.sif
-requirements = (Target.HasCHTCStaging == true)</code></pre>
-<p>Give the <code>.sif</code> a version suffix and update the submit
-template’s path when you rebuild it, rather than overwriting the old
-filename — OSDF/Pelican caches by path, so reusing a filename can serve
-stale content.</p>
+<p>If you’re on a pool where R/<code>tripletTools</code>/the conda
+environment genuinely are pre-installed on every execute node and you’d
+rather not use a container at all, <code>inst/condor/condor.tmpl</code>
+is also shipped as an alternative batchtools template for that case —
+swap it in via <code>condor: template:</code> in your config.</p>
 </div>
 <div class="section level3">
 <h3 id="checking-the-active-plan">Checking the active plan<a class="anchor" aria-label="anchor" href="#checking-the-active-plan"></a>
 </h3>
 <p>At any point you can confirm which plan is in effect:</p>
-<div class="sourceCode" id="cb45"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb42"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># prints a description of the current plan</span></span></code></pre></div>
 <p><code>plan(sequential)</code> (the default) runs everything serially
