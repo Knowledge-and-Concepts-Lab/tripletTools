@@ -40,11 +40,20 @@ ENV CONDA_DIR=/opt/miniconda3
 ENV PATH=${CONDA_DIR}/bin:${PATH}
 ENV RETICULATE_CONDA=${CONDA_DIR}/bin/conda
 
+# Anaconda's `defaults`/`pkgs/main`/`pkgs/r` channels now require accepting
+# a Terms of Service before conda will use them at all, which blocks any
+# non-interactive `conda create`/`conda install` in CI -- even ones that
+# only ask for conda-forge, since conda still consults the configured
+# default channel list unless told otherwise. Nothing this image installs
+# needs `defaults`/`pkgs/main`/`pkgs/r` (everything in
+# inst/requirements.txt comes from conda-forge or the pytorch channel), so
+# drop it entirely rather than accepting the ToS. See
+# https://www.anaconda.com/docs/tools/working-with-conda/channels
 RUN curl -fsSL -o /tmp/miniconda.sh \
       https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
     && bash /tmp/miniconda.sh -b -p ${CONDA_DIR} \
     && rm /tmp/miniconda.sh \
-    && conda config --system --set always_yes yes \
+    && printf 'always_yes: true\nchannels:\n  - conda-forge\n' > ${CONDA_DIR}/.condarc \
     && conda clean -afy
 
 # ---- R package dependencies -------------------------------------------------
