@@ -17,6 +17,7 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_failed_catch.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_fast_responders.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_incomplete.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_embedding_restart.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.group.list.mean.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.html</loc></url>
@@ -37,6 +38,7 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/pacc.by.cluster.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_cis.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/prepare_triplet_matrices.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/process_choices.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_legacy.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.html</loc></url>
@@ -45,6 +47,8 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_learning_curve.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_embedding_list.html</loc></url>

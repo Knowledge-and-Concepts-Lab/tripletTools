@@ -18,6 +18,8 @@
   : Exclude participants with suspiciously fast mean reaction times
 - [`filter_incomplete()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_incomplete.md)
   : Exclude participants with too few trials
+- [`fit_embedding_restart()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_embedding_restart.md)
+  : Fit one embedding restart and summarize it as a single result row
 - [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
   : Get combined data
 - [`get.group.list.mean()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.group.list.mean.md)
@@ -56,6 +58,9 @@
   : Plot column means and confidence intervals
 - [`plot_pics()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.md)
   : Plot pictures in a scatterplot
+- [`prepare_triplet_matrices()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/prepare_triplet_matrices.md)
+  : Build train/test triplet matrices from a list of participant data
+  frames
 - [`process_choices()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/process_choices.md)
   : Clean raw choice strings from jsPsych CSV output
 - [`read_legacy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_legacy.md)
@@ -72,6 +77,10 @@
   : Set up the Python environment for triplet embeddings
 - [`strsplit1()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.md)
   : Split a string
+- [`summarize_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.md)
+  : Summarize per-restart dimensionality-search results
+- [`summarize_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_learning_curve.md)
+  : Summarize per-restart learning-curve results
 - [`test.model()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.md)
   : Test embedding model predictions.
 - [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
