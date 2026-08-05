@@ -243,42 +243,6 @@ estimate_dimensionality <- function(triplet_list,
   geometry <- match.arg(geometry)
   if (is.null(best_d_norm_penalty)) best_d_norm_penalty <- norm_penalty
 
-  # Build X_train / X_test matrices from a list of participant data frames
-  .prepare_matrices <- function(dfs) {
-    all_items <- sort(unique(unlist(lapply(dfs, function(df) {
-      c(df$Center, df$Left, df$Right)
-    }))))
-
-    combined <- do.call(rbind, lapply(dfs, function(df) {
-      df     <- df[!is.na(df$sampleSet), ]
-      winner <- ifelse(df$Answer == df$Left, df$Left, df$Right)
-      loser  <- ifelse(df$Answer == df$Left, df$Right, df$Left)
-      data.frame(
-        head      = match(df$Center, all_items) - 1L,
-        winner    = match(winner,    all_items) - 1L,
-        loser     = match(loser,     all_items) - 1L,
-        sampleSet = df$sampleSet,
-        stringsAsFactors = FALSE
-      )
-    }))
-
-    train_rows <- combined$sampleSet == "train"
-    test_rows  <- combined$sampleSet == "test"
-
-    if (!any(train_rows) || !any(test_rows)) {
-      set.seed(seed)
-      shuffled  <- combined[sample(nrow(combined)), ]
-      split_idx <- floor(0.7 * nrow(shuffled))
-      X_train <- as.matrix(shuffled[seq_len(split_idx), c("head", "winner", "loser")])
-      X_test  <- as.matrix(shuffled[seq(split_idx + 1L, nrow(shuffled)), c("head", "winner", "loser")])
-    } else {
-      X_train <- as.matrix(combined[train_rows, c("head", "winner", "loser")])
-      X_test  <- as.matrix(combined[test_rows,  c("head", "winner", "loser")])
-    }
-
-    list(X_train = X_train, X_test = X_test)
-  }
-
   # Run the (d, restart) grid search on pre-built matrices
   .run_grid <- function(X_train, X_test) {
     jobs <- do.call(rbind, lapply(dims, function(d) {
@@ -292,24 +256,22 @@ estimate_dimensionality <- function(triplet_list,
         message(sprintf("[estimate_dimensionality] d = %d, restart %d/%d",
                         job$d, job$restart, n_restarts))
       }
-      out <- train_embedding(
+      row <- fit_embedding_restart(
         X_train      = X_train,
         X_test       = X_test,
         d            = job$d,
+        random_state = job$random_state,
         max_epochs   = max_epochs,
         tolerance    = tolerance,
         tol_window   = tol_window,
         device       = device,
-        random_state = as.integer(job$random_state),
-        print_every  = as.integer(max_epochs),
         geometry     = geometry,
         radius       = radius,
         norm_penalty = norm_penalty
       )
-      best <- out$history[which.min(out$history$test_loss), ]
       data.frame(d = job$d, restart = job$restart,
-                 loss = out$loss, accuracy = best$test_acc, epoch = out$epoch,
-                 norm_ratio = best$norm_ratio,
+                 loss = row$loss, accuracy = row$accuracy, epoch = row$epoch_stopped,
+                 norm_ratio = row$norm_ratio,
                  stringsAsFactors = FALSE)
     }
 
@@ -335,43 +297,23 @@ estimate_dimensionality <- function(triplet_list,
     results_df <- results_df[order(results_df$d, results_df$restart), ]
     row.names(results_df) <- NULL
 
-    summary_df <- do.call(rbind, lapply(dims, function(d) {
-      sub <- results_df[results_df$d == d, ]
-      data.frame(
-        d               = d,
-        mean_loss       = mean(sub$loss),
-        min_loss        = min(sub$loss),
-        sd_loss         = if (nrow(sub) > 1L) stats::sd(sub$loss) else NA_real_,
-        mean_accuracy   = mean(sub$accuracy),
-        sd_accuracy     = if (nrow(sub) > 1L) stats::sd(sub$accuracy) else NA_real_,
-        mean_norm_ratio = mean(sub$norm_ratio),
-        max_norm_ratio  = max(sub$norm_ratio),
-        stringsAsFactors = FALSE
-      )
-    }))
-
     # best_d_norm_penalty defaults to norm_penalty (resolved above), so
     # penalized_loss == mean_loss unless norm_penalty is also nonzero or
     # the caller passed an explicit, different best_d_norm_penalty.
-    summary_df$penalized_loss <- summary_df$mean_loss +
-      best_d_norm_penalty * (summary_df$max_norm_ratio - 1)
-
-    best_idx  <- which.min(summary_df$penalized_loss)
-    best_se   <- summary_df$sd_loss[best_idx] / sqrt(n_restarts)
-    threshold <- summary_df$penalized_loss[best_idx] + best_se
-    eligible  <- summary_df$d[summary_df$penalized_loss <= threshold]
-    summary_df$best_d <- summary_df$d == min(eligible)
+    summary_df <- summarize_dimensionality(
+      results_df, n_restarts = n_restarts, best_d_norm_penalty = best_d_norm_penalty
+    )
 
     list(results = results_df, summary = summary_df)
   }
 
   if (group) {
-    mats <- .prepare_matrices(triplet_list)
+    mats <- prepare_triplet_matrices(triplet_list, seed = seed)
     .run_grid(mats$X_train, mats$X_test)
   } else {
     result <- lapply(names(triplet_list), function(pid) {
       if (verbose) message(sprintf("[estimate_dimensionality] participant: %s", pid))
-      mats <- .prepare_matrices(list(triplet_list[[pid]]))
+      mats <- prepare_triplet_matrices(list(triplet_list[[pid]]), seed = seed)
       .run_grid(mats$X_train, mats$X_test)
     })
     setNames(result, names(triplet_list))

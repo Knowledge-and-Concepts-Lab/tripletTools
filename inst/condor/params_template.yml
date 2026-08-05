@@ -2,25 +2,37 @@
 # tripletTools Condor workflow configuration
 #
 # Copy this file, edit the fields below, and pass it as the second argument
-# to condor_workflow.R:
+# to condor_workflow.py on the submit node:
 #
-#   Rscript condor_workflow.R my_triplet_list.rds my_params.yml
+#   python3 condor_workflow.py my_triplet_data.csv my_params.yml
 #
-# Fields under `defaults:` apply to all three stages (dimensionality search,
-# learning curve, final fit) unless overridden inside that stage's own
-# block. seed/geometry/radius/norm_penalty are shared across all stages on
-# purpose, so the three stages describe the same embedding space.
+# No R installation is needed on the submit node -- only Python 3 and
+# PyYAML (pip install --user pyyaml). Every fit runs inside the
+# tripletTools container image via HTCondor's container universe.
+#
+# Fields under `defaults:` apply to all three stages (dimensionality
+# search, learning curve, final fit) unless overridden inside that
+# stage's own block. seed/geometry/radius/norm_penalty are shared across
+# all stages on purpose, so the three stages describe the same embedding
+# space.
 # ---------------------------------------------------------------------------
 
-# Directory where output CSVs are written. Created if it doesn't exist.
+# Directory (on the submit node) where all stage outputs, summaries, and
+# the final embedding are written. Created if it doesn't exist.
 output_dir: condor_output
 
-# Base random seed. Each restart derives its own seed from this, so runs
-# are independently reproducible.
+# Base random seed. prepare_triplet_matrices() (and, for the learning
+# curve, the shuffle-before-fraction-prefix step) uses this directly, so
+# every job within a stage sees the same train/test split. Each job's own
+# model-fit random_state is then derived from this seed automatically --
+# see condor_workflow.py's module docstring for the exact formula.
 seed: 1
 
 # Embedding geometry: "euclidean" or "sphere". See train_embedding()'s
 # "Spherical embeddings" section for what geometry = "sphere" means.
+# Note: the learning-curve stage always fits in euclidean geometry with
+# radius 1, matching estimate_learning_curve()'s own hardcoded defaults --
+# these two fields only affect the dimensionality-search and final fit.
 geometry: euclidean
 radius: 1
 
@@ -30,27 +42,17 @@ radius: 1
 # section before setting this above 0.
 norm_penalty: 0
 
-# --- HTCondor settings ------------------------------------------------------
+# --- HTCondor settings -------------------------------------------------------
 condor:
-  # Path to the batchtools cluster template. ~ is expanded to your home
-  # directory on the submit node.
-  #
-  # By convention this is where the "HTCondor cluster" section of the
-  # vignette has you save inst/condor/condor_apptainer.tmpl, which runs
-  # every job inside the tripletTools container image (see the Dockerfile
-  # and .github/workflows/docker-publish.yml at the repo root) rather than
-  # assuming R/tripletTools/the conda env are pre-installed on whatever
-  # execute node the job lands on -- on a shared/heterogeneous pool like
-  # CHTC's, that assumption essentially never holds.
-  #
-  # inst/condor/condor.tmpl (pre-installed execute nodes, no container) is
-  # also shipped as an alternative for the rare pool where it genuinely is
-  # pre-installed everywhere; point this at a copy of that instead if so.
-  template: ~/.batchtools.condor.tmpl
-  # Maximum number of simultaneous Condor jobs across all three stages.
-  workers: 80
+  # docker:// reference to the tripletTools container image, built and
+  # published by .github/workflows/docker-publish.yml at the repo root.
+  # Every job (all three stages) runs inside this image via
+  # universe = container -- no R, conda, or tripletTools installation is
+  # assumed on whatever execute node the job lands on, which matters on a
+  # shared/heterogeneous pool like CHTC's.
+  container_image: docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest
 
-# --- Shared training defaults -----------------------------------------------
+# --- Shared training defaults ------------------------------------------------
 # Any of these may be overridden inside dimensionality:/learning_curve:/
 # final_fit: below.
 defaults:
@@ -61,17 +63,11 @@ defaults:
   resources:
     request_cpus: 1
     request_memory: 4GB
-    # request_disk is deliberately left unset here: condor.tmpl and
-    # condor_apptainer.tmpl each fall back to a different sensible default
-    # (2GB vs. 8GB, since the container template's disk footprint also has
-    # to cover the pulled/unpacked image) when it isn't set explicitly.
-    # Uncomment to force a specific value for both templates:
-    # request_disk: 2GB
-    # Only read by condor_apptainer.tmpl; ignored by condor.tmpl.
-    # container_image: docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest
+    request_disk: 8GB   # covers the pulled/unpacked container image
 
-# --- Stage 1: dimensionality search -----------------------------------------
-# One Condor job per (dimension, restart) pair -- dims * n_restarts jobs.
+# --- Stage 1: dimensionality search ------------------------------------------
+# One Condor job per (dimension, restart) pair -- dims * n_restarts jobs,
+# submitted together as a single `queue ... from (...)` block.
 dimensionality:
   dims: "1:8"           # or a list, e.g. [1, 2, 3, 4, 6, 8]
   n_restarts: 10
@@ -100,5 +96,4 @@ final_fit:
   resources:
     request_cpus: 1
     request_memory: 8GB
-    # See the note on request_disk under defaults: above -- left unset so
-    # each template's own default applies.
+    request_disk: 8GB

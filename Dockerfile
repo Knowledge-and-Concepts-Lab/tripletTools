@@ -58,16 +58,18 @@ RUN curl -fsSL -o /tmp/miniconda.sh \
 
 # ---- R package dependencies -------------------------------------------------
 # Only what's needed at *runtime* on an execute node: the package's own
-# Imports, plus the Suggests actually used by the Condor workflow
-# (reticulate, future/future.apply/future.batchtools, progressr, yaml).
+# Imports, plus reticulate (the Python backend) and remotes (to install
+# tripletTools itself below). condor_fit.R -- the only R entry point the
+# Condor workflow runs inside this image -- calls package functions
+# directly, not estimate_dimensionality()/estimate_learning_curve()'s
+# future-based parallelism, so future/future.apply aren't needed here.
 # knitr/rmarkdown/testthat are build/dev-time only and deliberately omitted
 # to keep the image smaller.
 RUN Rscript -e '\
     install.packages(c( \
       "ape", "png", "vegan", "data.table", "dplyr", "magrittr", "readr", \
       "stringr", "rlang", \
-      "reticulate", "future", "future.apply", "future.batchtools", \
-      "progressr", "yaml", "remotes" \
+      "reticulate", "remotes" \
     ), repos = "https://cloud.r-project.org")'
 
 # ---- tripletTools itself ----------------------------------------------------

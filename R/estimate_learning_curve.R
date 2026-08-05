@@ -171,42 +171,6 @@ estimate_learning_curve <- function(triplet_list,
                                     group      = TRUE,
                                     norm_penalty = 0) {
 
-  # Build X_train / X_test matrices from a list of participant data frames
-  .prepare_matrices <- function(dfs) {
-    all_items <- sort(unique(unlist(lapply(dfs, function(df) {
-      c(df$Center, df$Left, df$Right)
-    }))))
-
-    combined <- do.call(rbind, lapply(dfs, function(df) {
-      df     <- df[!is.na(df$sampleSet), ]
-      winner <- ifelse(df$Answer == df$Left, df$Left, df$Right)
-      loser  <- ifelse(df$Answer == df$Left, df$Right, df$Left)
-      data.frame(
-        head      = match(df$Center, all_items) - 1L,
-        winner    = match(winner,    all_items) - 1L,
-        loser     = match(loser,     all_items) - 1L,
-        sampleSet = df$sampleSet,
-        stringsAsFactors = FALSE
-      )
-    }))
-
-    train_rows <- combined$sampleSet == "train"
-    test_rows  <- combined$sampleSet == "test"
-
-    if (!any(train_rows) || !any(test_rows)) {
-      set.seed(seed)
-      shuffled  <- combined[sample(nrow(combined)), ]
-      split_idx <- floor(0.7 * nrow(shuffled))
-      X_train <- as.matrix(shuffled[seq_len(split_idx), c("head", "winner", "loser")])
-      X_test  <- as.matrix(shuffled[seq(split_idx + 1L, nrow(shuffled)), c("head", "winner", "loser")])
-    } else {
-      X_train <- as.matrix(combined[train_rows, c("head", "winner", "loser")])
-      X_test  <- as.matrix(combined[test_rows,  c("head", "winner", "loser")])
-    }
-
-    list(X_train = X_train, X_test = X_test)
-  }
-
   # Run the fraction/restart grid search on pre-built matrices
   .run_curve <- function(X_train, X_test) {
     # Shuffle the training pool once so that successive fractions are nested,
@@ -235,24 +199,23 @@ estimate_learning_curve <- function(triplet_list,
       n_rows       <- max(1L, round(job$frac * n_train_pool))
       X_train_frac <- as.matrix(train_df[seq_len(n_rows), ])
 
-      out <- train_embedding(
+      row <- fit_embedding_restart(
         X_train      = X_train_frac,
         X_test       = X_test,
         d            = d,
+        random_state = job$random_state,
         max_epochs   = max_epochs,
         tolerance    = tolerance,
         tol_window   = tol_window,
         device       = device,
-        random_state = as.integer(job$random_state),
-        print_every  = as.integer(max_epochs),
+        geometry     = "euclidean",
+        radius       = 1,
         norm_penalty = norm_penalty
       )
 
-      best <- out$history[which.min(out$history$test_loss), ]
-
       data.frame(fraction = job$frac, n_train = n_rows, restart = job$restart,
-                 loss = best$test_loss, accuracy = best$test_acc, epoch = best$epoch,
-                 norm_ratio = best$norm_ratio,
+                 loss = row$loss, accuracy = row$accuracy, epoch = row$epoch_best,
+                 norm_ratio = row$norm_ratio,
                  stringsAsFactors = FALSE)
     }
 
@@ -278,31 +241,18 @@ estimate_learning_curve <- function(triplet_list,
     results_df <- results_df[order(results_df$fraction, results_df$restart), ]
     row.names(results_df) <- NULL
 
-    summary_df <- do.call(rbind, lapply(fractions, function(f) {
-      sub <- results_df[results_df$fraction == f, ]
-      data.frame(
-        fraction         = f,
-        n_train          = sub$n_train[1],
-        mean_loss        = mean(sub$loss),
-        sd_loss          = if (nrow(sub) > 1L) stats::sd(sub$loss) else NA_real_,
-        mean_accuracy    = mean(sub$accuracy),
-        sd_accuracy      = if (nrow(sub) > 1L) stats::sd(sub$accuracy) else NA_real_,
-        mean_norm_ratio  = mean(sub$norm_ratio),
-        max_norm_ratio   = max(sub$norm_ratio),
-        stringsAsFactors = FALSE
-      )
-    }))
+    summary_df <- summarize_learning_curve(results_df)
 
     list(results = results_df, summary = summary_df)
   }
 
   if (group) {
-    mats <- .prepare_matrices(triplet_list)
+    mats <- prepare_triplet_matrices(triplet_list, seed = seed)
     .run_curve(mats$X_train, mats$X_test)
   } else {
     result <- lapply(names(triplet_list), function(pid) {
       if (verbose) message(sprintf("[estimate_learning_curve] participant: %s", pid))
-      mats <- .prepare_matrices(list(triplet_list[[pid]]))
+      mats <- prepare_triplet_matrices(list(triplet_list[[pid]]), seed = seed)
       .run_curve(mats$X_train, mats$X_test)
     })
     setNames(result, names(triplet_list))
