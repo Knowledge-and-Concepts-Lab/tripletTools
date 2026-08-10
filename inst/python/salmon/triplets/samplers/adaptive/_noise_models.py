@@ -140,6 +140,21 @@ class CKL(TripletDist):
 
     def __init__(self, n=None, d=2, mu=0.05, random_state=None):
         super().__init__(n=n, d=d, random_state=random_state)
+        # mu=0.05's provenance is unclear: it was already this value in the
+        # first commit that vendored this file into tripletTools, with no
+        # comment or citation, and it does not match the salmon package's
+        # own currently-documented CKL default of 1e-4 (see
+        # https://docs.stsievert.com/salmon/generated/salmon.triplets.samplers.CKL.html).
+        # mu is a fixed hyperparameter, not fit jointly with the embedding
+        # (it's a plain float here, not an nn.Parameter) -- and it can't be,
+        # since p(mu, win2, lose2) is exactly homogeneous of degree 0 in all
+        # three jointly, so scale and mu trade off along an unidentifiable
+        # direction if both are left free. Fixing mu is what pins down the
+        # embedding's absolute scale; this default's specific numeric value
+        # has no known principled derivation. See the tripletTools GitHub
+        # issue tracker for a note to investigate via a mu-sensitivity study
+        # (compare held-out test_loss/test_acc across a range of mu) before
+        # relying on absolute-scale or near-tie behavior from this model.
         self.mu = mu
 
     def _probs(self, win2, lose2):
