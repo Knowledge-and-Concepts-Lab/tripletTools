@@ -199,7 +199,11 @@ class TestSubmitFileGeneration(unittest.TestCase):
             text = path.read_text()
             self.assertIn("universe        = container", text)
             self.assertIn("container_image = docker://ghcr.io/example/image:latest", text)
-            self.assertIn("executable = /usr/local/bin/Rscript", text)
+            self.assertIn("executable          = /usr/local/bin/Rscript", text)
+            # Without this, condor_submit stats `executable` on the submit
+            # node and fails -- Rscript only ever exists inside the
+            # container. Regression check for that failure mode.
+            self.assertIn("transfer_executable = False", text)
             self.assertIn("request_cpus   = 2", text)
             self.assertIn("request_memory = 8GB", text)
             self.assertTrue(text.rstrip().endswith("queue"))

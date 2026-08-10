@@ -118,7 +118,12 @@ def write_submit_file(path, *, container_image, arguments, transfer_input_files,
     content = f"""universe        = container
 container_image = {container_image}
 
-executable = /usr/local/bin/Rscript
+# Rscript lives inside the container image, not on the submit node -- without
+# this, condor_submit stats `executable` locally before submission and fails
+# with "Can't access executable file" even though the path is only ever
+# resolved inside the container at runtime.
+executable          = /usr/local/bin/Rscript
+transfer_executable = False
 arguments  = {arguments}
 
 transfer_input_files    = {transfer_input_files}
