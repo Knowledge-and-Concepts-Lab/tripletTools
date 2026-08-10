@@ -195,6 +195,7 @@ class TestSubmitFileGeneration(unittest.TestCase):
                 transfer_input_files="condor_fit.R, data.csv",
                 log="test.log", output="test.out", error="test.err",
                 resources={"request_cpus": 2, "request_memory": "8GB"},
+                initialdir=tmp,
             )
             text = path.read_text()
             self.assertIn("universe        = container", text)
@@ -204,6 +205,11 @@ class TestSubmitFileGeneration(unittest.TestCase):
             # node and fails -- Rscript only ever exists inside the
             # container. Regression check for that failure mode.
             self.assertIn("transfer_executable = False", text)
+            # Without this, HTCondor's default new-output-file transfer
+            # (e.g. a job's bare --output=result_$(Process).csv) lands in
+            # whatever directory condor_submit happened to run from, not
+            # the stage directory read_result_row() looks in afterwards.
+            self.assertIn(f"initialdir = {tmp}", text)
             self.assertIn("request_cpus   = 2", text)
             self.assertIn("request_memory = 8GB", text)
             self.assertTrue(text.rstrip().endswith("queue"))
@@ -228,6 +234,7 @@ class TestSubmitFileGeneration(unittest.TestCase):
                 transfer_input_files="condor_fit.R, data.csv",
                 log="dim.log", output="dim_$(Process).out", error="dim_$(Process).err",
                 resources={},
+                initialdir=tmp,
                 queue_statement=queue_stmt,
             )
             text = path.read_text()

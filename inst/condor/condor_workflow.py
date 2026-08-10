@@ -109,12 +109,19 @@ def condor_arg(value):
 # ---------------------------------------------------------------------------
 
 def write_submit_file(path, *, container_image, arguments, transfer_input_files,
-                       log, output, error, resources, queue_statement="queue\n"):
+                       log, output, error, resources, initialdir,
+                       queue_statement="queue\n"):
     """queue_statement is the literal trailing text of the submit file --
     either a plain "queue\\n" for a single job, or a multi-line
     "queue var1,var2,... from (\\n  ...\\n)\\n" block for many jobs sharing
     one submit description (see run_dimensionality_stage/
-    run_learning_curve_stage)."""
+    run_learning_curve_stage).
+
+    initialdir must be the (absolute) stage directory: it's where HTCondor
+    transfers back any new output files a job creates (e.g. result_$(Process).csv
+    written via a bare relative --output=... argument) -- without it, that
+    default transfer targets whatever directory condor_submit happened to be
+    run from, not the stage directory read_result_row() looks in afterwards."""
     content = f"""universe        = container
 container_image = {container_image}
 
@@ -125,6 +132,8 @@ container_image = {container_image}
 executable          = /usr/local/bin/Rscript
 transfer_executable = False
 arguments  = {arguments}
+
+initialdir = {initialdir}
 
 transfer_input_files    = {transfer_input_files}
 should_transfer_files   = YES
@@ -295,6 +304,7 @@ def run_dimensionality_stage(work_dir, data_path, config, seed, geometry, radius
         output=str(stage_dir / "dim_$(Process).out"),
         error=str(stage_dir / "dim_$(Process).err"),
         resources=resources_config(dim_cfg, config),
+        initialdir=str(stage_dir),
         queue_statement=queue_from_block(["d", "restart", "random_state"], jobs),
     )
 
@@ -344,6 +354,7 @@ def run_learning_curve_stage(work_dir, data_path, config, seed, best_d, norm_pen
         output=str(stage_dir / "lc_$(Process).out"),
         error=str(stage_dir / "lc_$(Process).err"),
         resources=resources_config(lc_cfg, config),
+        initialdir=str(stage_dir),
         queue_statement=queue_from_block(["fraction", "restart", "random_state"], jobs),
     )
 
@@ -383,6 +394,7 @@ def run_final_stage(work_dir, data_path, config, seed, best_d, geometry, radius,
         output=str(stage_dir / "final.out"),
         error=str(stage_dir / "final.err"),
         resources=resources_config(ff_cfg, config),
+        initialdir=str(stage_dir),
     )
 
     submit_and_wait(submit_path, stage_dir / "final.log", "Stage 3 (final embedding)")
@@ -413,8 +425,15 @@ def main():
     with open(args.params) as f:
         config = yaml.safe_load(f) or {}
 
-    work_dir = Path(config.get("output_dir", "condor_output"))
+    # Resolve to absolute paths up front: once a stage sets initialdir (see
+    # write_submit_file()), HTCondor resolves every other relative path in
+    # that submit file (log/output/error/transfer_input_files) against
+    # initialdir rather than the directory condor_workflow.py was run from,
+    # so anything that must still mean "relative to here" has to be made
+    # absolute before it reaches write_submit_file().
+    work_dir = Path(config.get("output_dir", "condor_output")).resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
+    args.triplet_data = args.triplet_data.resolve()
 
     seed         = int(config.get("seed", 1))
     geometry     = config.get("geometry", "euclidean")
