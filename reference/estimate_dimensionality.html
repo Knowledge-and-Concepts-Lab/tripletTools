@@ -56,6 +56,7 @@ dimensionality that achieves near-minimum hold-out loss.</p>
 <span>  <span class="va">triplet_list</span>,</span>
 <span>  dims <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">8</span>,</span>
 <span>  n_restarts <span class="op">=</span> <span class="fl">10L</span>,</span>
+<span>  internal_test_frac <span class="op">=</span> <span class="fl">0.1</span>,</span>
 <span>  max_epochs <span class="op">=</span> <span class="fl">50000L</span>,</span>
 <span>  tolerance <span class="op">=</span> <span class="fl">1e-04</span>,</span>
 <span>  tol_window <span class="op">=</span> <span class="fl">10000L</span>,</span>
@@ -90,6 +91,18 @@ Default <code>1:8</code>.</p></dd>
 <dd><p>Number of independent random restarts per dimensionality.
 Default <code>10L</code>.  More restarts give a more reliable loss estimate but
 multiply compute time.</p></dd>
+
+
+<dt id="arg-internal-test-frac">internal_test_frac<a class="anchor" aria-label="anchor" href="#arg-internal-test-frac"></a></dt>
+<dd><p>Proportion of the <code>sampleSet == "train"</code>
+pool held out, freshly per restart, as that restart's
+<code>internal_test</code> evaluation set – see <code><a href="sample_internal_test.html">sample_internal_test</a></code>
+and the <em>Internal test set and restart variability</em> section above.
+Must satisfy <code>0 &lt; internal_test_frac &lt; 1</code>.  Default <code>0.1</code>.
+What matters for a stable per-restart loss estimate is the absolute
+number of held-out triplets, not the fraction, so this can often be set
+lower than a conventional 20% validation split once the training pool is
+in the thousands of triplets.</p></dd>
 
 
 <dt id="arg-max-epochs">max_epochs<a class="anchor" aria-label="anchor" href="#arg-max-epochs"></a></dt>
@@ -186,13 +199,17 @@ themselves.</p></dd>
 elements:</p><dl><dt><code>results</code></dt>
 <dd><p>Data frame with one row per (dimension, restart) and
 columns <code>d</code>, <code>restart</code>, <code>loss</code>, <code>accuracy</code>,
-<code>epoch</code>, <code>norm_ratio</code>.  <code>loss</code> and <code>accuracy</code> are
-the hold-out test loss and accuracy at the epoch of best test loss.
-<code>norm_ratio</code> is the ratio of the largest to median per-item
+<code>epoch</code>, <code>norm_ratio</code>, <code>n_fit</code>, <code>n_internal_test</code>.
+<code>loss</code> and <code>accuracy</code> are that restart's <code>internal_test</code>
+loss and accuracy (see the <em>Internal test set and restart
+variability</em> section above) at the epoch of best <code>internal_test</code>
+loss.  <code>norm_ratio</code> is the ratio of the largest to median per-item
 embedding norm at that same epoch — see the <em>Diagnosing outlier
 items</em> section of <code><a href="train_embedding.html">train_embedding</a></code>.  <code>norm_ratio</code>
 is only meaningful for <code>geometry = "euclidean"</code>; always
-<code>~1</code> under <code>geometry = "sphere"</code>.</p></dd>
+<code>~1</code> under <code>geometry = "sphere"</code>.  <code>n_fit</code>/
+<code>n_internal_test</code> are the row counts of that restart's two
+subsets, for transparency.</p></dd>
 
 <dt><code>summary</code></dt>
 <dd><p>Data frame with one row per dimension and columns
@@ -260,6 +277,30 @@ the global minimum mean loss is flagged as <code>best_d = TRUE</code>.  This
 tends to favour parsimony when several dimensions achieve similar loss.</p>
     </div>
     <div class="section level2">
+    <h2 id="internal-test-set-and-restart-variability">Internal test set and restart variability<a class="anchor" aria-label="anchor" href="#internal-test-set-and-restart-variability"></a></h2>
+
+
+<p>Every restart at every <code>d</code> evaluates against its own freshly
+resampled <code>internal_test</code> subset of the <code>sampleSet == "train"</code>
+pool (see <code><a href="sample_internal_test.html">sample_internal_test</a></code>), rather than one fixed
+hold-out shared by every restart. This matters for <code>sd_loss</code>/the
+one-standard-error rule above: if every restart were scored against the
+identical hold-out set, restart-to-restart variation in <code>loss</code> would
+reflect only optimization/initialization noise, not genuine uncertainty
+about whether one dimension really generalizes better than another –
+understating <code>sd_loss</code> and making the one-SE rule pick larger
+dimensions than are actually well-supported. Resampling <code>internal_test</code>
+per restart (with <code>internal_test_frac</code> controlling its size) gives
+<code>sd_loss</code> a genuine data-resampling component. A given restart's
+<code>internal_test</code> sample is identical across every <code>d</code> (both are
+derived from the same seed, independent of <code>d</code>), so comparisons
+across dimensions for a matched restart stay paired/apples-to-apples.</p>
+<p>The <code>sampleSet == "test"</code> pool is not used anywhere in this function
+– it is reserved untouched for evaluating the finally-selected embedding
+(e.g. via <code><a href="run_group_embedding_from_list.html">run_group_embedding_from_list</a></code>), never for
+dimensionality selection itself.</p>
+    </div>
+    <div class="section level2">
     <h2 id="item-indexing">Item indexing<a class="anchor" aria-label="anchor" href="#item-indexing"></a></h2>
 
 
@@ -275,9 +316,13 @@ participant using only their own trials.</p>
 
 <p>Trials with <code>NA</code> in the <code>sampleSet</code> column (attention-check
 trials) are excluded before fitting.  The <code>sampleSet</code> column
-(<code>"train"</code> / <code>"test"</code>) is used to split data for early stopping.
-If no <code>sampleSet</code> column is present or all values are <code>NA</code>, a
-70/30 random train/test split is used instead.</p>
+(<code>"train"</code> / <code>"test"</code>) determines the pool this function draws
+from: only <code>"train"</code>-labeled trials are ever used (see the
+<em>Internal test set and restart variability</em> section above for what
+happens within that pool, and why <code>"test"</code>-labeled trials are never
+touched here).  If no <code>sampleSet</code> column is present or all values are
+<code>NA</code>, a 70/30 random train/test split is used instead, and the same
+rule applies to the resulting <code>"train"</code> portion.</p>
     </div>
 
     <div class="section level2">

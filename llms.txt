@@ -94,6 +94,9 @@ All functions are documented in `tripletTools_manual.pdf`
   : Run the embedding pipeline from a triplet data list
 - [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
   : Compute a group-level embedding from a triplet data list
+- [`sample_internal_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
+  : Split a triplet matrix into a fitting subset and an internal-test
+  subset
 - [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md)
   : Set up the Python environment for triplet embeddings
 - [`strsplit1()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.md)

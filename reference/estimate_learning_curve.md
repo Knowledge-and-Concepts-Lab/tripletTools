@@ -13,6 +13,7 @@ estimate_learning_curve(
   d = 5L,
   by = 0.1,
   n_restarts = 10L,
+  internal_test_frac = 0.1,
   max_epochs = 50000L,
   tolerance = 1e-04,
   tol_window = 10000L,
@@ -50,6 +51,18 @@ estimate_learning_curve(
   More restarts give a more reliable estimate at each fraction but
   multiply compute time.
 
+- internal_test_frac:
+
+  Proportion of the `sampleSet == "train"` pool held out, freshly per
+  restart, as that restart's `internal_test` evaluation set – see
+  [`sample_internal_test`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
+  and the *Sampling scheme* section above. Must satisfy
+  `0 < internal_test_frac < 1`. Default `0.1`. What matters for a stable
+  per-restart loss estimate is the absolute number of held-out triplets,
+  not the fraction, so this can often be set lower than a conventional
+  20% validation split once the training pool is in the thousands of
+  triplets.
+
 - max_epochs:
 
   Maximum training epochs per restart. Default `50000L`.
@@ -70,9 +83,9 @@ estimate_learning_curve(
 
 - seed:
 
-  Base integer seed for reproducibility. Controls both the initial
-  shuffle that defines the nested training subsets and the per-restart
-  initialization seeds. Default `1L`.
+  Base integer seed for reproducibility. Controls the per-restart
+  internal_test split, the nested-fraction shuffle within each restart,
+  and the per-restart initialization seeds. Default `1L`.
 
 - verbose:
 
@@ -106,11 +119,15 @@ When `group = TRUE` (the default), a named list with two elements:
 
   Data frame with one row per (fraction, restart) and columns
   `fraction`, `n_train`, `restart`, `loss`, `accuracy`, `epoch`,
-  `norm_ratio`. `loss` and `accuracy` are the hold-out test loss and
-  accuracy at the epoch of best test loss; `norm_ratio` is the ratio of
-  the largest to median per-item embedding norm at that same epoch — see
-  the *Diagnosing outlier items* section of
+  `norm_ratio`, `n_internal_test`. `loss` and `accuracy` are that
+  restart's `internal_test` loss and accuracy (see the *Sampling scheme*
+  section above) at the epoch of best `internal_test` loss; `norm_ratio`
+  is the ratio of the largest to median per-item embedding norm at that
+  same epoch — see the *Diagnosing outlier items* section of
   [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md).
+  `n_train` is the row count actually fit on at that fraction;
+  `n_internal_test` is that restart's held-out row count (constant
+  across fractions within a restart).
 
 - `summary`:
 
@@ -140,11 +157,22 @@ so the item space may differ across participants.
 
 ## Sampling scheme
 
-The training pool is shuffled once (controlled by `seed`) and then
-fractions are taken as nested, cumulative prefixes of that shuffled
-order: the 20\\ on up to 100\\ amount of training data, not which trials
-happened to be sampled. The hold-out set used for evaluation is the same
-at every fraction and is never subsampled.
+For each restart, a fresh `internal_test` subset of the
+`sampleSet == "train"` pool is drawn first (see
+[`sample_internal_test`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
+and `internal_test_frac` below); the remainder is shuffled and fractions
+are taken as nested, cumulative prefixes of that shuffled order: the
+20\\ the 10\\ between fractions reflect only the amount of training
+data, not which trials happened to be sampled, *within a restart*. The
+`internal_test` evaluation set is held constant across every fraction
+*within a restart* (so fraction comparisons stay apples-to-apples), but
+is resampled independently *across restarts* – this is what gives
+`sd_loss` in `summary` a genuine data-resampling component rather than
+reflecting only optimization noise on a single fixed hold-out. The
+`sampleSet == "test"` pool is never touched by this function at all; it
+is reserved for evaluating the finally-selected embedding elsewhere
+(e.g.
+[`run_group_embedding_from_list`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)).
 
 ## Parallelism
 
@@ -173,8 +201,11 @@ using only their own trials.
 
 Trials with `NA` in the `sampleSet` column (attention-check trials) are
 excluded before fitting. The `sampleSet` column (`"train"` / `"test"`)
-defines the hold-out set. If no `sampleSet` column is present or all
-values are `NA`, a 70/30 random train/test split is used instead.
+determines the pool this function draws from – see the *Sampling scheme*
+section above for how the `"train"` portion is used and why `"test"`
+never is. If no `sampleSet` column is present or all values are `NA`, a
+70/30 random train/test split is used instead, and the same rule applies
+to the resulting `"train"` portion.
 
 ## Examples
 

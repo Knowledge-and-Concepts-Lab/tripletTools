@@ -57,6 +57,7 @@ hold-out loss and accuracy improve as more training data is added.</p>
 <span>  d <span class="op">=</span> <span class="fl">5L</span>,</span>
 <span>  by <span class="op">=</span> <span class="fl">0.1</span>,</span>
 <span>  n_restarts <span class="op">=</span> <span class="fl">10L</span>,</span>
+<span>  internal_test_frac <span class="op">=</span> <span class="fl">0.1</span>,</span>
 <span>  max_epochs <span class="op">=</span> <span class="fl">50000L</span>,</span>
 <span>  tolerance <span class="op">=</span> <span class="fl">1e-04</span>,</span>
 <span>  tol_window <span class="op">=</span> <span class="fl">10000L</span>,</span>
@@ -97,6 +98,18 @@ Default <code>10L</code>. More restarts give a more reliable estimate at each
 fraction but multiply compute time.</p></dd>
 
 
+<dt id="arg-internal-test-frac">internal_test_frac<a class="anchor" aria-label="anchor" href="#arg-internal-test-frac"></a></dt>
+<dd><p>Proportion of the <code>sampleSet == "train"</code>
+pool held out, freshly per restart, as that restart's
+<code>internal_test</code> evaluation set – see <code><a href="sample_internal_test.html">sample_internal_test</a></code>
+and the <em>Sampling scheme</em> section above. Must satisfy
+<code>0 &lt; internal_test_frac &lt; 1</code>. Default <code>0.1</code>. What matters for
+a stable per-restart loss estimate is the absolute number of held-out
+triplets, not the fraction, so this can often be set lower than a
+conventional 20% validation split once the training pool is in the
+thousands of triplets.</p></dd>
+
+
 <dt id="arg-max-epochs">max_epochs<a class="anchor" aria-label="anchor" href="#arg-max-epochs"></a></dt>
 <dd><p>Maximum training epochs per restart. Default <code>50000L</code>.</p></dd>
 
@@ -116,9 +129,10 @@ auto-select: CUDA GPU if available, then Apple MPS, then CPU.</p></dd>
 
 
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
-<dd><p>Base integer seed for reproducibility. Controls both the
-initial shuffle that defines the nested training subsets and the
-per-restart initialization seeds. Default <code>1L</code>.</p></dd>
+<dd><p>Base integer seed for reproducibility. Controls the
+per-restart internal_test split, the nested-fraction shuffle within
+each restart, and the per-restart initialization seeds. Default
+<code>1L</code>.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
@@ -149,12 +163,16 @@ section of <code><a href="train_embedding.html">train_embedding</a></code> for d
 elements:</p><dl><dt><code>results</code></dt>
 <dd><p>Data frame with one row per (fraction, restart) and
 columns <code>fraction</code>, <code>n_train</code>, <code>restart</code>, <code>loss</code>,
-<code>accuracy</code>, <code>epoch</code>, <code>norm_ratio</code>. <code>loss</code> and
-<code>accuracy</code> are the hold-out test loss and accuracy at the epoch
-of best test loss; <code>norm_ratio</code> is the ratio of the largest to
-median per-item embedding norm at that same epoch — see the
-<em>Diagnosing outlier items</em> section of
-<code><a href="train_embedding.html">train_embedding</a></code>.</p></dd>
+<code>accuracy</code>, <code>epoch</code>, <code>norm_ratio</code>, <code>n_internal_test</code>.
+<code>loss</code> and <code>accuracy</code> are that restart's <code>internal_test</code>
+loss and accuracy (see the <em>Sampling scheme</em> section above) at the
+epoch of best <code>internal_test</code> loss; <code>norm_ratio</code> is the
+ratio of the largest to median per-item embedding norm at that same
+epoch — see the <em>Diagnosing outlier items</em> section of
+<code><a href="train_embedding.html">train_embedding</a></code>. <code>n_train</code> is the row count
+actually fit on at that fraction; <code>n_internal_test</code> is that
+restart's held-out row count (constant across fractions within a
+restart).</p></dd>
 
 <dt><code>summary</code></dt>
 <dd><p>Data frame with one row per fraction and columns
@@ -188,13 +206,22 @@ so the item space may differ across participants.</p>
     <h2 id="sampling-scheme">Sampling scheme<a class="anchor" aria-label="anchor" href="#sampling-scheme"></a></h2>
 
 
-<p>The training pool is shuffled once (controlled by <code>seed</code>) and then
-fractions are taken as nested, cumulative prefixes of that shuffled order:
-the 20\<!-- % subset contains every trial in the 10\\% subset plus more, and so -->
-on up to 100\<!-- %. This means differences between fractions reflect only the -->
-amount of training data, not which trials happened to be sampled. The
-hold-out set used for evaluation is the same at every fraction and is
-never subsampled.</p>
+<p>For each restart, a fresh <code>internal_test</code> subset of the
+<code>sampleSet == "train"</code> pool is drawn first (see
+<code><a href="sample_internal_test.html">sample_internal_test</a></code> and <code>internal_test_frac</code> below);
+the remainder is shuffled and fractions are taken as nested, cumulative
+prefixes of that shuffled order: the 20\<!-- % subset contains every trial in -->
+the 10\<!-- % subset plus more, and so on up to 100\\%. This means differences -->
+between fractions reflect only the amount of training data, not which
+trials happened to be sampled, <em>within a restart</em>. The
+<code>internal_test</code> evaluation set is held constant across every fraction
+<em>within a restart</em> (so fraction comparisons stay apples-to-apples),
+but is resampled independently <em>across restarts</em> – this is what
+gives <code>sd_loss</code> in <code>summary</code> a genuine data-resampling
+component rather than reflecting only optimization noise on a single
+fixed hold-out. The <code>sampleSet == "test"</code> pool is never touched by
+this function at all; it is reserved for evaluating the finally-selected
+embedding elsewhere (e.g. <code><a href="run_group_embedding_from_list.html">run_group_embedding_from_list</a></code>).</p>
     </div>
     <div class="section level2">
     <h2 id="parallelism">Parallelism<a class="anchor" aria-label="anchor" href="#parallelism"></a></h2>
@@ -228,9 +255,12 @@ participant using only their own trials.</p>
 
 <p>Trials with <code>NA</code> in the <code>sampleSet</code> column (attention-check
 trials) are excluded before fitting. The <code>sampleSet</code> column
-(<code>"train"</code> / <code>"test"</code>) defines the hold-out set. If no
+(<code>"train"</code> / <code>"test"</code>) determines the pool this function draws
+from – see the <em>Sampling scheme</em> section above for how the
+<code>"train"</code> portion is used and why <code>"test"</code> never is. If no
 <code>sampleSet</code> column is present or all values are <code>NA</code>, a 70/30
-random train/test split is used instead.</p>
+random train/test split is used instead, and the same rule applies to the
+resulting <code>"train"</code> portion.</p>
     </div>
 
     <div class="section level2">

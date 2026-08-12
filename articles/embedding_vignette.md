@@ -609,6 +609,35 @@ the *smallest* `d` whose mean loss falls within that margin. This
 favours parsimony — it selects the simplest model that is statistically
 indistinguishable from the best.
 
+For that standard error to mean anything, restarts have to disagree for
+a real reason — not just because of which random initialization the
+optimizer happened to start from. So every restart evaluates against its
+own freshly resampled `internal_test` subset of the training data (see
+`internal_test_frac` below), rather than one fixed hold-out shared by
+every restart. If every restart shared the same hold-out, `sd_loss`
+would reflect only optimization noise and understate real uncertainty,
+which tends to make the one-SE rule pick a higher `d` than is actually
+well-supported — a fit at, say, `d = 5` can always find some
+idiosyncrasy of one particular hold-out to exploit that `d = 3` can’t.
+Resampling per restart gives `sd_loss` a genuine data-resampling
+component instead. A given restart’s `internal_test` sample is identical
+across every `d`, so comparisons between dimensions for a matched
+restart stay apples-to-apples.
+
+`internal_test_frac` (default `0.1`) controls how much of the training
+pool each restart holds out this way. What actually stabilizes the
+per-restart loss estimate is the *absolute* number of held-out triplets,
+not the fraction — with a training pool in the thousands, even 10%
+typically leaves plenty of `internal_test` triplets, so there’s rarely a
+reason to reach for a more conventional 20% split at the cost of
+starving the fit itself of data. The `sampleSet == "test"` items in your
+data are never touched by
+[`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
+at all — they stay reserved for evaluating the finally-selected
+embedding (e.g. via
+[`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)),
+not for choosing `d`.
+
 ### Visualizing the results
 
 A simple plot shows mean loss by dimension with ±1 SD error bars. The
@@ -954,12 +983,17 @@ should use ordinary train/test early stopping over *all* available data.
 
 `seed`, `geometry`, `radius`, and `norm_penalty` in the config apply to
 all three stages, so they describe one coherent embedding space
-throughout; `max_epochs`/`tolerance`/`tol_window`/`device`/Condor
+throughout;
+`max_epochs`/`tolerance`/`tol_window`/`device`/`internal_test_frac`/Condor
 `resources` can be overridden per stage (e.g. a faster budget for the
 dimensionality search, a more generous one for the final fit) — see the
-comments in `params_template.yml`. Reproducibility carries over exactly
+comments in `params_template.yml`. `internal_test_frac` (default `0.1`)
+is only used by the dimensionality and learning-curve stages; see [How
+`best_d` is determined](#how-best_d-is-determined) above for why each
+restart resamples its own `internal_test` subset rather than every
+restart sharing one fixed hold-out. Reproducibility carries over exactly
 from the serial case: given the same `seed`, each job’s `random_state`
-is derived with the identical formula
+(and internal_test split) is derived with the identical formulas
 [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)/[`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)
 use internally, so a Condor run and an in-process call with the same
 seed produce numerically identical fits.

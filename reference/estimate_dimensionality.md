@@ -12,6 +12,7 @@ estimate_dimensionality(
   triplet_list,
   dims = 1:8,
   n_restarts = 10L,
+  internal_test_frac = 0.1,
   max_epochs = 50000L,
   tolerance = 1e-04,
   tol_window = 10000L,
@@ -44,6 +45,18 @@ estimate_dimensionality(
   Number of independent random restarts per dimensionality. Default
   `10L`. More restarts give a more reliable loss estimate but multiply
   compute time.
+
+- internal_test_frac:
+
+  Proportion of the `sampleSet == "train"` pool held out, freshly per
+  restart, as that restart's `internal_test` evaluation set – see
+  [`sample_internal_test`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
+  and the *Internal test set and restart variability* section above.
+  Must satisfy `0 < internal_test_frac < 1`. Default `0.1`. What matters
+  for a stable per-restart loss estimate is the absolute number of
+  held-out triplets, not the fraction, so this can often be set lower
+  than a conventional 20% validation split once the training pool is in
+  the thousands of triplets.
 
 - max_epochs:
 
@@ -142,14 +155,17 @@ When `group = TRUE` (the default), a named list with two elements:
 - `results`:
 
   Data frame with one row per (dimension, restart) and columns `d`,
-  `restart`, `loss`, `accuracy`, `epoch`, `norm_ratio`. `loss` and
-  `accuracy` are the hold-out test loss and accuracy at the epoch of
-  best test loss. `norm_ratio` is the ratio of the largest to median
-  per-item embedding norm at that same epoch — see the *Diagnosing
-  outlier items* section of
+  `restart`, `loss`, `accuracy`, `epoch`, `norm_ratio`, `n_fit`,
+  `n_internal_test`. `loss` and `accuracy` are that restart's
+  `internal_test` loss and accuracy (see the *Internal test set and
+  restart variability* section above) at the epoch of best
+  `internal_test` loss. `norm_ratio` is the ratio of the largest to
+  median per-item embedding norm at that same epoch — see the
+  *Diagnosing outlier items* section of
   [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md).
   `norm_ratio` is only meaningful for `geometry = "euclidean"`; always
-  `~1` under `geometry = "sphere"`.
+  `~1` under `geometry = "sphere"`. `n_fit`/ `n_internal_test` are the
+  row counts of that restart's two subsets, for transparency.
 
 - `summary`:
 
@@ -210,6 +226,30 @@ the smallest `d` whose mean loss is within one standard error of the
 global minimum mean loss is flagged as `best_d = TRUE`. This tends to
 favour parsimony when several dimensions achieve similar loss.
 
+## Internal test set and restart variability
+
+Every restart at every `d` evaluates against its own freshly resampled
+`internal_test` subset of the `sampleSet == "train"` pool (see
+[`sample_internal_test`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)),
+rather than one fixed hold-out shared by every restart. This matters for
+`sd_loss`/the one-standard-error rule above: if every restart were
+scored against the identical hold-out set, restart-to-restart variation
+in `loss` would reflect only optimization/initialization noise, not
+genuine uncertainty about whether one dimension really generalizes
+better than another – understating `sd_loss` and making the one-SE rule
+pick larger dimensions than are actually well-supported. Resampling
+`internal_test` per restart (with `internal_test_frac` controlling its
+size) gives `sd_loss` a genuine data-resampling component. A given
+restart's `internal_test` sample is identical across every `d` (both are
+derived from the same seed, independent of `d`), so comparisons across
+dimensions for a matched restart stay paired/apples-to-apples.
+
+The `sampleSet == "test"` pool is not used anywhere in this function –
+it is reserved untouched for evaluating the finally-selected embedding
+(e.g. via
+[`run_group_embedding_from_list`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)),
+never for dimensionality selection itself.
+
 ## Item indexing
 
 All unique item names in `Center`, `Left`, and `Right` across all
@@ -222,9 +262,13 @@ using only their own trials.
 
 Trials with `NA` in the `sampleSet` column (attention-check trials) are
 excluded before fitting. The `sampleSet` column (`"train"` / `"test"`)
-is used to split data for early stopping. If no `sampleSet` column is
-present or all values are `NA`, a 70/30 random train/test split is used
-instead.
+determines the pool this function draws from: only `"train"`-labeled
+trials are ever used (see the *Internal test set and restart
+variability* section above for what happens within that pool, and why
+`"test"`-labeled trials are never touched here). If no `sampleSet`
+column is present or all values are `NA`, a 70/30 random train/test
+split is used instead, and the same rule applies to the resulting
+`"train"` portion.
 
 ## Examples
 

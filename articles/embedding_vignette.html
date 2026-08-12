@@ -709,6 +709,33 @@ standard error of that mean
 <em>smallest</em> <code>d</code> whose mean loss falls within that
 margin. This favours parsimony — it selects the simplest model that is
 statistically indistinguishable from the best.</p>
+<p>For that standard error to mean anything, restarts have to disagree
+for a real reason — not just because of which random initialization the
+optimizer happened to start from. So every restart evaluates against its
+own freshly resampled <code>internal_test</code> subset of the training
+data (see <code>internal_test_frac</code> below), rather than one fixed
+hold-out shared by every restart. If every restart shared the same
+hold-out, <code>sd_loss</code> would reflect only optimization noise and
+understate real uncertainty, which tends to make the one-SE rule pick a
+higher <code>d</code> than is actually well-supported — a fit at, say,
+<code>d = 5</code> can always find some idiosyncrasy of one particular
+hold-out to exploit that <code>d = 3</code> can’t. Resampling per
+restart gives <code>sd_loss</code> a genuine data-resampling component
+instead. A given restart’s <code>internal_test</code> sample is
+identical across every <code>d</code>, so comparisons between dimensions
+for a matched restart stay apples-to-apples.</p>
+<p><code>internal_test_frac</code> (default <code>0.1</code>) controls
+how much of the training pool each restart holds out this way. What
+actually stabilizes the per-restart loss estimate is the
+<em>absolute</em> number of held-out triplets, not the fraction — with a
+training pool in the thousands, even 10% typically leaves plenty of
+<code>internal_test</code> triplets, so there’s rarely a reason to reach
+for a more conventional 20% split at the cost of starving the fit itself
+of data. The <code>sampleSet == "test"</code> items in your data are
+never touched by <code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code> at all — they
+stay reserved for evaluating the finally-selected embedding (e.g. via
+<code><a href="../reference/run_group_embedding_from_list.html">run_group_embedding_from_list()</a></code>), not for choosing
+<code>d</code>.</p>
 </div>
 <div class="section level3">
 <h3 id="visualizing-the-results">Visualizing the results<a class="anchor" aria-label="anchor" href="#visualizing-the-results"></a>
@@ -1065,13 +1092,18 @@ train/test early stopping over <em>all</em> available data.</p>
 <p><code>seed</code>, <code>geometry</code>, <code>radius</code>, and
 <code>norm_penalty</code> in the config apply to all three stages, so
 they describe one coherent embedding space throughout;
-<code>max_epochs</code>/<code>tolerance</code>/<code>tol_window</code>/<code>device</code>/Condor
+<code>max_epochs</code>/<code>tolerance</code>/<code>tol_window</code>/<code>device</code>/<code>internal_test_frac</code>/Condor
 <code>resources</code> can be overridden per stage (e.g. a faster budget
 for the dimensionality search, a more generous one for the final fit) —
-see the comments in <code>params_template.yml</code>. Reproducibility
-carries over exactly from the serial case: given the same
-<code>seed</code>, each job’s <code>random_state</code> is derived with
-the identical formula
+see the comments in <code>params_template.yml</code>.
+<code>internal_test_frac</code> (default <code>0.1</code>) is only used
+by the dimensionality and learning-curve stages; see <a href="#how-best_d-is-determined">How <code>best_d</code> is
+determined</a> above for why each restart resamples its own
+<code>internal_test</code> subset rather than every restart sharing one
+fixed hold-out. Reproducibility carries over exactly from the serial
+case: given the same <code>seed</code>, each job’s
+<code>random_state</code> (and internal_test split) is derived with the
+identical formulas
 <code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code>/<code><a href="../reference/estimate_learning_curve.html">estimate_learning_curve()</a></code>
 use internally, so a Condor run and an in-process call with the same
 seed produce numerically identical fits.</p>
