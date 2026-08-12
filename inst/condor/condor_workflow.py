@@ -27,6 +27,13 @@ run of those functions:
     learning_curve: random_state = seed + (restart - 1) * 1000 + i
         where i is the 1-based index of the fraction in the sorted,
         deduplicated fraction grid (not the fraction's value).
+
+Each job also independently derives split_seed = seed + (restart - 1) * 1000
+(computed inside condor_fit.R, not passed as its own CLI argument) to draw
+that restart's own internal_test resample via sample_internal_test() --
+restart-dependent but not d/fraction-dependent, matching
+estimate_dimensionality()/estimate_learning_curve() exactly. See
+condor_fit.R's header comment for why this exists.
 """
 import argparse
 import csv
@@ -49,7 +56,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 CONDOR_FIT_R = SCRIPT_DIR / "condor_fit.R"
 
 NUMERIC_FIELDS = {"d", "restart", "loss", "accuracy", "epoch", "norm_ratio",
-                  "fraction", "n_train"}
+                  "fraction", "n_train", "n_fit", "n_internal_test"}
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +185,7 @@ def read_result_row(path):
     row = rows[0]
     for key in NUMERIC_FIELDS & row.keys():
         row[key] = float(row[key])
-        if key in ("d", "restart", "epoch", "n_train"):
+        if key in ("d", "restart", "epoch", "n_train", "n_fit", "n_internal_test"):
             row[key] = int(row[key])
     return row
 
@@ -286,7 +293,9 @@ def run_dimensionality_stage(work_dir, data_path, config, seed, geometry, radius
     fixed_args = (
         f"condor_fit.R --stage=dimensionality --triplet_data={data_path.name} "
         f"--output=result_$(Process).csv --fraction=NA "
-        f"--base_seed={seed} --max_epochs={get_config(dim_cfg, 'max_epochs', config, 50000)} "
+        f"--base_seed={seed} "
+        f"--internal_test_frac={get_config(dim_cfg, 'internal_test_frac', config, 0.1)} "
+        f"--max_epochs={get_config(dim_cfg, 'max_epochs', config, 50000)} "
         f"--tolerance={get_config(dim_cfg, 'tolerance', config, 1e-4)} "
         f"--tol_window={get_config(dim_cfg, 'tol_window', config, 10000)} "
         f"--device={get_config(dim_cfg, 'device', config, 'cpu')} "
@@ -336,7 +345,9 @@ def run_learning_curve_stage(work_dir, data_path, config, seed, best_d, norm_pen
     fixed_args = (
         f"condor_fit.R --stage=learning_curve --triplet_data={data_path.name} "
         f"--output=result_$(Process).csv --d={best_d} "
-        f"--base_seed={seed} --max_epochs={get_config(lc_cfg, 'max_epochs', config, 50000)} "
+        f"--base_seed={seed} "
+        f"--internal_test_frac={get_config(lc_cfg, 'internal_test_frac', config, 0.1)} "
+        f"--max_epochs={get_config(lc_cfg, 'max_epochs', config, 50000)} "
         f"--tolerance={get_config(lc_cfg, 'tolerance', config, 1e-4)} "
         f"--tol_window={get_config(lc_cfg, 'tol_window', config, 10000)} "
         f"--device={get_config(lc_cfg, 'device', config, 'cpu')} "
@@ -377,6 +388,10 @@ def run_final_stage(work_dir, data_path, config, seed, best_d, geometry, radius,
         f"condor_fit.R --stage=final --triplet_data={data_path.name} "
         f"--output=embedding.csv --d={best_d} --fraction=NA --restart=1 "
         f"--base_seed={seed} --random_state={seed} "
+        # internal_test_frac is required by condor_fit.R's arg parser for
+        # every stage but is not used by stage=final (which relies on
+        # run_group_embedding_from_list()'s own train/test handling).
+        f"--internal_test_frac={get_config(ff_cfg, 'internal_test_frac', config, 0.1)} "
         f"--max_epochs={get_config(ff_cfg, 'max_epochs', config, 50000)} "
         f"--tolerance={get_config(ff_cfg, 'tolerance', config, 1e-4)} "
         f"--tol_window={get_config(ff_cfg, 'tol_window', config, 10000)} "

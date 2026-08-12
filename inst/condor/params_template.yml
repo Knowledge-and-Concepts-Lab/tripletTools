@@ -21,11 +21,13 @@
 # the final embedding are written. Created if it doesn't exist.
 output_dir: condor_output
 
-# Base random seed. prepare_triplet_matrices() (and, for the learning
-# curve, the shuffle-before-fraction-prefix step) uses this directly, so
-# every job within a stage sees the same train/test split. Each job's own
-# model-fit random_state is then derived from this seed automatically --
-# see condor_workflow.py's module docstring for the exact formula.
+# Base random seed. prepare_triplet_matrices() uses this directly, so every
+# job within a stage draws from the same sampleSet == "train" pool (the
+# sampleSet == "test" pool is reserved and never touched by the
+# dimensionality/learning_curve stages -- see internal_test_frac below).
+# Each restart's own internal_test resample and model-fit random_state are
+# then derived from this seed automatically -- see condor_workflow.py's
+# module docstring for the exact formulas.
 seed: 1
 
 # Embedding geometry: "euclidean" or "sphere". See train_embedding()'s
@@ -56,6 +58,21 @@ condor:
 # Any of these may be overridden inside dimensionality:/learning_curve:/
 # final_fit: below.
 defaults:
+  # Proportion of the sampleSet == "train" pool held out, freshly per
+  # restart, as that restart's internal_test evaluation set (early stopping
+  # and the per-restart loss/accuracy used for dimensionality/best_d
+  # selection). Only used by the dimensionality and learning_curve stages --
+  # ignored by final_fit, which fits on the full train pool and evaluates
+  # against the reserved sampleSet == "test" pool instead. What matters for
+  # a stable per-restart loss estimate is the absolute number of held-out
+  # triplets, not the fraction, so this can often be set lower than a
+  # conventional 20% validation split once the training pool is in the
+  # thousands of triplets. See sample_internal_test() and
+  # estimate_dimensionality()'s "Internal test set and restart variability"
+  # section for why this exists (per-restart resampling, not one fixed
+  # split shared across restarts, is what makes sd_loss/the one-SE best_d
+  # rule statistically meaningful).
+  internal_test_frac: 0.1
   max_epochs: 50000
   tolerance: 1e-4
   tol_window: 10000

@@ -17,12 +17,21 @@ test_that("estimate_dimensionality runs and returns accuracy/norm_ratio columns"
   )
 
   expect_true(all(
-    c("d", "restart", "loss", "accuracy", "epoch", "norm_ratio") %in%
+    c("d", "restart", "loss", "accuracy", "epoch", "norm_ratio",
+      "n_fit", "n_internal_test") %in%
       names(dim_est$results)
   ))
   expect_equal(nrow(dim_est$results), 4L)  # 2 dims x 2 restarts
   expect_true(all(dim_est$results$norm_ratio >= 1 - 1e-8))
   expect_true(all(dim_est$results$accuracy >= 0 & dim_est$results$accuracy <= 1))
+  expect_true(all(dim_est$results$n_fit + dim_est$results$n_internal_test > 0))
+
+  # A given restart's internal_test sample is drawn independently of d, so
+  # it must be identical in size across every d for that restart (paired
+  # comparison design -- see the "Internal test set and restart
+  # variability" section of ?estimate_dimensionality).
+  by_restart <- split(dim_est$results$n_internal_test, dim_est$results$restart)
+  for (sizes in by_restart) expect_equal(length(unique(sizes)), 1L)
 
   expect_true(all(
     c("d", "mean_loss", "min_loss", "sd_loss", "mean_accuracy", "sd_accuracy",
@@ -108,4 +117,18 @@ test_that("best_d_norm_penalty defaults to norm_penalty's value when left NULL",
   )
   expect_equal(dim_est_unweighted_selection$summary$penalized_loss,
                dim_est_unweighted_selection$summary$mean_loss)
+})
+
+test_that("internal_test_frac controls the internal_test split size", {
+  # frac validation itself (0/negative/>=1/NA) is covered directly against
+  # sample_internal_test() in test-sample_internal_test.R; routing an
+  # intentional error through future.apply's future_lapply here would just
+  # add noisy (though harmless) cancellation warnings to test output.
+  dim_est <- estimate_dimensionality(
+    triplet_list = trips, dims = 1:2, n_restarts = 2L,
+    max_epochs = 20L, tol_window = 10L, seed = 1L, verbose = FALSE,
+    internal_test_frac = 0.3
+  )
+  n_train_pool <- sum(vapply(trips, function(df) sum(df$sampleSet == "train"), integer(1)))
+  expect_true(all(dim_est$results$n_internal_test == floor(0.3 * n_train_pool)))
 })

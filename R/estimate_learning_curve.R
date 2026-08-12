@@ -18,13 +18,22 @@
 #' so the item space may differ across participants.
 #'
 #' @section Sampling scheme:
-#' The training pool is shuffled once (controlled by \code{seed}) and then
-#' fractions are taken as nested, cumulative prefixes of that shuffled order:
-#' the 20\% subset contains every trial in the 10\% subset plus more, and so
-#' on up to 100\%. This means differences between fractions reflect only the
-#' amount of training data, not which trials happened to be sampled. The
-#' hold-out set used for evaluation is the same at every fraction and is
-#' never subsampled.
+#' For each restart, a fresh \code{internal_test} subset of the
+#' \code{sampleSet == "train"} pool is drawn first (see
+#' \code{\link{sample_internal_test}} and \code{internal_test_frac} below);
+#' the remainder is shuffled and fractions are taken as nested, cumulative
+#' prefixes of that shuffled order: the 20\% subset contains every trial in
+#' the 10\% subset plus more, and so on up to 100\%. This means differences
+#' between fractions reflect only the amount of training data, not which
+#' trials happened to be sampled, \emph{within a restart}. The
+#' \code{internal_test} evaluation set is held constant across every fraction
+#' \emph{within a restart} (so fraction comparisons stay apples-to-apples),
+#' but is resampled independently \emph{across restarts} -- this is what
+#' gives \code{sd_loss} in \code{summary} a genuine data-resampling
+#' component rather than reflecting only optimization noise on a single
+#' fixed hold-out. The \code{sampleSet == "test"} pool is never touched by
+#' this function at all; it is reserved for evaluating the finally-selected
+#' embedding elsewhere (e.g. \code{\link{run_group_embedding_from_list}}).
 #'
 #' @section Parallelism:
 #' By default the function runs serially. If the \pkg{future.apply} package
@@ -50,9 +59,12 @@
 #' @section Filtering:
 #' Trials with \code{NA} in the \code{sampleSet} column (attention-check
 #' trials) are excluded before fitting. The \code{sampleSet} column
-#' (\code{"train"} / \code{"test"}) defines the hold-out set. If no
+#' (\code{"train"} / \code{"test"}) determines the pool this function draws
+#' from -- see the \emph{Sampling scheme} section above for how the
+#' \code{"train"} portion is used and why \code{"test"} never is. If no
 #' \code{sampleSet} column is present or all values are \code{NA}, a 70/30
-#' random train/test split is used instead.
+#' random train/test split is used instead, and the same rule applies to the
+#' resulting \code{"train"} portion.
 #'
 #' @param triplet_list A named list of data frames, one per participant, as
 #'   returned by \code{\link{get.combined}}. Each data frame must contain
@@ -67,15 +79,25 @@
 #' @param n_restarts Number of independent random restarts per fraction.
 #'   Default \code{10L}. More restarts give a more reliable estimate at each
 #'   fraction but multiply compute time.
+#' @param internal_test_frac Proportion of the \code{sampleSet == "train"}
+#'   pool held out, freshly per restart, as that restart's
+#'   \code{internal_test} evaluation set -- see \code{\link{sample_internal_test}}
+#'   and the \emph{Sampling scheme} section above. Must satisfy
+#'   \code{0 < internal_test_frac < 1}. Default \code{0.1}. What matters for
+#'   a stable per-restart loss estimate is the absolute number of held-out
+#'   triplets, not the fraction, so this can often be set lower than a
+#'   conventional 20% validation split once the training pool is in the
+#'   thousands of triplets.
 #' @param max_epochs Maximum training epochs per restart. Default \code{50000L}.
 #' @param tolerance Loss tolerance for early stopping. Default \code{1e-4}.
 #' @param tol_window Epochs without meaningful improvement before early
 #'   stopping triggers. Default \code{10000L}.
 #' @param device PyTorch device string, or \code{NULL} (default) to
 #'   auto-select: CUDA GPU if available, then Apple MPS, then CPU.
-#' @param seed Base integer seed for reproducibility. Controls both the
-#'   initial shuffle that defines the nested training subsets and the
-#'   per-restart initialization seeds. Default \code{1L}.
+#' @param seed Base integer seed for reproducibility. Controls the
+#'   per-restart internal_test split, the nested-fraction shuffle within
+#'   each restart, and the per-restart initialization seeds. Default
+#'   \code{1L}.
 #' @param verbose Logical. If \code{TRUE} (default), print a progress line
 #'   before each restart. Ignored when running in parallel (output from
 #'   worker processes is not forwarded to the main session).
@@ -95,12 +117,16 @@
 #' \describe{
 #'   \item{\code{results}}{Data frame with one row per (fraction, restart) and
 #'     columns \code{fraction}, \code{n_train}, \code{restart}, \code{loss},
-#'     \code{accuracy}, \code{epoch}, \code{norm_ratio}. \code{loss} and
-#'     \code{accuracy} are the hold-out test loss and accuracy at the epoch
-#'     of best test loss; \code{norm_ratio} is the ratio of the largest to
-#'     median per-item embedding norm at that same epoch — see the
-#'     \emph{Diagnosing outlier items} section of
-#'     \code{\link{train_embedding}}.}
+#'     \code{accuracy}, \code{epoch}, \code{norm_ratio}, \code{n_internal_test}.
+#'     \code{loss} and \code{accuracy} are that restart's \code{internal_test}
+#'     loss and accuracy (see the \emph{Sampling scheme} section above) at the
+#'     epoch of best \code{internal_test} loss; \code{norm_ratio} is the
+#'     ratio of the largest to median per-item embedding norm at that same
+#'     epoch — see the \emph{Diagnosing outlier items} section of
+#'     \code{\link{train_embedding}}. \code{n_train} is the row count
+#'     actually fit on at that fraction; \code{n_internal_test} is that
+#'     restart's held-out row count (constant across fractions within a
+#'     restart).}
 #'   \item{\code{summary}}{Data frame with one row per fraction and columns
 #'     \code{fraction}, \code{n_train}, \code{mean_loss}, \code{sd_loss},
 #'     \code{mean_accuracy}, \code{sd_accuracy}, \code{mean_norm_ratio},
@@ -162,6 +188,7 @@ estimate_learning_curve <- function(triplet_list,
                                     d          = 5L,
                                     by         = 0.1,
                                     n_restarts = 10L,
+                                    internal_test_frac = 0.1,
                                     max_epochs = 50000L,
                                     tolerance  = 1e-4,
                                     tol_window = 10000L,
@@ -171,15 +198,12 @@ estimate_learning_curve <- function(triplet_list,
                                     group      = TRUE,
                                     norm_penalty = 0) {
 
-  # Run the fraction/restart grid search on pre-built matrices
-  .run_curve <- function(X_train, X_test) {
-    # Shuffle the training pool once so that successive fractions are nested,
-    # cumulative prefixes rather than independent draws
-    set.seed(seed)
-    train_df     <- as.data.frame(X_train)[sample(nrow(X_train)), ]
-    n_train_pool <- nrow(train_df)
-
-    # Build the fraction grid from the requested granularity
+  # Run the fraction/restart grid search on the pre-built train pool. X_test
+  # (the reserved sampleSet == "test" pool) is intentionally not a parameter
+  # here -- see the "Sampling scheme" section above.
+  .run_curve <- function(X_train) {
+    # Fraction grid depends only on `by`, not on any restart-specific split,
+    # so it's built once up front as before.
     n_steps   <- ceiling(round(1 / by, 8))
     fractions <- round(seq_len(n_steps) * by, 8)
     fractions[fractions > 1] <- 1
@@ -196,12 +220,24 @@ estimate_learning_curve <- function(triplet_list,
         message(sprintf("[estimate_learning_curve] fraction = %.3f, restart %d/%d",
                         job$frac, job$restart, n_restarts))
       }
-      n_rows       <- max(1L, round(job$frac * n_train_pool))
-      X_train_frac <- as.matrix(train_df[seq_len(n_rows), ])
+      # split_seed depends on restart but not on fraction, so a given
+      # restart's internal_test sample -- and its nested-fraction shuffle
+      # order -- are identical across every fraction, while still varying
+      # genuinely restart-to-restart. See the "Sampling scheme" section
+      # above.
+      split_seed <- seed + (job$restart - 1L) * 1000L
+      split <- sample_internal_test(X_train, frac = internal_test_frac, seed = split_seed)
+
+      set.seed(split_seed)
+      fit_pool_shuffled <- split$X_fit[sample(nrow(split$X_fit)), , drop = FALSE]
+      n_fit_pool        <- nrow(fit_pool_shuffled)
+
+      n_rows       <- max(1L, round(job$frac * n_fit_pool))
+      X_train_frac <- fit_pool_shuffled[seq_len(n_rows), , drop = FALSE]
 
       row <- fit_embedding_restart(
         X_train      = X_train_frac,
-        X_test       = X_test,
+        X_test       = split$X_internal_test,
         d            = d,
         random_state = job$random_state,
         max_epochs   = max_epochs,
@@ -215,7 +251,7 @@ estimate_learning_curve <- function(triplet_list,
 
       data.frame(fraction = job$frac, n_train = n_rows, restart = job$restart,
                  loss = row$loss, accuracy = row$accuracy, epoch = row$epoch_best,
-                 norm_ratio = row$norm_ratio,
+                 norm_ratio = row$norm_ratio, n_internal_test = nrow(split$X_internal_test),
                  stringsAsFactors = FALSE)
     }
 
@@ -248,12 +284,12 @@ estimate_learning_curve <- function(triplet_list,
 
   if (group) {
     mats <- prepare_triplet_matrices(triplet_list, seed = seed)
-    .run_curve(mats$X_train, mats$X_test)
+    .run_curve(mats$X_train)
   } else {
     result <- lapply(names(triplet_list), function(pid) {
       if (verbose) message(sprintf("[estimate_learning_curve] participant: %s", pid))
       mats <- prepare_triplet_matrices(list(triplet_list[[pid]]), seed = seed)
-      .run_curve(mats$X_train, mats$X_test)
+      .run_curve(mats$X_train)
     })
     setNames(result, names(triplet_list))
   }

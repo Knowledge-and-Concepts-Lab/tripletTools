@@ -43,6 +43,28 @@
 #' the global minimum mean loss is flagged as \code{best_d = TRUE}.  This
 #' tends to favour parsimony when several dimensions achieve similar loss.
 #'
+#' @section Internal test set and restart variability:
+#' Every restart at every \code{d} evaluates against its own freshly
+#' resampled \code{internal_test} subset of the \code{sampleSet == "train"}
+#' pool (see \code{\link{sample_internal_test}}), rather than one fixed
+#' hold-out shared by every restart. This matters for \code{sd_loss}/the
+#' one-standard-error rule above: if every restart were scored against the
+#' identical hold-out set, restart-to-restart variation in \code{loss} would
+#' reflect only optimization/initialization noise, not genuine uncertainty
+#' about whether one dimension really generalizes better than another --
+#' understating \code{sd_loss} and making the one-SE rule pick larger
+#' dimensions than are actually well-supported. Resampling \code{internal_test}
+#' per restart (with \code{internal_test_frac} controlling its size) gives
+#' \code{sd_loss} a genuine data-resampling component. A given restart's
+#' \code{internal_test} sample is identical across every \code{d} (both are
+#' derived from the same seed, independent of \code{d}), so comparisons
+#' across dimensions for a matched restart stay paired/apples-to-apples.
+#'
+#' The \code{sampleSet == "test"} pool is not used anywhere in this function
+#' -- it is reserved untouched for evaluating the finally-selected embedding
+#' (e.g. via \code{\link{run_group_embedding_from_list}}), never for
+#' dimensionality selection itself.
+#'
 #' @section Item indexing:
 #' All unique item names in \code{Center}, \code{Left}, and \code{Right}
 #' across all participants are collected and sorted alphabetically; this sorted
@@ -53,9 +75,13 @@
 #' @section Filtering:
 #' Trials with \code{NA} in the \code{sampleSet} column (attention-check
 #' trials) are excluded before fitting.  The \code{sampleSet} column
-#' (\code{"train"} / \code{"test"}) is used to split data for early stopping.
-#' If no \code{sampleSet} column is present or all values are \code{NA}, a
-#' 70/30 random train/test split is used instead.
+#' (\code{"train"} / \code{"test"}) determines the pool this function draws
+#' from: only \code{"train"}-labeled trials are ever used (see the
+#' \emph{Internal test set and restart variability} section above for what
+#' happens within that pool, and why \code{"test"}-labeled trials are never
+#' touched here).  If no \code{sampleSet} column is present or all values are
+#' \code{NA}, a 70/30 random train/test split is used instead, and the same
+#' rule applies to the resulting \code{"train"} portion.
 #'
 #' @param triplet_list A named list of data frames, one per participant, as
 #'   returned by \code{\link{get.combined}}.  Each data frame must contain
@@ -66,6 +92,15 @@
 #' @param n_restarts Number of independent random restarts per dimensionality.
 #'   Default \code{10L}.  More restarts give a more reliable loss estimate but
 #'   multiply compute time.
+#' @param internal_test_frac Proportion of the \code{sampleSet == "train"}
+#'   pool held out, freshly per restart, as that restart's
+#'   \code{internal_test} evaluation set -- see \code{\link{sample_internal_test}}
+#'   and the \emph{Internal test set and restart variability} section above.
+#'   Must satisfy \code{0 < internal_test_frac < 1}.  Default \code{0.1}.
+#'   What matters for a stable per-restart loss estimate is the absolute
+#'   number of held-out triplets, not the fraction, so this can often be set
+#'   lower than a conventional 20% validation split once the training pool is
+#'   in the thousands of triplets.
 #' @param max_epochs Maximum training epochs per restart.  Default \code{50000L}.
 #' @param tolerance Loss tolerance for early stopping.  Default \code{1e-4}.
 #' @param tol_window Epochs without meaningful improvement before early
@@ -127,13 +162,17 @@
 #' \describe{
 #'   \item{\code{results}}{Data frame with one row per (dimension, restart) and
 #'     columns \code{d}, \code{restart}, \code{loss}, \code{accuracy},
-#'     \code{epoch}, \code{norm_ratio}.  \code{loss} and \code{accuracy} are
-#'     the hold-out test loss and accuracy at the epoch of best test loss.
-#'     \code{norm_ratio} is the ratio of the largest to median per-item
+#'     \code{epoch}, \code{norm_ratio}, \code{n_fit}, \code{n_internal_test}.
+#'     \code{loss} and \code{accuracy} are that restart's \code{internal_test}
+#'     loss and accuracy (see the \emph{Internal test set and restart
+#'     variability} section above) at the epoch of best \code{internal_test}
+#'     loss.  \code{norm_ratio} is the ratio of the largest to median per-item
 #'     embedding norm at that same epoch — see the \emph{Diagnosing outlier
 #'     items} section of \code{\link{train_embedding}}.  \code{norm_ratio}
 #'     is only meaningful for \code{geometry = "euclidean"}; always
-#'     \code{~1} under \code{geometry = "sphere"}.}
+#'     \code{~1} under \code{geometry = "sphere"}.  \code{n_fit}/
+#'     \code{n_internal_test} are the row counts of that restart's two
+#'     subsets, for transparency.}
 #'   \item{\code{summary}}{Data frame with one row per dimension and columns
 #'     \code{d}, \code{mean_loss}, \code{min_loss}, \code{sd_loss},
 #'     \code{mean_accuracy}, \code{sd_accuracy}, \code{mean_norm_ratio},
@@ -229,6 +268,7 @@
 estimate_dimensionality <- function(triplet_list,
                                     dims        = 1:8,
                                     n_restarts  = 10L,
+                                    internal_test_frac = 0.1,
                                     max_epochs  = 50000L,
                                     tolerance   = 1e-4,
                                     tol_window  = 10000L,
@@ -243,8 +283,11 @@ estimate_dimensionality <- function(triplet_list,
   geometry <- match.arg(geometry)
   if (is.null(best_d_norm_penalty)) best_d_norm_penalty <- norm_penalty
 
-  # Run the (d, restart) grid search on pre-built matrices
-  .run_grid <- function(X_train, X_test) {
+  # Run the (d, restart) grid search on the pre-built train pool. X_test
+  # (the reserved sampleSet == "test" pool) is intentionally not a parameter
+  # here -- it is never touched by dimensionality search, only by the final
+  # production fit (see run_group_embedding_from_list()).
+  .run_grid <- function(X_train) {
     jobs <- do.call(rbind, lapply(dims, function(d) {
       data.frame(d = d, restart = seq_len(n_restarts),
                  random_state = seed + (seq_len(n_restarts) - 1L) * 1000L + d,
@@ -256,9 +299,15 @@ estimate_dimensionality <- function(triplet_list,
         message(sprintf("[estimate_dimensionality] d = %d, restart %d/%d",
                         job$d, job$restart, n_restarts))
       }
+      # split_seed depends on restart but not d, so a given restart's
+      # internal_test sample is identical across every dimension -- see the
+      # "Internal test set and restart variability" section above.
+      split_seed <- seed + (job$restart - 1L) * 1000L
+      split <- sample_internal_test(X_train, frac = internal_test_frac, seed = split_seed)
+
       row <- fit_embedding_restart(
-        X_train      = X_train,
-        X_test       = X_test,
+        X_train      = split$X_fit,
+        X_test       = split$X_internal_test,
         d            = job$d,
         random_state = job$random_state,
         max_epochs   = max_epochs,
@@ -272,6 +321,7 @@ estimate_dimensionality <- function(triplet_list,
       data.frame(d = job$d, restart = job$restart,
                  loss = row$loss, accuracy = row$accuracy, epoch = row$epoch_stopped,
                  norm_ratio = row$norm_ratio,
+                 n_fit = nrow(split$X_fit), n_internal_test = nrow(split$X_internal_test),
                  stringsAsFactors = FALSE)
     }
 
@@ -309,12 +359,12 @@ estimate_dimensionality <- function(triplet_list,
 
   if (group) {
     mats <- prepare_triplet_matrices(triplet_list, seed = seed)
-    .run_grid(mats$X_train, mats$X_test)
+    .run_grid(mats$X_train)
   } else {
     result <- lapply(names(triplet_list), function(pid) {
       if (verbose) message(sprintf("[estimate_dimensionality] participant: %s", pid))
       mats <- prepare_triplet_matrices(list(triplet_list[[pid]]), seed = seed)
-      .run_grid(mats$X_train, mats$X_test)
+      .run_grid(mats$X_train)
     })
     setNames(result, names(triplet_list))
   }

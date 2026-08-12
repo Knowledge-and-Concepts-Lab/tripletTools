@@ -9,6 +9,7 @@ estimate_learning_curve(
   d = 5L,
   by = 0.1,
   n_restarts = 10L,
+  internal_test_frac = 0.1,
   max_epochs = 50000L,
   tolerance = 1e-04,
   tol_window = 10000L,
@@ -37,6 +38,16 @@ the full training set. Default \code{0.1}, giving fractions
 Default \code{10L}. More restarts give a more reliable estimate at each
 fraction but multiply compute time.}
 
+\item{internal_test_frac}{Proportion of the \code{sampleSet == "train"}
+pool held out, freshly per restart, as that restart's
+\code{internal_test} evaluation set -- see \code{\link{sample_internal_test}}
+and the \emph{Sampling scheme} section above. Must satisfy
+\code{0 < internal_test_frac < 1}. Default \code{0.1}. What matters for
+a stable per-restart loss estimate is the absolute number of held-out
+triplets, not the fraction, so this can often be set lower than a
+conventional 20\% validation split once the training pool is in the
+thousands of triplets.}
+
 \item{max_epochs}{Maximum training epochs per restart. Default \code{50000L}.}
 
 \item{tolerance}{Loss tolerance for early stopping. Default \code{1e-4}.}
@@ -47,9 +58,10 @@ stopping triggers. Default \code{10000L}.}
 \item{device}{PyTorch device string, or \code{NULL} (default) to
 auto-select: CUDA GPU if available, then Apple MPS, then CPU.}
 
-\item{seed}{Base integer seed for reproducibility. Controls both the
-initial shuffle that defines the nested training subsets and the
-per-restart initialization seeds. Default \code{1L}.}
+\item{seed}{Base integer seed for reproducibility. Controls the
+per-restart internal_test split, the nested-fraction shuffle within
+each restart, and the per-restart initialization seeds. Default
+\code{1L}.}
 
 \item{verbose}{Logical. If \code{TRUE} (default), print a progress line
 before each restart. Ignored when running in parallel (output from
@@ -73,12 +85,16 @@ elements:
 \describe{
 \item{\code{results}}{Data frame with one row per (fraction, restart) and
 columns \code{fraction}, \code{n_train}, \code{restart}, \code{loss},
-\code{accuracy}, \code{epoch}, \code{norm_ratio}. \code{loss} and
-\code{accuracy} are the hold-out test loss and accuracy at the epoch
-of best test loss; \code{norm_ratio} is the ratio of the largest to
-median per-item embedding norm at that same epoch — see the
-\emph{Diagnosing outlier items} section of
-\code{\link{train_embedding}}.}
+\code{accuracy}, \code{epoch}, \code{norm_ratio}, \code{n_internal_test}.
+\code{loss} and \code{accuracy} are that restart's \code{internal_test}
+loss and accuracy (see the \emph{Sampling scheme} section above) at the
+epoch of best \code{internal_test} loss; \code{norm_ratio} is the
+ratio of the largest to median per-item embedding norm at that same
+epoch — see the \emph{Diagnosing outlier items} section of
+\code{\link{train_embedding}}. \code{n_train} is the row count
+actually fit on at that fraction; \code{n_internal_test} is that
+restart's held-out row count (constant across fractions within a
+restart).}
 \item{\code{summary}}{Data frame with one row per fraction and columns
 \code{fraction}, \code{n_train}, \code{mean_loss}, \code{sd_loss},
 \code{mean_accuracy}, \code{sd_accuracy}, \code{mean_norm_ratio},
@@ -113,13 +129,22 @@ so the item space may differ across participants.
 
 \section{Sampling scheme}{
 
-The training pool is shuffled once (controlled by \code{seed}) and then
-fractions are taken as nested, cumulative prefixes of that shuffled order:
-the 20\\% subset contains every trial in the 10\\% subset plus more, and so
-on up to 100\\%. This means differences between fractions reflect only the
-amount of training data, not which trials happened to be sampled. The
-hold-out set used for evaluation is the same at every fraction and is
-never subsampled.
+For each restart, a fresh \code{internal_test} subset of the
+\code{sampleSet == "train"} pool is drawn first (see
+\code{\link{sample_internal_test}} and \code{internal_test_frac} below);
+the remainder is shuffled and fractions are taken as nested, cumulative
+prefixes of that shuffled order: the 20\\% subset contains every trial in
+the 10\\% subset plus more, and so on up to 100\\%. This means differences
+between fractions reflect only the amount of training data, not which
+trials happened to be sampled, \emph{within a restart}. The
+\code{internal_test} evaluation set is held constant across every fraction
+\emph{within a restart} (so fraction comparisons stay apples-to-apples),
+but is resampled independently \emph{across restarts} -- this is what
+gives \code{sd_loss} in \code{summary} a genuine data-resampling
+component rather than reflecting only optimization noise on a single
+fixed hold-out. The \code{sampleSet == "test"} pool is never touched by
+this function at all; it is reserved for evaluating the finally-selected
+embedding elsewhere (e.g. \code{\link{run_group_embedding_from_list}}).
 }
 
 \section{Parallelism}{
@@ -151,9 +176,12 @@ participant using only their own trials.
 
 Trials with \code{NA} in the \code{sampleSet} column (attention-check
 trials) are excluded before fitting. The \code{sampleSet} column
-(\code{"train"} / \code{"test"}) defines the hold-out set. If no
+(\code{"train"} / \code{"test"}) determines the pool this function draws
+from -- see the \emph{Sampling scheme} section above for how the
+\code{"train"} portion is used and why \code{"test"} never is. If no
 \code{sampleSet} column is present or all values are \code{NA}, a 70/30
-random train/test split is used instead.
+random train/test split is used instead, and the same rule applies to the
+resulting \code{"train"} portion.
 }
 
 \examples{
