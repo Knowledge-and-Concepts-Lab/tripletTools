@@ -96,7 +96,25 @@ docs/                     # pkgdown site — rebuild with pkgdown::build_site()<
 </tr><tr><td><code><a href="reference/estimate_dimensionality.html">estimate_dimensionality()</a></code></td>
 <td>R/estimate_dimensionality.R</td>
 <td>Grid search over d with random restarts</td>
-</tr></tbody></table><p>Internal helpers in <code>R/zzz.R</code>: <code>.pkg_env</code>, <code>.onLoad</code>, <code>.get_compute_py()</code>.</p>
+</tr><tr><td><code><a href="reference/matrix_rank.html">matrix_rank()</a></code></td>
+<td>R/matrix_rank.R</td>
+<td>Numerical rank of a (centered) matrix via SVD</td>
+</tr><tr><td><code><a href="reference/procrustes_rank_ceiling.html">procrustes_rank_ceiling()</a></code></td>
+<td>R/procrustes_rank_ceiling.R</td>
+<td>Variance fraction captured by top-k dims of a target matrix</td>
+</tr><tr><td><code><a href="reference/procrustes_spectral_ceiling.html">procrustes_spectral_ceiling()</a></code></td>
+<td>R/procrustes_spectral_ceiling.R</td>
+<td>Cosine similarity between two matrices’ singular-value spectra</td>
+</tr><tr><td><code><a href="reference/hellinger_dist.html">hellinger_dist()</a></code></td>
+<td>R/hellinger_dist.R</td>
+<td>Pairwise Hellinger distances between rows of a profile matrix</td>
+</tr><tr><td><code><a href="reference/successor_matrix.html">successor_matrix()</a></code></td>
+<td>R/successor_matrix.R</td>
+<td>Successor Representation from a weighted adjacency matrix</td>
+</tr><tr><td><code><a href="reference/repeated_stratified_logistic_cv.html">repeated_stratified_logistic_cv()</a></code></td>
+<td>R/repeated_stratified_logistic_cv.R</td>
+<td>Repeated stratified CV logistic regression predicting a binary label from embedding coordinates</td>
+</tr></tbody></table><p>Internal helpers in <code>R/zzz.R</code>: <code>.pkg_env</code>, <code>.onLoad</code>, <code>.get_compute_py()</code>. Internal helpers in <code>R/repeated_stratified_logistic_cv.R</code> (not exported): <code>make_binary()</code>, <code>make_stratified_folds()</code>, <code>roc_auc()</code>, <code>classification_metrics()</code>.</p>
 <hr></div>
 <div class="section level2">
 <h2 id="key-architecture-decisions">Key architecture decisions<a class="anchor" aria-label="anchor" href="#key-architecture-decisions"></a></h2>
@@ -141,6 +159,7 @@ docs/                     # pkgdown site — rebuild with pkgdown::build_site()<
 <li>GPU/MPS/CPU device support threaded through the entire stack</li>
 <li>“Computing Triplet Embeddings” vignette covering setup, group embedding, individual embeddings, dimensionality selection, and parallel execution (multicore and HTCondor)</li>
 <li>Fixed pre-existing <code><a href="reference/plot_cis.html">plot_cis()</a></code> crash on single-member clusters</li>
+<li>Embedding-space comparison toolkit, ported in from standalone scripts and given roxygen docs + smoke tests: <code><a href="reference/matrix_rank.html">matrix_rank()</a></code>, <code><a href="reference/procrustes_rank_ceiling.html">procrustes_rank_ceiling()</a></code>, <code><a href="reference/procrustes_spectral_ceiling.html">procrustes_spectral_ceiling()</a></code>, <code><a href="reference/hellinger_dist.html">hellinger_dist()</a></code>, <code><a href="reference/successor_matrix.html">successor_matrix()</a></code>, <code><a href="reference/repeated_stratified_logistic_cv.html">repeated_stratified_logistic_cv()</a></code>. No new package dependencies — all base/<code>stats</code>. A vignette for this toolkit is planned but not yet written.</li>
 </ul></div>
 </div>
 

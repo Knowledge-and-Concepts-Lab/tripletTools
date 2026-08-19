@@ -38,6 +38,8 @@
   : Get representational distances
 - [`get.tip.coords()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.tip.coords.md)
   : Get tip coordinates
+- [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md)
+  : Pairwise Hellinger distances between rows of a profile matrix
 - [`icon_emb_group`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_emb_group.md)
   : Group embedding data for 32 icon images of faces and buildings
 - [`icon_emb_ind`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_emb_ind.md)
@@ -50,6 +52,8 @@
   : Make triplet names
 - [`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md)
   : Make validation matrix
+- [`matrix_rank()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/matrix_rank.md)
+  : Effective (numerical) rank of a matrix
 - [`model.strength()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/model.strength.md)
   : Get model strength
 - [`pacc.by.cluster()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/pacc.by.cluster.md)
@@ -63,10 +67,17 @@
   frames
 - [`process_choices()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/process_choices.md)
   : Clean raw choice strings from jsPsych CSV output
+- [`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md)
+  : Variance captured by the top k dimensions of a target matrix
+- [`procrustes_spectral_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_spectral_ceiling.md)
+  : Spectral similarity between two matrices' variance structure
 - [`read_legacy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_legacy.md)
   : Standardise a legacy triadic comparison dataset
 - [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
   : Clean raw jsPsych triplet experiment data
+- [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md)
+  : Repeated stratified cross-validated logistic regression for
+  embedding coordinates
 - [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)
   : Run the full embedding pipeline for all workers
 - [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)
@@ -80,6 +91,8 @@
   : Set up the Python environment for triplet embeddings
 - [`strsplit1()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.md)
   : Split a string
+- [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md)
+  : Successor representation of a weighted adjacency matrix
 - [`summarize_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.md)
   : Summarize per-restart dimensionality-search results
 - [`summarize_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_learning_curve.md)

@@ -58,9 +58,17 @@ Current version: **0.2.0**. Package URL:
 | [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) | R/run_embeddings.R | Per-participant + group embeddings |
 | [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md) | R/run_embeddings.R | CSV-based pipeline (called by the above) |
 | [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) | R/estimate_dimensionality.R | Grid search over d with random restarts |
+| [`matrix_rank()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/matrix_rank.md) | R/matrix_rank.R | Numerical rank of a (centered) matrix via SVD |
+| [`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md) | R/procrustes_rank_ceiling.R | Variance fraction captured by top-k dims of a target matrix |
+| [`procrustes_spectral_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_spectral_ceiling.md) | R/procrustes_spectral_ceiling.R | Cosine similarity between two matrices’ singular-value spectra |
+| [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md) | R/hellinger_dist.R | Pairwise Hellinger distances between rows of a profile matrix |
+| [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md) | R/successor_matrix.R | Successor Representation from a weighted adjacency matrix |
+| [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md) | R/repeated_stratified_logistic_cv.R | Repeated stratified CV logistic regression predicting a binary label from embedding coordinates |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`,
-`.get_compute_py()`.
+`.get_compute_py()`. Internal helpers in
+`R/repeated_stratified_logistic_cv.R` (not exported): `make_binary()`,
+`make_stratified_folds()`, `roc_auc()`, `classification_metrics()`.
 
 ------------------------------------------------------------------------
 
@@ -149,3 +157,13 @@ back to the returned matrices.
 - Fixed pre-existing
   [`plot_cis()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_cis.md)
   crash on single-member clusters
+- Embedding-space comparison toolkit, ported in from standalone scripts
+  and given roxygen docs + smoke tests:
+  [`matrix_rank()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/matrix_rank.md),
+  [`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md),
+  [`procrustes_spectral_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_spectral_ceiling.md),
+  [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md),
+  [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md),
+  [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md).
+  No new package dependencies — all base/`stats`. A vignette for this
+  toolkit is planned but not yet written.
