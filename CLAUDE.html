@@ -114,7 +114,10 @@ docs/                     # pkgdown site — rebuild with pkgdown::build_site()<
 </tr><tr><td><code><a href="reference/repeated_stratified_logistic_cv.html">repeated_stratified_logistic_cv()</a></code></td>
 <td>R/repeated_stratified_logistic_cv.R</td>
 <td>Repeated stratified CV logistic regression predicting a binary label from embedding coordinates</td>
-</tr></tbody></table><p>Internal helpers in <code>R/zzz.R</code>: <code>.pkg_env</code>, <code>.onLoad</code>, <code>.get_compute_py()</code>. Internal helpers in <code>R/repeated_stratified_logistic_cv.R</code> (not exported): <code>make_binary()</code>, <code>make_stratified_folds()</code>, <code>roc_auc()</code>, <code>classification_metrics()</code>.</p>
+</tr><tr><td><code><a href="reference/repeated_stratified_multinomial_cv.html">repeated_stratified_multinomial_cv()</a></code></td>
+<td>R/repeated_stratified_multinomial_cv.R</td>
+<td>Sibling of the above for &gt;2-class labels; <code><a href="https://rdrr.io/pkg/nnet/man/multinom.html" class="external-link">nnet::multinom()</a></code>-backed, macro-averaged metrics + per-class breakdown</td>
+</tr></tbody></table><p>Internal helpers in <code>R/zzz.R</code>: <code>.pkg_env</code>, <code>.onLoad</code>, <code>.get_compute_py()</code>. Internal helpers in <code>R/repeated_stratified_logistic_cv.R</code> (not exported): <code>make_binary()</code>, <code>make_stratified_folds()</code>, <code>roc_auc()</code>, <code>classification_metrics()</code>. Internal helpers in <code>R/repeated_stratified_multinomial_cv.R</code> (not exported): <code>multinom_probs_matrix()</code> (normalizes <code><a href="https://rdrr.io/pkg/nnet/man/multinom.html" class="external-link">nnet::multinom</a></code>’s predict output — returns a bare vector instead of a matrix for exactly 2 classes), <code>multiclass_metrics()</code>.</p>
 <hr></div>
 <div class="section level2">
 <h2 id="key-architecture-decisions">Key architecture decisions<a class="anchor" aria-label="anchor" href="#key-architecture-decisions"></a></h2>
@@ -133,7 +136,11 @@ docs/                     # pkgdown site — rebuild with pkgdown::build_site()<
 <li>
 <code>icon_pics</code> — list of PNG raster images for the 32 icon stimuli</li>
 <li>
-<code>icon_labels</code> — character vector of icon names</li>
+<code>icon_items</code> — data frame of the 32 icon item codes + stimulus file paths. There is no separate <code>icon_labels</code> object (a prior version of this doc claimed one existed) — item names/codes double as labels. Codes are 5 letters: face/place, day/night, female/male (faces) or church/house (places), old/young (faces) or new/old (places), black/white (faces) or big/small (places) — e.g. gender for classifier-evaluation examples is position 3 (<code>f</code>/<code>m</code>) of face (<code>f*</code>) items only.</li>
+<li>
+<code>emotion_triplet_embedding</code> — 4D triplet-based embedding of 213 Shaver et al. (1987) emotion words (213 x 4 data frame, rownames = words)</li>
+<li>
+<code>emotion_bge_embedding</code> — BAAI/bge-m3 language-model embedding of the same 213 words, rotated onto its own lossless top-212 principal components rather than shipping the raw 1024 dims (213 x 212 data frame, rownames = words) — see <code>data-raw/emotion_embeddings.R</code> for the derivation/verification</li>
 </ul><hr></div>
 <div class="section level2">
 <h2 id="conventions">Conventions<a class="anchor" aria-label="anchor" href="#conventions"></a></h2>
@@ -159,7 +166,12 @@ docs/                     # pkgdown site — rebuild with pkgdown::build_site()<
 <li>GPU/MPS/CPU device support threaded through the entire stack</li>
 <li>“Computing Triplet Embeddings” vignette covering setup, group embedding, individual embeddings, dimensionality selection, and parallel execution (multicore and HTCondor)</li>
 <li>Fixed pre-existing <code><a href="reference/plot_cis.html">plot_cis()</a></code> crash on single-member clusters</li>
-<li>Embedding-space comparison toolkit, ported in from standalone scripts and given roxygen docs + smoke tests: <code><a href="reference/matrix_rank.html">matrix_rank()</a></code>, <code><a href="reference/procrustes_rank_ceiling.html">procrustes_rank_ceiling()</a></code>, <code><a href="reference/procrustes_spectral_ceiling.html">procrustes_spectral_ceiling()</a></code>, <code><a href="reference/hellinger_dist.html">hellinger_dist()</a></code>, <code><a href="reference/successor_matrix.html">successor_matrix()</a></code>, <code><a href="reference/repeated_stratified_logistic_cv.html">repeated_stratified_logistic_cv()</a></code>. No new package dependencies — all base/<code>stats</code>. A vignette for this toolkit is planned but not yet written.</li>
+<li>Embedding-space comparison toolkit, ported in from standalone scripts and given roxygen docs + smoke tests: <code><a href="reference/matrix_rank.html">matrix_rank()</a></code>, <code><a href="reference/procrustes_rank_ceiling.html">procrustes_rank_ceiling()</a></code>, <code><a href="reference/procrustes_spectral_ceiling.html">procrustes_spectral_ceiling()</a></code>, <code><a href="reference/hellinger_dist.html">hellinger_dist()</a></code>, <code><a href="reference/successor_matrix.html">successor_matrix()</a></code>, <code><a href="reference/repeated_stratified_logistic_cv.html">repeated_stratified_logistic_cv()</a></code>. No new package dependencies — all base/<code>stats</code>.</li>
+<li>
+<code><a href="reference/repeated_stratified_multinomial_cv.html">repeated_stratified_multinomial_cv()</a></code> — sibling of <code><a href="reference/repeated_stratified_logistic_cv.html">repeated_stratified_logistic_cv()</a></code> for &gt;2-class labels; added as a separate function rather than extending the binary one, since generalizing its metrics to macro-averages would silently change <code>sensitivity</code>/<code>precision</code>/<code>f1</code> semantics for the already-shipped 2-class case. Backed by <code><a href="https://rdrr.io/pkg/nnet/man/multinom.html" class="external-link">nnet::multinom()</a></code> (<code>nnet</code> added to Suggests — Recommended-priority, ships with R, effectively free). Tested on synthetic data only so far.</li>
+<li>
+<code>emotion_triplet_embedding</code> / <code>emotion_bge_embedding</code> example datasets, plus fixed two stale <code>cfd36_*.csv</code> example paths (broken since the v0.2.0 CFD→icon data swap) and removed three orphaned, undocumented <code>cfd_*.rda</code> data files.</li>
+<li>A vignette on comparing triplet-based embeddings to alternative (e.g. language/vision model) embeddings is in progress, covering: (1) Procrustes alignment + rank/spectral ceilings, using the emotion-word data above; (2) evaluating embeddings via classifier performance (<code><a href="reference/repeated_stratified_logistic_cv.html">repeated_stratified_logistic_cv()</a></code>/<code><a href="reference/repeated_stratified_multinomial_cv.html">repeated_stratified_multinomial_cv()</a></code>), using icon-data gender labels for the binary case and emotion data for multiclass; (3) a third piece not yet scoped. Not yet written.</li>
 </ul></div>
 </div>
 

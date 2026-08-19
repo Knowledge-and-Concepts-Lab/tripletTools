@@ -8,6 +8,10 @@
   : Label each trial with its sampling algorithm
 - [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
   : Assign trials to train or test sets
+- [`emotion_bge_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_bge_embedding.md)
+  : Language-model embedding of 213 emotion words (BAAI/bge-m3)
+- [`emotion_triplet_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_triplet_embedding.md)
+  : Triplet-based embedding of 213 emotion words
 - [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
   : Estimate the latent dimensionality of a triplet dataset
 - [`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)
@@ -77,6 +81,9 @@
   : Clean raw jsPsych triplet experiment data
 - [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md)
   : Repeated stratified cross-validated logistic regression for
+  embedding coordinates
+- [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md)
+  : Repeated stratified cross-validated multinomial regression for
   embedding coordinates
 - [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)
   : Run the full embedding pipeline for all workers

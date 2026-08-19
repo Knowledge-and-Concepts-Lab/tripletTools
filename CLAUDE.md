@@ -64,11 +64,17 @@ Current version: **0.2.0**. Package URL:
 | [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md) | R/hellinger_dist.R | Pairwise Hellinger distances between rows of a profile matrix |
 | [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md) | R/successor_matrix.R | Successor Representation from a weighted adjacency matrix |
 | [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md) | R/repeated_stratified_logistic_cv.R | Repeated stratified CV logistic regression predicting a binary label from embedding coordinates |
+| [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md) | R/repeated_stratified_multinomial_cv.R | Sibling of the above for \>2-class labels; [`nnet::multinom()`](https://rdrr.io/pkg/nnet/man/multinom.html)-backed, macro-averaged metrics + per-class breakdown |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`,
 `.get_compute_py()`. Internal helpers in
 `R/repeated_stratified_logistic_cv.R` (not exported): `make_binary()`,
 `make_stratified_folds()`, `roc_auc()`, `classification_metrics()`.
+Internal helpers in `R/repeated_stratified_multinomial_cv.R` (not
+exported): `multinom_probs_matrix()` (normalizes
+[`nnet::multinom`](https://rdrr.io/pkg/nnet/man/multinom.html)’s predict
+output — returns a bare vector instead of a matrix for exactly 2
+classes), `multiclass_metrics()`.
 
 ------------------------------------------------------------------------
 
@@ -118,7 +124,21 @@ back to the returned matrices.
   include `Center`, `Left`, `Right`, `Answer`, `sampleSet`, `sampleAlg`,
   `worker_id`
 - `icon_pics` — list of PNG raster images for the 32 icon stimuli
-- `icon_labels` — character vector of icon names
+- `icon_items` — data frame of the 32 icon item codes + stimulus file
+  paths. There is no separate `icon_labels` object (a prior version of
+  this doc claimed one existed) — item names/codes double as labels.
+  Codes are 5 letters: face/place, day/night, female/male (faces) or
+  church/house (places), old/young (faces) or new/old (places),
+  black/white (faces) or big/small (places) — e.g. gender for
+  classifier-evaluation examples is position 3 (`f`/`m`) of face (`f*`)
+  items only.
+- `emotion_triplet_embedding` — 4D triplet-based embedding of 213 Shaver
+  et al. (1987) emotion words (213 x 4 data frame, rownames = words)
+- `emotion_bge_embedding` — BAAI/bge-m3 language-model embedding of the
+  same 213 words, rotated onto its own lossless top-212 principal
+  components rather than shipping the raw 1024 dims (213 x 212 data
+  frame, rownames = words) — see `data-raw/emotion_embeddings.R` for the
+  derivation/verification
 
 ------------------------------------------------------------------------
 
@@ -165,5 +185,25 @@ back to the returned matrices.
   [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md),
   [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md),
   [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md).
-  No new package dependencies — all base/`stats`. A vignette for this
-  toolkit is planned but not yet written.
+  No new package dependencies — all base/`stats`.
+- [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md)
+  — sibling of
+  [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md)
+  for \>2-class labels; added as a separate function rather than
+  extending the binary one, since generalizing its metrics to
+  macro-averages would silently change `sensitivity`/`precision`/`f1`
+  semantics for the already-shipped 2-class case. Backed by
+  [`nnet::multinom()`](https://rdrr.io/pkg/nnet/man/multinom.html)
+  (`nnet` added to Suggests — Recommended-priority, ships with R,
+  effectively free). Tested on synthetic data only so far.
+- `emotion_triplet_embedding` / `emotion_bge_embedding` example
+  datasets, plus fixed two stale `cfd36_*.csv` example paths (broken
+  since the v0.2.0 CFD→icon data swap) and removed three orphaned,
+  undocumented `cfd_*.rda` data files.
+- A vignette on comparing triplet-based embeddings to alternative
+  (e.g. language/vision model) embeddings is in progress, covering: (1)
+  Procrustes alignment + rank/spectral ceilings, using the emotion-word
+  data above; (2) evaluating embeddings via classifier performance
+  ([`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md)/[`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md)),
+  using icon-data gender labels for the binary case and emotion data for
+  multiclass; (3) a third piece not yet scoped. Not yet written.

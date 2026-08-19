@@ -62,17 +62,20 @@ column names.
 ``` r
 
 #Path to example triplet data
-fpath <- system.file("extdata", "cfd36_triplets_individual.csv", package = "tripletTools")
+fpath <- system.file("extdata", "icon_all_triplets.csv", package = "tripletTools")
 
 #Read the data
 trips <- get.combined(fpath)
-#> Warning: file("") only supports open = "w+" and open = "w+b": using the former
-#> Error in read.table(file = file, header = header, sep = sep, quote = quote,     dec = dec, fill = fill, comment.char = comment.char, ...): no lines available in input
 
 #Compute summary
 part.summary <- get.participant.summary(trips)
-#> Error: object 'trips' not found
 
 head(part.summary)
-#> Error: object 'part.summary' not found
+#>   tripfile worker_id ndat       lrt cacc  keep
+#> 1 3n7ggxph  3n7ggxph  230 0.4961625    1 FALSE
+#> 2 b5wma4no  b5wma4no  230 0.9026607    1 FALSE
+#> 3 d8mmm1qn  d8mmm1qn  230 0.5051381    1 FALSE
+#> 4 jn7bbjc0  jn7bbjc0  230 0.6958144    1 FALSE
+#> 5 pbby694o  pbby694o  230 0.6679493    1 FALSE
+#> 6 sc2xbd6w  sc2xbd6w  230 0.6507582    1 FALSE
 ```

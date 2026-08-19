@@ -50,5 +50,5 @@ diag(pmat) <- 1 - runif(5)/10
 
 #Zscore diagonal relative to other entries
 z.pred.mat(pmat)
-#> [1] 3.805349 7.979308 4.230943 2.212031 1.322799
+#> [1] 0.8261088 3.5050915 4.0015710 2.4705320 1.4975845
 ```

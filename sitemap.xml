@@ -12,6 +12,8 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/align.embeddings.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_alg.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_bge_embedding.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_triplet_embedding.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_failed_catch.html</loc></url>
@@ -47,6 +49,7 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_legacy.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.html</loc></url>
