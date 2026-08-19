@@ -2,10 +2,12 @@ pandoc: 3.8.3
 pkgdown: 2.2.1
 pkgdown_sha: ~
 articles:
+  comparing_embeddings_vignette: comparing_embeddings_vignette.html
   embedding_vignette: embedding_vignette.html
   overview_vignette: overview_vignette.html
   read_data_vignette: read_data_vignette.html
-last_built: 2026-08-19T20:33Z
+  tripletTools: tripletTools.html
+last_built: 2026-08-19T22:21Z
 urls:
   reference: https://knowledge-and-concepts-lab.github.io/tripletTools/reference
   article: https://knowledge-and-concepts-lab.github.io/tripletTools/articles

@@ -1,0 +1,509 @@
+# Comparing Triplet Embeddings to Alternative Representations
+
+## Overview
+
+A triplet-based embedding is one way to estimate the similarity
+structure among a set of items, but it is rarely the only way. You might
+also have:
+
+- A **language- or vision-model embedding** of the same items (e.g. from
+  a HuggingFace model) — typically much higher-dimensional than a
+  triplet embedding
+- A **categorical label** for each item (a stimulus feature, a taxonomy
+  category) that a good embedding ought to encode
+- A **verbal-fluency task** (e.g. “name as many animals as you can”)
+  from which you can estimate similarity via the sequential structure of
+  what people say
+
+This vignette covers three tools for relating a triplet embedding to
+each of these:
+
+| Approach | Question it answers | Key functions |
+|----|----|----|
+| Procrustes alignment + dimensionality ceilings | How well does this embedding’s *shape* align with a (possibly much higher-dimensional) alternative? | [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md), [`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md), [`procrustes_spectral_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_spectral_ceiling.md) |
+| Classifier performance | Does this embedding encode a known categorical label? | [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md), [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md) |
+| Successor representations from verbal fluency | How does similarity estimated from a completely different task (free naming) compare to triplet-based similarity? | [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md), [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md) |
+
+All three sections build on real example data bundled with the package —
+Shaver et al. (1987) emotion words with a matched language-model
+embedding, the icon stimulus set, and an animal verbal-fluency dataset —
+so every number shown below is a real, reproducible result rather than a
+synthetic illustration.
+
+``` r
+
+library(tripletTools)
+```
+
+------------------------------------------------------------------------
+
+## Comparing embeddings via Procrustes alignment
+
+### The naive approach, and a pitfall to avoid
+
+The obvious way to compare two embeddings of the same items is a
+Procrustes fit: find the rotation, reflection, and scaling of one
+configuration that best superimposes it on the other, and report how
+good the best-possible fit is.
+[`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)
+already does this for pairs of embeddings in this package (it’s normally
+used to compare embeddings across participants):
+
+``` r
+
+sdist <- get.rep.dist(list(triplet = emotion_triplet_embedding, bge = emotion_bge_embedding))
+observed_corr <- 1 - sdist[1, 2]   # get.rep.dist() returns a *distance*; 1 - distance is the correlation
+observed_corr
+#> 0.313
+```
+
+([`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)’s
+default distance is `1 - sqrt(1 - ss)`, the Procrustes equivalent of a
+correlation — see its own documentation. Its output matrix doesn’t carry
+the input list’s names, hence indexing by position.)
+
+**One thing worth flagging before you reach for this on your own data:**
+it’s tempting, when comparing two embeddings, to first convert each to
+an item-by-item distance matrix and Procrustes-align *those* —
+especially if you want a method that doesn’t care about the two
+embeddings’ raw dimensionality. Don’t do this. Euclidean distance is a
+*nonlinear* function of coordinates, so a raw pairwise distance matrix
+computed from a genuinely low-rank configuration is generally **not**
+itself low-rank — a truly 3-dimensional configuration’s distance matrix
+will typically have rank close to `n - 1`, not 3. Feeding that distance
+matrix into rank/ceiling analysis (below) as if it were a coordinate
+matrix will badly overstate the configuration’s effective
+dimensionality. Just Procrustes-align the raw coordinate matrices
+directly, as above —
+[`vegan::procrustes()`](https://vegandevs.github.io/vegan/reference/procrustes.html)
+(which
+[`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)
+calls internally) automatically zero-pads the lower-dimensional one, so
+mismatched dimensionality is handled correctly with no extra steps.
+
+### Why dimensionality mismatch still matters
+
+`emotion_triplet_embedding` is 4-dimensional. `emotion_bge_embedding` —
+a [BAAI/bge-m3](https://huggingface.co/BAAI/bge-m3) language-model
+embedding of the same 213 words — is natively 1024-dimensional (bundled
+here rotated onto its own lossless top-212 principal components, since
+with only 213 items its effective rank can’t exceed 212 regardless of
+the model’s native output width; see
+[`?emotion_bge_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_bge_embedding.md)).
+A correlation of 0.313 between a 4-dimensional and an
+effectively-212-dimensional configuration is hard to interpret in
+isolation: is 0.313 a *good* alignment, given that a 4-dimensional space
+can only ever capture a slice of whatever a 212-dimensional space
+represents? Or is it a *poor* one, reflecting real representational
+mismatch beyond what dimensionality alone would explain?
+
+[`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md)
+and
+[`procrustes_spectral_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_spectral_ceiling.md)
+answer this by computing an upper bound on the achievable correlation,
+so you can judge the observed value against what was actually attainable
+rather than against an abstract 0-to-1 scale.
+
+``` r
+
+procrustes_rank_ceiling(emotion_bge_embedding, k = 4)
+#> 0.436
+
+procrustes_spectral_ceiling(emotion_triplet_embedding, emotion_bge_embedding)
+#> 0.418
+```
+
+- `procrustes_rank_ceiling(target, k)` asks: of all possible rank-`k`
+  configurations, what’s the best correlation *any* of them could
+  achieve against `target`? This is a property of `target` alone (via
+  its singular-value spectrum), independent of any particular candidate
+  embedding.
+- `procrustes_spectral_ceiling(candidate, target)` asks a related but
+  sharper question: given `candidate`’s *actual* singular-value spectrum
+  (not just its nominal rank), what’s the best correlation it could
+  achieve against `target` under optimal rotation?
+  `procrustes_rank_ceiling(target, k)` is the special case of this where
+  `candidate` is `target`’s own best rank-`k` approximation.
+
+Both are exact, provable bounds (via the Eckart–Young/Ky Fan theorem and
+von Neumann’s trace inequality respectively) under the same symmetric,
+scaled Procrustes statistic
+[`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)
+uses — not heuristics.
+
+### Interpreting the result
+
+Observed correlation (0.313) against the two ceilings (0.436, 0.418)
+means the triplet embedding captures roughly **72–75% of what was
+achievable** at its dimensionality. That’s a reassuring result: most of
+the shortfall from a “perfect” correlation of 1 is explained by the
+sheer dimensionality gap between a 4D and an effectively-212D space, not
+by the triplet embedding capturing fundamentally different structure.
+Without the ceiling, 0.313 alone doesn’t tell you that — it could just
+as easily have reflected a triplet embedding that captures almost none
+of the achievable structure.
+
+------------------------------------------------------------------------
+
+## Evaluating embeddings via classifier performance
+
+### The idea
+
+If an embedding faithfully captures a property of the items, a
+classifier trained on the embedding’s coordinates should be able to
+predict that property from held-out items.
+[`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md)
+(binary labels) and
+[`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md)
+(more than two classes) estimate this via repeated stratified k-fold
+cross-validation, reporting AUC and related metrics along with per-fold
+diagnostics for catching unreliable fits.
+
+### Binary labels: individual differences in what gets encoded
+
+The icon stimulus set’s item codes encode several features directly (see
+`?icon_items`): position 1 is face/place, position 2 is day/night. Both
+apply to all 32 items, so both make clean binary labels. Rather than
+asking whether the *group* embedding encodes these features, it’s more
+interesting to ask whether *individual* participants’ embeddings do —
+different people may attend to different stimulus properties when
+judging similarity.
+
+``` r
+
+items <- icon_items$item
+faceplace <- ifelse(substr(items, 1, 1) == "f", "face", "place")
+daynight  <- ifelse(substr(items, 2, 2) == "d", "day", "night")
+names(faceplace) <- items
+names(daynight)  <- items
+
+run_feature <- function(label) {
+  sapply(icon_emb_ind, function(emb) {
+    X <- emb[items, ]
+    y <- label[items]
+    cv <- repeated_stratified_logistic_cv(X, y, repetitions = 100, folds = 4, seed = 1)
+    cv$summary$mean[cv$summary$metric == "auc"]
+  })
+}
+
+data.frame(
+  worker_id  = names(icon_emb_ind),
+  face_place = run_feature(faceplace),
+  day_night  = run_feature(daynight),
+  row.names  = NULL
+)
+```
+
+    #>   worker_id face_place day_night
+    #> 1  3n7ggxph      1.000     0.307
+    #> 2  b5wma4no      0.998     0.566
+    #> 3  d8mmm1qn      1.000     0.361
+    #> 4  jn7bbjc0      1.000     0.536
+    #> 5  pbby694o      0.616     1.000
+    #> 6  sc2xbd6w      0.808     1.000
+
+Four participants (`3n7ggxph`, `b5wma4no`, `d8mmm1qn`, `jn7bbjc0`)
+encode face/place almost perfectly (AUC 0.998–1.000) but only weakly for
+day/night (0.31–0.57, closer to the chance level of 0.5 than to 1). The
+other two (`pbby694o`, `sc2xbd6w`) show the reverse: perfect day/night
+discrimination but only moderate face/place discrimination. This is a
+genuine crossover, not just noise on one feature or the other — the
+*same* participants swap roles depending on which property you ask
+about, which is a much stronger illustration of individual differences
+in representation than either feature alone would give.
+
+With only 32 items split across 4 folds, some fits in this example will
+be flagged `unstable_fit` in `cv$diagnostics` (most often the
+near-perfect-AUC fits, for the same quasi-complete-separation reason
+discussed below) — small item sets make this common. Inspect
+`cv$diagnostics` before trusting any single fold’s coefficients in
+isolation.
+
+### More than two classes: predicting emotion category from embedding coordinates
+
+`emotion_categories` gives each of the 213 Shaver et al. (1987) emotion
+words a basic-emotion category (Love, Joy, Surprise, Anger, Sadness,
+Fear), plus `"Absent"` for words Shaver et al. didn’t end up assigning
+to a category. Before classifying, drop `"Absent"` — and also
+`"Surprise"`, which only has 3 words, too few for any fold to give a
+stable estimate:
+
+``` r
+
+keep <- !(emotion_categories$category %in% c("Absent", "Surprise"))
+words <- rownames(emotion_categories)[keep]
+
+X <- emotion_triplet_embedding[words, ]
+y <- droplevels(emotion_categories[words, "category"])
+table(y)
+#>   Anger    Fear     Joy    Love Sadness
+#>      29      17      33      16      37
+```
+
+``` r
+
+cv <- repeated_stratified_multinomial_cv(X, y, repetitions = 20, folds = 3, seed = 1)
+cv$summary
+```
+
+    #>              metric   mean     sd
+    #>            accuracy  0.698  0.021
+    #>   balanced_accuracy  0.638  0.024
+    #>           precision  0.650  0.028
+    #>                  f1  0.639  0.025
+    #>                 auc  0.924  0.013
+
+An overall AUC of 0.924 looks strong, but the macro-averaged metrics
+above collapse across all 5 classes — `per_class_summary` shows they
+don’t all fare the same:
+
+``` r
+
+cv$per_class_summary[, c("class", "n", "mean_sensitivity", "mean_precision", "mean_f1")]
+```
+
+    #>     class  n mean_sensitivity mean_precision mean_f1
+    #> 1   Anger 29            0.741          0.675   0.706
+    #> 2    Fear 17            0.529          0.622   0.568
+    #> 3     Joy 33            0.761          0.684   0.719
+    #> 4    Love 16            0.297          0.408   0.341
+    #> 5 Sadness 37            0.861          0.859   0.859
+
+`Sadness` is predicted well (0.86 sensitivity); `Love` is predicted
+poorly (0.30) — a pattern the macro-averaged `balanced_accuracy` alone
+would hide entirely.
+
+### A worked example in calibrating `coefficient_warning`
+
+Before trusting the fit above, it’s worth checking `cv$diagnostics` for
+signs of instability — and here, the default threshold turns out to need
+recalibrating for this problem:
+
+``` r
+
+summary(cv$diagnostics$maximum_absolute_coefficient)
+#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#>   11.57   18.11   25.50  131.68   35.18 2291.16
+
+sum(cv$diagnostics$unstable_fit)
+#> 60   # out of 60 -- every single fold
+```
+
+Every fold is flagged, which makes the diagnostic useless as a
+discriminating signal here. This isn’t a bug — it’s
+`coefficient_warning`’s default of `10` being tuned for
+[`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md)’s
+2-class case, where it’s a reasonable threshold. With 5 classes fit from
+only 4 predictor dimensions, multinomial coefficients naturally run
+larger even in well-behaved fits (the median here, 25.5, is itself well
+above 10), so the same threshold doesn’t transfer. The right fix isn’t
+to trust a hard-coded default blindly, but to look at the empirical
+distribution of `maximum_absolute_coefficient` across folds — as above —
+and pick a threshold that separates the typical range from real
+outliers.
+
+The distribution above has a clear typical band (roughly 10–50) and a
+small outlier tail (6 fits above 100, one at 2291). Recalibrating:
+
+``` r
+
+cv2 <- repeated_stratified_multinomial_cv(X, y, repetitions = 20, folds = 3, seed = 1,
+                                           coefficient_warning = 50)
+sum(cv2$diagnostics$unstable_fit)
+#> 9   # out of 60 -- now a genuinely discriminating signal
+```
+
+`cv2$summary` and `cv2$per_class_summary` are unchanged from `cv`’s —
+`coefficient_warning` only affects the diagnostic flag, not the fit or
+predictions. The one fold reaching a coefficient of 2291 is worth a
+closer look on its own merits: despite
+[`nnet::multinom`](https://rdrr.io/pkg/nnet/man/multinom.html) reporting
+convergence and a non-degenerate training accuracy (0.79, not the ~1.0
+you’d expect from *complete* separation), 301 of its 430 training
+predicted-probability cells were within numerical tolerance of 0 or 1 —
+a subtler, partial-separation pattern for a subset of predictions that a
+simple “is training accuracy near 100%” check wouldn’t have caught, but
+the coefficient-magnitude diagnostic did.
+
+------------------------------------------------------------------------
+
+## Estimating similarity from verbal-fluency data
+
+### Successor representations
+
+A verbal-fluency task — “name as many animals as you can” — produces
+sequential lists rather than similarity judgments directly, but
+sequential structure still carries information about similarity: items
+that follow one another within a list tend to be related. Counting how
+often each word follows each other word across many lists gives a
+directed, weighted adjacency graph.
+[`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md)
+turns that graph into a **Successor Representation**: for each pair of
+items, the discounted expected number of times a random walk from one
+would visit the other, summed over an infinite horizon.
+
+``` r
+
+sr <- successor_matrix(animal_adjacency_matrix, gamma = 0.5)
+dim(sr$successor)
+#> [1] 295 295
+```
+
+`gamma` (0 ≤ gamma \< 1) controls the time horizon: near 0, the
+representation reflects only immediate neighbors; as it approaches 1, it
+increasingly reflects long-range graph structure. There’s no universally
+“correct” value — see the sensitivity check at the end of this section.
+
+### Restricting to matching items — after, not before, computing the successor representation
+
+`animal_adjacency_matrix` has 295 words (anything produced by at least 5
+participants in the underlying fluency study), while
+`animal_triplet_embedding` has only the 213 that were part of the
+curated triplet stimulus set. The other 82 are superordinate terms,
+synonyms, and other species that came up in people’s lists but weren’t
+part of the triplet study.
+
+**Compute
+[`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md)
+on the full 295-word graph, and only restrict to the 213 matching items
+afterward:**
+
+``` r
+
+target_items <- rownames(animal_triplet_embedding)
+S <- sr$successor[target_items, target_items]   # subset AFTER computing, not before
+```
+
+Restricting the *adjacency matrix* to 213 words before computing the
+successor representation would discard genuine multi-hop associative
+structure that happens to route through a non-target word — e.g. a real
+bear → cub → lion pathway would vanish entirely if “cub” were dropped
+before the random walk was ever computed, even though bear and lion are
+both target items. Computing on the full graph first preserves that
+structure; only the final read-out is restricted.
+
+### From successor representations to distances: `hellinger_dist()`
+
+`S`’s rows aren’t directly comparable to `animal_triplet_embedding`’s
+coordinates — they’re profiles over 213 other items, not embedding
+coordinates in the usual sense.
+[`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md)
+treats each row as a probability profile (renormalizing it to sum to 1)
+and returns the pairwise Hellinger distance between rows:
+
+``` r
+
+D_successor <- hellinger_dist(S)
+```
+
+Here’s a fact worth knowing before reaching for classical MDS on
+`D_successor` to get something Procrustes-comparable: **Hellinger
+distance is not merely well-approximated by a Euclidean distance — it
+*is* one, exactly, by definition.**
+[`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md)
+computes `dist(sqrt(P)) / sqrt(2)` internally, which means `D_successor`
+is *exactly* the (scaled) Euclidean distance matrix of
+`sqrt(row-normalized S)`. There’s no approximation risk here the way
+there might be for an arbitrary dissimilarity matrix — classical MDS on
+`D_successor` would recover `sqrt(row-normalized S)` (up to rotation)
+with zero distortion, so it’s simpler to just compute that directly:
+
+``` r
+
+P <- S
+P[P < 0] <- 0
+P <- P / rowSums(P)
+Q <- sqrt(P)              # exact coordinates implied by hellinger_dist(S), up to rotation
+rownames(Q) <- target_items
+```
+
+`Q` is now a genuine coordinate matrix, directly comparable to
+`animal_triplet_embedding` via the same Procrustes/ceiling tools from
+the first section of this vignette.
+
+### Comparing to the triplet embedding
+
+``` r
+
+sdist <- get.rep.dist(list(triplet = animal_triplet_embedding, successor = Q))
+observed_corr <- 1 - sdist[1, 2]
+observed_corr
+#> 0.282
+
+procrustes_rank_ceiling(Q, k = 6)
+#> 0.410
+
+procrustes_spectral_ceiling(animal_triplet_embedding, Q)
+#> 0.367
+```
+
+As with the language-model comparison earlier, `Q` (like `S` itself) is
+naturally high-rank — a 6-dimensional triplet embedding can only ever
+capture part of its structure, which is exactly what the ceiling
+quantifies (0.410 at k = 6, well short of 1). The observed correlation
+(0.282) falls short of even that reduced ceiling, capturing about 69% of
+what was achievable at rank 6 — a similar shortfall to the
+language-model comparison, though the underlying “alternative
+representation” here is estimated from a completely different task (free
+naming, not a language model) and depends on a parameter (`gamma`) that
+has no counterpart in the earlier comparison.
+
+### Sensitivity to gamma
+
+Because there’s no principled default for `gamma`, it’s worth checking
+whether conclusions are sensitive to it before reporting a result at a
+single value:
+
+``` r
+
+gammas <- c(0.3, 0.5, 0.7, 0.9)
+
+sweep <- do.call(rbind, lapply(gammas, function(g) {
+  sr_g <- successor_matrix(animal_adjacency_matrix, gamma = g)
+  S_g <- sr_g$successor[target_items, target_items]
+  P_g <- S_g; P_g[P_g < 0] <- 0; P_g <- P_g / rowSums(P_g)
+  Q_g <- sqrt(P_g); rownames(Q_g) <- target_items
+
+  sdist_g <- get.rep.dist(list(triplet = animal_triplet_embedding, successor = Q_g))
+  data.frame(
+    gamma          = g,
+    observed_corr  = 1 - sdist_g[1, 2],
+    rank_ceiling   = procrustes_rank_ceiling(Q_g, k = ncol(animal_triplet_embedding)),
+    spectral_ceiling = procrustes_spectral_ceiling(animal_triplet_embedding, Q_g)
+  )
+}))
+sweep
+```
+
+    #>   gamma observed_corr rank_ceiling spectral_ceiling
+    #> 1   0.3         0.249        0.356            0.315
+    #> 2   0.5         0.282        0.410            0.367
+    #> 3   0.7         0.308        0.451            0.409
+    #> 4   0.9         0.316        0.466            0.429
+
+Alignment with the triplet embedding rises with `gamma` here — but treat
+that as a demonstration that the choice matters and is worth checking on
+your own data, not as a general claim about what `gamma` “should” be for
+verbal-fluency data. The direction and size of this kind of effect isn’t
+obvious in advance (a different comparison space, e.g. a language-model
+embedding of the same words, need not move the same way with `gamma`),
+which is itself the point: a successor representation’s geometry is not
+a fixed thing, and the discount parameter is worth exploring rather than
+fixed at a conventional default without checking.
+
+------------------------------------------------------------------------
+
+## Summary
+
+| Question | Tool |
+|----|----|
+| Does this embedding’s overall shape align with an alternative, accounting for a dimensionality mismatch? | [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md) + [`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md)/[`procrustes_spectral_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_spectral_ceiling.md) |
+| Does this embedding encode a known 2-level label? | [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md) |
+| Does this embedding encode a known \>2-level label? | [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md) |
+| How does verbal-fluency-based similarity compare to this embedding? | [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md) + [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md), then the Procrustes tools above |
+
+All three tools share a common thread: a raw number in isolation (a
+correlation, an AUC, a distance) is hard to interpret without something
+to compare it to — a ceiling, a chance level, a per-class breakdown, a
+sensitivity check across a hyperparameter. Each section above pairs the
+raw computation with that context.

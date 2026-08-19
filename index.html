@@ -31,11 +31,13 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="articles/tripletTools.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
+<li><a class="dropdown-item" href="articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
+    <li><a class="dropdown-item" href="articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
     <li><a class="dropdown-item" href="articles/overview_vignette.html">tripletTools Overview</a></li>
     <li><a class="dropdown-item" href="articles/read_data_vignette.html">Reading Triplet Data</a></li>
   </ul>
@@ -55,14 +57,44 @@
   <main id="main" class="col-md-9"><div class="section level1">
 <div class="page-header"><h1 id="triplettools-for-r">tripletTools for R<a class="anchor" aria-label="anchor" href="#triplettools-for-r"></a>
 </h1></div>
-<p>This repo contains an R package designed to aid in the analysis of data from triadic comparisons (tripelt) tasks.</p>
-<p>To install, in R 3.5 or greater, do the following:</p>
-<pre><code><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"remotes"</span><span class="op">)</span></span>
-<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"Knowledge-and-Concepts-Lab/tripletTools"</span>, build_vignettes <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre>
-<p>Once installed you can invoke the package as usual with:</p>
-<p><code><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/">library(tripletTools)</a></code></p>
-<p>The articles above provide an overview of package use (tripletTools Overview) and describe file formats and how to read data files for new studies (Read Triplet Data). These can also be viewed as vignettes from within RStudio.</p>
-<p>All functions are documented in <code>tripletTools_manual.pdf</code></p>
+<!-- badges: start -->
+
+<p>An R package for analyzing data from <strong>triadic comparison (triplet) tasks</strong>: a participant sees a referent item and two options, and judges which option is more similar to the referent. From many such judgments, <code>tripletTools</code> estimates a similarity embedding, evaluates it, and compares it to other representations of the same items — language/vision-model embeddings, verbal-fluency data, category labels.</p>
+<div class="section level2">
+<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h2>
+<p>In R 3.5 or greater:</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"remotes"</span><span class="op">)</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"Knowledge-and-Concepts-Lab/tripletTools"</span>, build_vignettes <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="quick-example">Quick example<a class="anchor" aria-label="anchor" href="#quick-example"></a>
+</h2>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/">tripletTools</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Visualize a precomputed embedding of the bundled icon stimuli</span></span>
+<span><span class="va">emb</span> <span class="op">&lt;-</span> <span class="va">icon_emb_group</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">emb</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="va">emb</span><span class="op">$</span><span class="va">item</span></span>
+<span><span class="fu"><a href="reference/plot_pics.html">plot_pics</a></span><span class="op">(</span><span class="va">emb</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"dim_0"</span>, <span class="st">"dim_1"</span><span class="op">)</span><span class="op">]</span>, <span class="va">icon_pics</span>, psize <span class="op">=</span> <span class="fl">0.04</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="learn-more">Learn more<a class="anchor" aria-label="anchor" href="#learn-more"></a>
+</h2>
+<p>Start with <strong><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/articles/tripletTools.html">Getting Started</a></strong>, which walks through setup, fitting an embedding, and evaluating/visualizing the result end to end. From there:</p>
+<ul>
+<li>
+<strong><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/articles/overview_vignette.html">tripletTools Overview</a></strong> — the broader analysis toolkit: data loading, quality checks, inter-subject agreement, clustering</li>
+<li>
+<strong><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/articles/embedding_vignette.html">Computing Triplet Embeddings</a></strong> — the full embedding pipeline, dimensionality selection, parallel/HTCondor execution</li>
+<li>
+<strong><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></strong> — Procrustes ceilings, classifier-based evaluation, verbal-fluency similarity</li>
+<li>
+<strong><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/articles/read_data_vignette.html">Read Triplet Data</a></strong> — file formats for bringing in your own data</li>
+</ul>
+<p>Every vignette is also available from within R/RStudio (<code>build_vignettes = TRUE</code> above), and all functions are documented in <code>tripletTools_manual.pdf</code>.</p>
+</div>
 </div>
   </main><aside class="col-md-3"><div class="license">
 <h2 data-toc-skip>License</h2>
@@ -87,7 +119,13 @@
 </ul>
 </div>
 
-
+<div class="dev-status">
+<h2 data-toc-skip>Dev status</h2>
+<ul class="list-unstyled">
+<li><a href="https://github.com/Knowledge-and-Concepts-Lab/tripletTools/actions/workflows/pkgdown.yaml" class="external-link"><img src="https://github.com/Knowledge-and-Concepts-Lab/tripletTools/actions/workflows/pkgdown.yaml/badge.svg" alt="pkgdown"></a></li>
+<li><a href="https://opensource.org/licenses/MIT" class="external-link"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a></li>
+</ul>
+</div>
 
   </aside>
 </div>
