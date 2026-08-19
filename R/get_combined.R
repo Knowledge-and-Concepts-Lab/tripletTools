@@ -28,7 +28,7 @@
 #' @export
 #'
 #' @examples
-#' fpath <- system.file("extdata", "cfd36_embeddings_individual.csv", package="tripletTools")
+#' fpath <- system.file("extdata", "icon_embeddings_individual.csv", package="tripletTools")
 #'
 #' embeddings <- get.combined(fpath, eflag=TRUE)
 #'

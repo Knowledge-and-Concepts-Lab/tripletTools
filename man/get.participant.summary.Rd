@@ -45,7 +45,7 @@ This function assumes standard triplet data naming conventions for column names.
 \examples{
 
 #Path to example triplet data
-fpath <- system.file("extdata", "cfd36_triplets_individual.csv", package = "tripletTools")
+fpath <- system.file("extdata", "icon_all_triplets.csv", package = "tripletTools")
 
 #Read the data
 trips <- get.combined(fpath)

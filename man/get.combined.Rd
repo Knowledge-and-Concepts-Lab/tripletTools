@@ -34,7 +34,7 @@ Use this function to read in combined (across subjects) triplet data
 files (with \code{eflag=FALSE}) or embedding files (with \code{eflag=TRUE})
 }
 \examples{
-fpath <- system.file("extdata", "cfd36_embeddings_individual.csv", package="tripletTools")
+fpath <- system.file("extdata", "icon_embeddings_individual.csv", package="tripletTools")
 
 embeddings <- get.combined(fpath, eflag=TRUE)
 
