@@ -52,8 +52,15 @@ docs/                     # pkgdown site — rebuild with pkgdown::build_site()
 | `run_embeddings_from_list()` | R/run_embeddings.R | Per-participant + group embeddings |
 | `run_embeddings()` | R/run_embeddings.R | CSV-based pipeline (called by the above) |
 | `estimate_dimensionality()` | R/estimate_dimensionality.R | Grid search over d with random restarts |
+| `matrix_rank()` | R/matrix_rank.R | Numerical rank of a (centered) matrix via SVD |
+| `procrustes_rank_ceiling()` | R/procrustes_rank_ceiling.R | Variance fraction captured by top-k dims of a target matrix |
+| `procrustes_spectral_ceiling()` | R/procrustes_spectral_ceiling.R | Cosine similarity between two matrices' singular-value spectra |
+| `hellinger_dist()` | R/hellinger_dist.R | Pairwise Hellinger distances between rows of a profile matrix |
+| `successor_matrix()` | R/successor_matrix.R | Successor Representation from a weighted adjacency matrix |
+| `repeated_stratified_logistic_cv()` | R/repeated_stratified_logistic_cv.R | Repeated stratified CV logistic regression predicting a binary label from embedding coordinates |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`, `.get_compute_py()`.
+Internal helpers in `R/repeated_stratified_logistic_cv.R` (not exported): `make_binary()`, `make_stratified_folds()`, `roc_auc()`, `classification_metrics()`.
 
 ---
 
@@ -100,3 +107,4 @@ Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`, `.get_compute_py()`.
 - GPU/MPS/CPU device support threaded through the entire stack
 - "Computing Triplet Embeddings" vignette covering setup, group embedding, individual embeddings, dimensionality selection, and parallel execution (multicore and HTCondor)
 - Fixed pre-existing `plot_cis()` crash on single-member clusters
+- Embedding-space comparison toolkit, ported in from standalone scripts and given roxygen docs + smoke tests: `matrix_rank()`, `procrustes_rank_ceiling()`, `procrustes_spectral_ceiling()`, `hellinger_dist()`, `successor_matrix()`, `repeated_stratified_logistic_cv()`. No new package dependencies — all base/`stats`. A vignette for this toolkit is planned but not yet written.
