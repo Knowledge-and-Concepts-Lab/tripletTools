@@ -139,6 +139,28 @@ back to the returned matrices.
   components rather than shipping the raw 1024 dims (213 x 212 data
   frame, rownames = words) — see `data-raw/emotion_embeddings.R` for the
   derivation/verification
+- `animal_adjacency_matrix` — 295 x 295 directed weighted verbal-fluency
+  co-occurrence graph over animal words (Wisconsin Longitudinal Study,
+  min-5-participant threshold); contains all 213 items in
+  `animal_triplet_embedding` plus 82 extra words (superordinate
+  terms/synonyms/other species)
+- `animal_triplet_embedding` — 6D triplet-based embedding of the 213
+  animal words also present in `animal_adjacency_matrix` (213 x 6 data
+  frame, rownames = words) — see `data-raw/animal_embeddings.R`. When
+  comparing successor-representation distances to this embedding,
+  compute
+  [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md)
+  on the full 295-word graph first and restrict to these 213 items
+  afterward (see the `animal_adjacency_matrix` roxygen `@details` for
+  why)
+- `emotion_categories` — Shaver et al. (1987) basic-emotion category for
+  each of the 213 `emotion_triplet_embedding`/`emotion_bge_embedding`
+  words (213 x 1 data frame, rownames = words, one factor column
+  `category`). Includes `"Absent"` (78 words, not assigned a category)
+  and `"Surprise"` (3 words, too few for reliable CV) unfiltered — the
+  recommended multinomial-classification subset drops both, leaving 132
+  words across 5 categories (Anger 29, Fear 17, Joy 33, Love 16, Sadness
+  37)
 
 ------------------------------------------------------------------------
 
@@ -195,15 +217,45 @@ back to the returned matrices.
   semantics for the already-shipped 2-class case. Backed by
   [`nnet::multinom()`](https://rdrr.io/pkg/nnet/man/multinom.html)
   (`nnet` added to Suggests — Recommended-priority, ships with R,
-  effectively free). Tested on synthetic data only so far.
+  effectively free).
 - `emotion_triplet_embedding` / `emotion_bge_embedding` example
   datasets, plus fixed two stale `cfd36_*.csv` example paths (broken
   since the v0.2.0 CFD→icon data swap) and removed three orphaned,
   undocumented `cfd_*.rda` data files.
+- `animal_adjacency_matrix` / `animal_triplet_embedding` example
+  datasets, for the verbal-fluency/successor-representation vignette
+  piece. Verified end-to-end:
+  [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md)
+  on the full graph → restrict to 213 matching items →
+  [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md)
+  → compared to the triplet embedding via
+  [`vegan::procrustes()`](https://vegandevs.github.io/vegan/reference/procrustes.html)/[`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md)/[`procrustes_spectral_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_spectral_ceiling.md).
+  Considered sparse (`Matrix`-package) storage for the 88.7%-zero
+  adjacency matrix but xz-compressed dense storage is already 13.8KB, so
+  kept it a plain dense matrix.
+- `emotion_categories` example dataset, giving
+  [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md)
+  a real-data example (132 words, 5 classes after dropping
+  “Absent”/“Surprise”): accuracy 0.70, AUC 0.92. Along the way, found
+  the function’s default `coefficient_warning = 10` (inherited from the
+  binary function’s 2-class calibration) flags nearly every fold on real
+  multinomial data (median max-coefficient 25.5 here) — not a bug, but a
+  sign this threshold needs per-problem recalibration rather than blind
+  trust in the default; a genuine outlier fold (coefficient 2291, from
+  partial near-separation) is only distinguishable from the rest once
+  recalibrated (9/60 flagged at threshold 50 vs 60/60 at the default
+  10). Vignette will demonstrate this calibration process rather than
+  just picking a better number silently. No function changes made.
 - A vignette on comparing triplet-based embeddings to alternative
-  (e.g. language/vision model) embeddings is in progress, covering: (1)
-  Procrustes alignment + rank/spectral ceilings, using the emotion-word
-  data above; (2) evaluating embeddings via classifier performance
+  embeddings/similarity estimates is in progress, covering three pieces,
+  all validated against real bundled data with real (not just synthetic)
+  examples: (1) Procrustes alignment + rank/spectral ceilings, using the
+  emotion-word data; (2) evaluating embeddings via classifier
+  performance
   ([`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md)/[`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md)),
-  using icon-data gender labels for the binary case and emotion data for
-  multiclass; (3) a third piece not yet scoped. Not yet written.
+  using icon-data gender labels for binary and emotion-category data for
+  multiclass; (3) estimating similarity from verbal-fluency data via
+  [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md)/[`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md)
+  and comparing to a triplet embedding, using the animal data. Vignette
+  prose not yet written – work so far has been validating each piece’s
+  code/math and preparing/bundling example data.

@@ -4,12 +4,18 @@
 
 - [`align.embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/align.embeddings.md)
   : Align embeddings across participants
+- [`animal_adjacency_matrix`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/animal_adjacency_matrix.md)
+  : Verbal-fluency co-occurrence graph for 295 animal words
+- [`animal_triplet_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/animal_triplet_embedding.md)
+  : Triplet-based embedding of 213 animal words
 - [`assign_sample_alg()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_alg.md)
   : Label each trial with its sampling algorithm
 - [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
   : Assign trials to train or test sets
 - [`emotion_bge_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_bge_embedding.md)
   : Language-model embedding of 213 emotion words (BAAI/bge-m3)
+- [`emotion_categories`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_categories.md)
+  : Basic emotion categories for the 213 Shaver emotion words
 - [`emotion_triplet_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_triplet_embedding.md)
   : Triplet-based embedding of 213 emotion words
 - [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
