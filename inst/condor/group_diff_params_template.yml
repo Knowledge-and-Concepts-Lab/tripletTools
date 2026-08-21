@@ -1,0 +1,76 @@
+# ---------------------------------------------------------------------------
+# tripletTools group-difference Condor workflow configuration
+#
+# Copy this file, edit the fields below, and pass it as the third argument
+# to condor_group_diff_workflow.py on the submit node:
+#
+#   python3 condor_group_diff_workflow.py triplet_data.csv group_labels.csv my_params.yml
+#
+# No R installation is needed on the submit node -- only Python 3 and
+# PyYAML (pip install --user pyyaml). Every fit and comparison runs inside
+# the tripletTools container image via HTCondor's container universe.
+#
+# What this tests: whether two participant groups' embeddings differ
+# reliably -- fits a separate group embedding for each true group, measures
+# their Procrustes correlation, and compares that to a null distribution
+# built from many random same-sized re-partitions of the pooled
+# participants. See group_difference_test()'s documentation (the local R
+# equivalent of this workflow) for the full rationale, including why null
+# partitions are drawn at the *same sizes* as the true groups rather than a
+# blanket 50/50 split.
+# ---------------------------------------------------------------------------
+
+# Directory (on the submit node) where all outputs are written: per-replicate
+# embeddings and comparisons (in stage1_fit/, stage2_compare/), plus
+# null_distribution.csv, summary.csv, and run_manifest.txt at the top level.
+# Created if it doesn't exist.
+output_dir: condor_group_diff_output
+
+# Embedding dimensionality, held FIXED across the true split and every null
+# permutation -- choose this beforehand (e.g. via a local
+# estimate_dimensionality() run on the pooled data). Re-selecting it per
+# permutation would be prohibitively slow, and would entangle
+# dimensionality selection with the group-difference test itself. Required
+# -- the workflow refuses to run without it.
+d: 5
+
+# Number of null (random-partition) replicates. Each contributes 2 embedding
+# fits (one per pseudo-group side), on top of the true split's own 2 fits --
+# total embedding fits = 2 * (1 + n_permutations). Total Condor jobs across
+# both stages = 3 * (1 + n_permutations) (2 fit jobs + 1 compare job per
+# replicate).
+n_permutations: 999
+
+# Base random seed. Controls both which participants land in which
+# pseudo-group for each null permutation (Python's random module, seeded
+# per-replicate as seed + replicate_id) and each embedding fit's own
+# training seed (derived per (replicate, side); see
+# condor_group_diff_workflow.py's build_replicates()/run_fit_stage()).
+seed: 1
+
+# --- HTCondor settings -------------------------------------------------------
+condor:
+  # docker:// reference to the tripletTools container image, built and
+  # published by .github/workflows/docker-publish.yml at the repo root.
+  # Every job (both stages) runs inside this image via universe = container
+  # -- no R, conda, or tripletTools installation is assumed on whatever
+  # execute node the job lands on.
+  container_image: docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest
+  resources:
+    request_cpus: 1
+    request_memory: 4GB
+    request_disk: 8GB   # covers the pulled/unpacked container image
+
+# --- Embedding-fit settings ---------------------------------------------------
+# Applied to every embedding fit in stage 1 (the true split and every null
+# permutation, both sides). run_group_embedding_from_list()'s own train/test
+# handling is used directly (no internal_test resampling, unlike the
+# dimensionality/learning-curve Condor workflow) -- there is no model
+# selection happening here, just production fits at the fixed d above.
+max_epochs: 50000
+tolerance: 1e-4
+tol_window: 10000
+device: cpu           # execute nodes in the general CHTC pool have no GPU
+geometry: euclidean
+radius: 1
+norm_penalty: 0
