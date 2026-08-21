@@ -73,13 +73,17 @@ Current version: **0.2.0**. Package URL:
 | [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md) | R/successor_matrix.R | Successor Representation from a weighted adjacency matrix |
 | [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md) | R/repeated_stratified_logistic_cv.R | Repeated stratified CV logistic regression predicting a binary label from embedding coordinates |
 | [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md) | R/repeated_stratified_multinomial_cv.R | Sibling of the above for \>2-class labels; [`nnet::multinom()`](https://rdrr.io/pkg/nnet/man/multinom.html)-backed, macro-averaged metrics + per-class breakdown |
+| [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md) | R/find_discriminating_triplets.R | Finds triplets where two embeddings of the same items make discrepant CKL predictions, for designing a follow-up human study |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`,
 `.get_compute_py()`. Internal helpers in
 `R/repeated_stratified_logistic_cv.R` (not exported): `make_binary()`,
 `make_stratified_folds()`, `roc_auc()`, `classification_metrics()`.
-Internal helpers in `R/repeated_stratified_multinomial_cv.R` (not
-exported): `multinom_probs_matrix()` (normalizes
+Internal helpers in `R/find_discriminating_triplets.R` (not exported):
+`ckl_prob()` (same formula/`mu` as the vendored Python CKL noise model),
+`symmetric_kl_bernoulli()`. Internal helpers in
+`R/repeated_stratified_multinomial_cv.R` (not exported):
+`multinom_probs_matrix()` (normalizes
 [`nnet::multinom`](https://rdrr.io/pkg/nnet/man/multinom.html)’s predict
 output — returns a bare vector instead of a matrix for exactly 2
 classes), `multiclass_metrics()`.
@@ -311,3 +315,20 @@ back to the returned matrices.
   direction `S ≈ I + gamma(P-I)`, never as an intermediate regime `S`
   resembles (verified on the animal graph: `S` stays closer to `I` than
   to `P` until `gamma` is well past 0.5).
+- [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md)
+  — given two embeddings of the same items, finds triplets where the two
+  make discrepant CKL predictions (symmetric KL divergence between each
+  embedding’s CKL win-probability), for designing a follow-up study to
+  test which embedding better matches human judgments. Candidate
+  triplets are sampled (half uniform, half weighted by each item’s
+  Procrustes-alignment residual between the two embeddings), not
+  enumerated exhaustively. Verified the uniform half is load-bearing,
+  not just a hedge: in a synthetic test with exactly one relocated item,
+  plain Procrustes residuals do *not* rank that item first — a strong
+  single outlier distorts the global rotation/scale fit enough to
+  inflate other, unchanged items’ residuals above it. Supports
+  `max_per_item` to cap how often one item can dominate the returned set
+  (greedy selection, descending discrepancy); this surfaced and fixed a
+  real bug where the greedy loop was padding remaining slots with
+  zero-discrepancy (i.e. non-discriminating) filler triplets once the
+  cap was hit, rather than stopping short and warning.
