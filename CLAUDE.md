@@ -25,6 +25,21 @@ Current version: **0.2.0**. Package URL:
             _noise_models.py  # CKL, TSTE, STE, GNMDS, SOE, Logistic noise models
             search/           # Information-gain query selection
     inst/requirements.txt     # conda packages for the Python env
+    inst/condor/              # HTCondor workflows: pure-Python orchestrators (submit node,
+                               #   no R needed there) dispatching per-job R scripts that run
+                               #   inside the tripletTools container (built by
+                               #   .github/workflows/docker-publish.yml). Two independent
+                               #   workflows, each with its own orchestrator/per-job-script/
+                               #   config-template/unittest set:
+                               #   condor_workflow.py           - dimensionality search -> learning
+                               #                                   curve -> final embedding fit
+                               #                                   (condor_fit.R, params_template.yml)
+                               #   condor_group_diff_workflow.py - group-difference permutation test,
+                               #                                   Condor companion to the local R
+                               #                                   function group_difference_test()
+                               #                                   (condor_group_fit.R,
+                               #                                   condor_group_compare.R,
+                               #                                   group_diff_params_template.yml)
     vignettes/
       tripletTools.Rmd                  # "Get started" guide (name matches pkgname -- pkgdown auto-promotes it
                                          #   to a top-level navbar link instead of the Articles dropdown). Only
@@ -74,6 +89,7 @@ Current version: **0.2.0**. Package URL:
 | [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md) | R/repeated_stratified_logistic_cv.R | Repeated stratified CV logistic regression predicting a binary label from embedding coordinates |
 | [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md) | R/repeated_stratified_multinomial_cv.R | Sibling of the above for \>2-class labels; [`nnet::multinom()`](https://rdrr.io/pkg/nnet/man/multinom.html)-backed, macro-averaged metrics + per-class breakdown |
 | [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md) | R/find_discriminating_triplets.R | Finds triplets where two embeddings of the same items make discrepant CKL predictions, for designing a follow-up human study |
+| [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md) | R/group_difference_test.R | Permutation test for whether two participant groups’ embeddings differ reliably; local (small-scale) companion to `inst/condor/condor_group_diff_workflow.py` |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`,
 `.get_compute_py()`. Internal helpers in
@@ -332,3 +348,46 @@ back to the returned matrices.
   real bug where the greedy loop was padding remaining slots with
   zero-discrepancy (i.e. non-discriminating) filler triplets once the
   cap was hit, rather than stopping short and warning.
+- [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md)
+  (local R function) + `inst/condor/condor_group_diff_workflow.py` (its
+  Condor-scale companion) — permutation test for whether two participant
+  groups’ embeddings differ reliably: fit each true group’s embedding,
+  measure their Procrustes correlation via
+  [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md),
+  and compare that to a null distribution built from many random
+  re-partitions of the pooled participants, **matched to the true
+  groups’ sizes** (not a blanket 50/50 split — embedding quality depends
+  on how much data went in, so an unequal true split compared against
+  even halves would confound sample size with genuine group difference).
+  One-sided p-value: proportion of null draws at or below the observed
+  correlation. `d` is fixed across every replicate (chosen beforehand,
+  e.g. via
+  [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)),
+  never re-selected per permutation. The Condor workflow mirrors
+  `condor_workflow.py`’s two-stage design (fit stage: one job per
+  (replicate, side); compare stage: one job per replicate, run only
+  after every fit completes) and is self-contained by design (duplicates
+  `condor_workflow.py`’s small generic submit-file helpers rather than
+  sharing a module between the two orchestrators).
+  - **Two real bugs caught while testing this, both worth remembering as
+    general gotchas:** (1) in the R function,
+    [`as.character()`](https://rdrr.io/r/base/character.html) on a named
+    vector **drops its names** —
+    `group_vec <- as.character(group_vec[worker_ids])` silently produced
+    an unnamed vector, making `names(group_vec)` `NULL` downstream and
+    `triplet_list[ids]` resolve to an empty list, which only surfaced
+    many calls later as an obscure `seq_len(split_idx)` error deep
+    inside
+    [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)’s
+    70/30 fallback path — always re-attach names explicitly after
+    [`as.character()`](https://rdrr.io/r/base/character.html) on
+    anything you intend to keep named. (2) in the Python orchestrator’s
+    compare stage, the same variable was initially used for both
+    `transfer_input_files` (needs the path *on the submit node*,
+    e.g. `../stage1_fit/embedding_repN_sideA.csv`) and `arguments`
+    (needs the bare filename the file lands under *inside the job’s
+    sandbox* post-transfer, since HTCondor strips directory components)
+    — these must be two separate `queue ... from (...)` variables
+    (`*_src` vs. `*_name`), confirmed by cross-checking
+    `condor_workflow.py`’s existing, correct pattern (`data_path` for
+    transfer vs. `data_path.name` for arguments).

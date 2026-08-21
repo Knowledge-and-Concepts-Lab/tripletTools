@@ -50,6 +50,8 @@
   : Get representational distances
 - [`get.tip.coords()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.tip.coords.md)
   : Get tip coordinates
+- [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md)
+  : Test whether two groups' embeddings differ reliably
 - [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md)
   : Pairwise Hellinger distances between rows of a profile matrix
 - [`icon_emb_group`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_emb_group.md)
