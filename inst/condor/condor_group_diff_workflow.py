@@ -76,6 +76,20 @@ def get_config(config, field, default=None):
     return value if value is not None else default
 
 
+# Columns run_group_embedding_from_list() (via condor_group_fit.R) actually
+# reads. A real combined triplet export commonly carries several more (head,
+# winner, loser, rt, sampleAlg, ...) that are never read downstream, and
+# every one of them gets written out again into every one of potentially
+# thousands of (replicate, side) output files -- trimming to just these
+# columns once, up front, meaningfully cuts the I/O volume of the whole fit
+# stage. sampleSet is soft-required: run_group_embedding_from_list() falls
+# back to a random 70/30 split if it's absent or unusable, so its absence is
+# only worth a warning, not a hard error, the way a missing Center/Left/
+# Right/Answer would be (the embedding literally cannot be fit without those).
+HARD_REQUIRED_COLUMNS = ["Center", "Left", "Right", "Answer"]
+SOFT_REQUIRED_COLUMNS = ["sampleSet"]
+
+
 def read_triplet_rows(path):
     with open(path, newline="") as f:
         reader = csv.DictReader(f)
@@ -83,7 +97,21 @@ def read_triplet_rows(path):
         rows = list(reader)
     if "worker_id" not in (fieldnames or []):
         sys.exit(f"{path} has no 'worker_id' column -- not a valid combined triplet CSV.")
-    return fieldnames, rows
+
+    missing_hard = [c for c in HARD_REQUIRED_COLUMNS if c not in fieldnames]
+    if missing_hard:
+        sys.exit(f"{path} is missing required column(s): {', '.join(missing_hard)}")
+
+    missing_soft = [c for c in SOFT_REQUIRED_COLUMNS if c not in fieldnames]
+    if missing_soft:
+        print(f"[condor_group_diff] Note: {path} has no {', '.join(missing_soft)} "
+              "column -- run_group_embedding_from_list() will fall back to a "
+              "random 70/30 train/test split for every fit.")
+
+    keep_fields = ["worker_id"] + [c for c in HARD_REQUIRED_COLUMNS + SOFT_REQUIRED_COLUMNS
+                                    if c in fieldnames]
+    trimmed_rows = [{c: row[c] for c in keep_fields} for row in rows]
+    return keep_fields, trimmed_rows
 
 
 def read_group_labels(path):
@@ -95,13 +123,25 @@ def read_group_labels(path):
     return {row["worker_id"]: row["group"] for row in rows}
 
 
-def write_filtered_csv(path, fieldnames, rows, worker_ids):
-    keep = set(worker_ids)
+def group_rows_by_worker(rows):
+    """Group rows once, up front, so writing each (replicate, side) CSV only
+    touches that side's own rows instead of re-scanning the full dataset.
+    With n_permutations in the hundreds, re-scanning per output file (the
+    original implementation) is O(n_replicates * total_rows) -- easily tens
+    to hundreds of millions of row-checks on a real dataset, enough to look
+    like the driver has hung before it ever reaches condor_submit."""
+    grouped = {}
+    for row in rows:
+        grouped.setdefault(row["worker_id"], []).append(row)
+    return grouped
+
+
+def write_filtered_csv(path, fieldnames, rows_by_worker, worker_ids):
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        for row in rows:
-            if row["worker_id"] in keep:
+        for w in worker_ids:
+            for row in rows_by_worker.get(w, []):
                 writer.writerow(row)
 
 
@@ -234,6 +274,8 @@ def run_fit_stage(work_dir, replicates, fieldnames, rows, config, resources,
     data_dir = stage_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
+    rows_by_worker = group_rows_by_worker(rows)
+
     d            = config["d"]
     max_epochs   = get_config(config, "max_epochs", 50000)
     tolerance    = get_config(config, "tolerance", 1e-4)
@@ -248,7 +290,7 @@ def run_fit_stage(work_dir, replicates, fieldnames, rows, config, resources,
     for rep in replicates:
         for side_label, worker_ids in (("A", rep["side_a"]), ("B", rep["side_b"])):
             side_data_name = f"rep{rep['replicate_id']}_side{side_label}.csv"
-            write_filtered_csv(data_dir / side_data_name, fieldnames, rows, worker_ids)
+            write_filtered_csv(data_dir / side_data_name, fieldnames, rows_by_worker, worker_ids)
             embedding_name = f"embedding_rep{rep['replicate_id']}_side{side_label}.csv"
             # Distinct, deterministic fit seed per (replicate, side); the
             # true split (replicate 0) uses seeds seed*2, seed*2+1 so it

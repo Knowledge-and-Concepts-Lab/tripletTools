@@ -88,6 +88,54 @@ class TestCsvHelpers(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 gd.read_triplet_rows(path)
 
+    def test_read_triplet_rows_requires_hard_columns(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bad.csv"
+            path.write_text("worker_id,Center,Left\np1,a,b\n")  # missing Right, Answer
+            with self.assertRaises(SystemExit):
+                gd.read_triplet_rows(path)
+
+    def test_read_triplet_rows_trims_to_needed_columns(self):
+        # A realistic export carries extra columns (head, winner, loser, rt,
+        # sampleAlg, ...) that run_group_embedding_from_list() never reads --
+        # every one of them gets rewritten into every (replicate, side)
+        # output file otherwise, so trimming here matters for real-world
+        # performance, not just tidiness.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "full.csv"
+            path.write_text(
+                "head,winner,loser,worker_id,rt,Center,Left,Right,Answer,sampleAlg,sampleSet\n"
+                "1,2,3,p1,1000,a,b,c,b,random,train\n"
+            )
+            fieldnames, rows = gd.read_triplet_rows(path)
+            self.assertEqual(
+                set(fieldnames),
+                {"worker_id", "Center", "Left", "Right", "Answer", "sampleSet"},
+            )
+            self.assertNotIn("head", rows[0])
+            self.assertNotIn("rt", rows[0])
+
+    def test_read_triplet_rows_tolerates_missing_sampleset(self):
+        # sampleSet is soft-required: run_group_embedding_from_list() falls
+        # back to a random 70/30 split if it's absent, so this should warn
+        # (via a printed note) rather than exit.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "no_sampleset.csv"
+            path.write_text("worker_id,Center,Left,Right,Answer\np1,a,b,c,b\n")
+            fieldnames, rows = gd.read_triplet_rows(path)  # must not raise
+            self.assertNotIn("sampleSet", fieldnames)
+
+    def test_group_rows_by_worker(self):
+        rows = [
+            {"worker_id": "p1", "Answer": "b"},
+            {"worker_id": "p2", "Answer": "c"},
+            {"worker_id": "p1", "Answer": "a"},
+        ]
+        grouped = gd.group_rows_by_worker(rows)
+        self.assertEqual(len(grouped["p1"]), 2)
+        self.assertEqual(len(grouped["p2"]), 1)
+        self.assertNotIn("p3", grouped)
+
     def test_write_filtered_csv_keeps_only_requested_workers(self):
         fieldnames = ["worker_id", "Center", "Left", "Right", "Answer"]
         rows = [
@@ -95,12 +143,29 @@ class TestCsvHelpers(unittest.TestCase):
             {"worker_id": "p2", "Center": "a", "Left": "b", "Right": "c", "Answer": "c"},
             {"worker_id": "p3", "Center": "a", "Left": "b", "Right": "c", "Answer": "b"},
         ]
+        rows_by_worker = gd.group_rows_by_worker(rows)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "filtered.csv"
-            gd.write_filtered_csv(path, fieldnames, rows, ["p1", "p3"])
+            gd.write_filtered_csv(path, fieldnames, rows_by_worker, ["p1", "p3"])
             with open(path, newline="") as f:
                 out_rows = list(csv.DictReader(f))
             self.assertEqual([r["worker_id"] for r in out_rows], ["p1", "p3"])
+
+    def test_write_filtered_csv_preserves_requested_worker_order(self):
+        # Order matters for reproducibility of the written CSV, even though
+        # it doesn't affect the embedding fit itself.
+        fieldnames = ["worker_id", "Answer"]
+        rows = [
+            {"worker_id": "p1", "Answer": "x"},
+            {"worker_id": "p2", "Answer": "y"},
+        ]
+        rows_by_worker = gd.group_rows_by_worker(rows)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "filtered.csv"
+            gd.write_filtered_csv(path, fieldnames, rows_by_worker, ["p2", "p1"])
+            with open(path, newline="") as f:
+                out_rows = list(csv.DictReader(f))
+            self.assertEqual([r["worker_id"] for r in out_rows], ["p2", "p1"])
 
     def test_read_group_labels(self):
         with tempfile.TemporaryDirectory() as tmp:
