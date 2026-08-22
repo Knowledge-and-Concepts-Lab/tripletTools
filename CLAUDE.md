@@ -28,7 +28,7 @@ Current version: **0.2.0**. Package URL:
     inst/condor/              # HTCondor workflows: pure-Python orchestrators (submit node,
                                #   no R needed there) dispatching per-job R scripts that run
                                #   inside the tripletTools container (built by
-                               #   .github/workflows/docker-publish.yml). Two independent
+                               #   .github/workflows/docker-publish.yml). Three independent
                                #   workflows, each with its own orchestrator/per-job-script/
                                #   config-template/unittest set:
                                #   condor_workflow.py           - dimensionality search -> learning
@@ -41,6 +41,14 @@ Current version: **0.2.0**. Package URL:
                                #                                   condor_group_compare.R,
                                #                                   group_diff_params_template.yml,
                                #                                   README_group_diff.md - CHTC deploy steps)
+                               #   condor_individual_embeddings_workflow.py - one embedding per
+                               #                                   worker_id, concatenated into a
+                               #                                   single CSV; Condor companion to
+                               #                                   run_embeddings_from_list()'s
+                               #                                   per-individual output
+                               #                                   (condor_individual_fit.R,
+                               #                                   individual_embeddings_params_template.yml,
+                               #                                   README_individual_embeddings.md)
     vignettes/
       tripletTools.Rmd                  # "Get started" guide (name matches pkgname -- pkgdown auto-promotes it
                                          #   to a top-level navbar link instead of the Articles dropdown). Only
@@ -466,3 +474,35 @@ back to the returned matrices.
   confirmed this isn’t a degenerate default by also checking two
   genuinely independent embeddings, where Spearman correlations spread
   sensibly around 0 with no artificial pattern.
+- **`condor_individual_embeddings_workflow.py`** (+
+  `condor_individual_fit.R`,
+  `individual_embeddings_params_template.yml`,
+  `README_individual_embeddings.md`) — third, independent Condor
+  workflow: fits a separate embedding for each unique `worker_id` in a
+  combined triplet CSV (one Condor job per participant, no
+  true/null-permutation machinery needed since there’s no comparison
+  step), then concatenates every result into a single `embeddings.csv`
+  indexed by `worker_id` and `item`. The large-scale companion to
+  [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)’s
+  per-individual output, for when fitting every participant locally
+  (even multicore via `future`/`future.apply`) would take too long.
+  Single-stage design (fit, then a local, non-Condor concatenation step)
+  since there’s nothing to compare across workers, unlike
+  `condor_group_diff_workflow.py`’s two-stage fit-then-compare shape.
+  Reuses `condor_group_diff_workflow.py`’s
+  `HARD_REQUIRED_COLUMNS`/`SOFT_REQUIRED_COLUMNS` trimming and
+  per-worker row-grouping approach (same rationale: avoid rewriting
+  every unused column, and avoid an O(n_workers × total_rows) rescan)
+  but does not share code with it directly — self-contained by the same
+  design choice as the other two workflows. Per-worker files are indexed
+  by job position (`worker0.csv`, `worker1.csv`, …), not by the raw
+  `worker_id` string, so an arbitrary `worker_id` never has to be
+  filesystem-safe; a check that no `worker_id` contains a comma guards
+  the one place it *does* get embedded literally (the Condor
+  `queue ... from (...)` block). The per-job R script
+  (`condor_individual_fit.R`) cross-checks that its `--triplet_data`
+  file contains only the one `--worker_id` it was told to expect,
+  failing loudly on any orchestrator/filtering bug rather than silently
+  tagging a fit with the wrong participant’s ID – verified this guard
+  actually fires, and separately smoke-tested the whole per-job script
+  end-to-end on one real `icon_triplets` participant.
