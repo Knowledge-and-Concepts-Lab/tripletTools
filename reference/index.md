@@ -28,6 +28,9 @@
   : Exclude participants with suspiciously fast mean reaction times
 - [`filter_incomplete()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_incomplete.md)
   : Exclude participants with too few trials
+- [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md)
+  : Find items whose relative position differs most between two
+  embeddings
 - [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md)
   : Find triplets where two embeddings make discrepant predictions
 - [`fit_embedding_restart()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_embedding_restart.md)

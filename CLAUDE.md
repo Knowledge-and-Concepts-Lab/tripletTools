@@ -91,6 +91,7 @@ Current version: **0.2.0**. Package URL:
 | [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md) | R/repeated_stratified_multinomial_cv.R | Sibling of the above for \>2-class labels; [`nnet::multinom()`](https://rdrr.io/pkg/nnet/man/multinom.html)-backed, macro-averaged metrics + per-class breakdown |
 | [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md) | R/find_discriminating_triplets.R | Finds triplets where two embeddings of the same items make discrepant CKL predictions, for designing a follow-up human study |
 | [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md) | R/group_difference_test.R | Permutation test for whether two participant groups’ embeddings differ reliably; local (small-scale) companion to `inst/condor/condor_group_diff_workflow.py` |
+| [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md) | R/find_discrepant_items.R | Ranks items by how much their distance-to-others profile differs between two embeddings; alignment-free alternative to per-item Procrustes residuals |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`,
 `.get_compute_py()`. Internal helpers in
@@ -338,17 +339,35 @@ back to the returned matrices.
   embedding’s CKL win-probability), for designing a follow-up study to
   test which embedding better matches human judgments. Candidate
   triplets are sampled (half uniform, half weighted by each item’s
-  Procrustes-alignment residual between the two embeddings), not
-  enumerated exhaustively. Verified the uniform half is load-bearing,
-  not just a hedge: in a synthetic test with exactly one relocated item,
-  plain Procrustes residuals do *not* rank that item first — a strong
-  single outlier distorts the global rotation/scale fit enough to
-  inflate other, unchanged items’ residuals above it. Supports
-  `max_per_item` to cap how often one item can dominate the returned set
-  (greedy selection, descending discrepancy); this surfaced and fixed a
-  real bug where the greedy loop was padding remaining slots with
+  discrepancy), not enumerated exhaustively. Supports `max_per_item` to
+  cap how often one item can dominate the returned set (greedy
+  selection, descending discrepancy); this surfaced and fixed a real bug
+  where the greedy loop was padding remaining slots with
   zero-discrepancy (i.e. non-discriminating) filler triplets once the
   cap was hit, rather than stopping short and warning.
+  - **Weighting scheme replaced with the
+    [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md)
+    approach** (distance-profile Spearman correlation) after the user
+    asked whether that newer function’s finding generalized here — it
+    does: on the same single-relocated-item synthetic test, the original
+    Procrustes-alignment-residual weighting ranked the true outlier only
+    3rd, with a weight barely distinguishable from the top (wrong) item,
+    while the Spearman-based weight ranks it 1st with more than 3x the
+    runner-up’s weight. Reuses the squared distance matrices already
+    computed for CKL scoring (squaring preserves rank order for
+    non-negative distances, so no extra computation is needed for the
+    Spearman correlation). The 50/50 uniform/weighted split itself was
+    kept unchanged — the new weighting doesn’t share the old failure
+    mode, but the uniform half is still a cheap general hedge against
+    any remaining imperfection in the heuristic. One real bug caught
+    while making this change: when the two embeddings are identical,
+    every item’s discrepancy is exactly zero (not just near-zero, unlike
+    the old Procrustes residuals, which had nonzero floating-point
+    jitter from the alignment optimization even in this case), which
+    zeroed out every sampling weight and crashed
+    [`sample.int()`](https://rdrr.io/r/base/sample.html) — fixed by
+    adding a small absolute floor (`1e-8`) alongside the existing floor
+    that scales with the mean discrepancy.
 - [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md)
   (local R function) + `inst/condor/condor_group_diff_workflow.py` (its
   Condor-scale companion) — permutation test for whether two participant
@@ -403,3 +422,47 @@ back to the returned matrices.
   inputs are a **raw combined triplet-judgment CSV** plus a group-labels
   CSV — not precomputed embeddings, since the whole point of the
   workflow is fitting embeddings itself once per (replicate, side).
+- **Real production bug found during an actual CHTC deployment** (627
+  participants, `n_permutations=999`): `condor_group_diff_workflow.py`’s
+  `write_filtered_csv()` re-scanned the *entire* triplet dataset once
+  per (replicate, side) output file — O(n_replicates × total_rows) —
+  which stalled the driver silently (no error, just nothing ever
+  reaching `condor_q`) long before its first `condor_submit` call. Fixed
+  by grouping rows by `worker_id` once up front
+  (`group_rows_by_worker()`), plus trimming every output file to just
+  the 6 columns
+  [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
+  actually reads (real triplet exports often carry several more that
+  were being needlessly rewritten into every one of thousands of output
+  files). Benchmarked on synthetic data sized like the real deployment:
+  ~16.8 → ~11.7 minutes for the full 2000-file run. Important caveat
+  that surfaced from this benchmark: the sheer *volume* of data written
+  (each output file holds close to half the full dataset) is itself a
+  substantial, roughly-linear cost that persists even after fixing the
+  quadratic scan — if this remains too slow in practice, the more
+  substantial fix is having each Condor job filter its own data in R
+  inside the container, rather than pre-splitting into thousands of
+  files on the submit node.
+- [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md)
+  — ranks items by how much their distance-to-others profile differs
+  between two embeddings (Spearman correlation, per item, between that
+  item’s row of each embedding’s own distance matrix). Alignment-free by
+  construction (Euclidean distance is already
+  rotation/reflection/translation-invariant, and each item’s score
+  depends only on its own distances, not a shared fit), so it works
+  directly across different-dimensional embeddings and sidesteps
+  [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md)’s
+  Procrustes-residual outlier-distortion problem entirely. **Must use
+  `method = "spearman"`, not `"pearson"`** — verified on the same
+  single-relocated-item synthetic test used for the
+  Procrustes/[`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md)
+  findings above: Pearson correlation ranked the true outlier *outside
+  the bottom 5 entirely*, because moving one item corrupts one distance
+  entry in every other item’s profile too, and Pearson is highly
+  sensitive to a single extreme value even when the rest of the profile
+  is untouched. Spearman (rank-based, so one extreme value gets
+  compressed rather than dominating) correctly and decisively ranked the
+  true outlier first, with every other item’s correlation far higher —
+  confirmed this isn’t a degenerate default by also checking two
+  genuinely independent embeddings, where Spearman correlations spread
+  sensibly around 0 with no artificial pattern.

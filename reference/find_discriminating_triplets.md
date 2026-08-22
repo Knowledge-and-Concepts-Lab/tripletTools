@@ -43,7 +43,8 @@ find_discriminating_triplets(
 
   Number of candidate triplets to sample and score before selecting the
   top `k`. Default `200000L`. Half are drawn uniformly at random; half
-  are drawn with items weighted by their Procrustes alignment residual
+  are drawn with items weighted by how much their
+  distance-to-other-items profile differs between the two embeddings
   (see *Details*), concentrating search on items likely to matter
   without excluding any item outright. For small item sets, a large
   enough value effectively covers every distinct triplet (duplicates are
@@ -110,24 +111,30 @@ between identical distributions.
 Because the number of possible triplets grows as `n*(n-1)*(n-2)/2`,
 exhaustive search is not attempted; candidates are sampled instead (see
 `n_candidates`). Half of every candidate pool is drawn uniformly at
-random; the other half is drawn with items weighted by their residual
-from a Procrustes alignment
-([`procrustes`](https://vegandevs.github.io/vegan/reference/procrustes.html),
-`reflect = TRUE, symmetric = TRUE, scale = TRUE`) of `embedding1` onto
-`embedding2` – items placed very differently between the two embeddings
-get a larger residual and are sampled more often. This is a soft bias on
-candidate *generation* only: every item retains nonzero sampling
-probability (a small floor is added to the weights), and the final
-ranking always comes from the exact `discrepancy` score above, so a
-misleading residual can cost search efficiency but never correctness.
-That caveat matters in practice – when a single item is a strong outlier
-between the two embeddings, its own large residual can distort the
-*global* rotation/ scale Procrustes fits to minimize total residual,
-inflating the apparent residual of other, unchanged items enough that
-they can outrank the true outlier (verified: a 20-item synthetic example
-with exactly one item relocated does not put that item's residual in
-first place). The 50/50 uniform component exists specifically to hedge
-against this.
+random; the other half is drawn with items weighted by `1 - ` their
+distance-profile Spearman correlation (the same measure used by
+[`find_discrepant_items`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md)):
+for each item, its vector of distances to every other item is compared
+between `embedding1` and `embedding2`, and items whose relative position
+differs more between the two embeddings get a larger weight and are
+sampled more often. This is a soft bias on candidate *generation* only:
+every item retains nonzero sampling probability (a small floor is added
+to the weights), and the final ranking always comes from the exact
+`discrepancy` score above, so a misleading weight can cost search
+efficiency but never correctness. An earlier version of this function
+weighted items by their residual from a Procrustes alignment of
+`embedding1` onto `embedding2` instead; that was replaced because a
+single strong outlier item can distort the *global* rotation/ scale a
+Procrustes fit uses to minimize total residual, inflating the apparent
+residual of other, unchanged items enough that they outrank the true
+outlier (verified: on a 20-item synthetic example with exactly one item
+relocated, the Procrustes residual ranked that item only 3rd, with a
+weight barely distinguishable from the top-ranked item, while the
+Spearman-based weight used here ranks it 1st with more than 3x the
+next-highest item's weight). The distance-profile approach has no shared
+fitting step, so it does not share this failure mode; the 50/50 uniform
+component is retained regardless, as a general hedge against any
+remaining imperfection in the weighting heuristic.
 
 Selection among scored candidates is a greedy pass in decreasing order
 of `discrepancy`, skipping any candidate that would push one of its
