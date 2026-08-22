@@ -1,0 +1,59 @@
+# ---------------------------------------------------------------------------
+# tripletTools per-participant embeddings Condor workflow configuration
+#
+# Copy this file, edit the fields below, and pass it as the second argument
+# to condor_individual_embeddings_workflow.py on the submit node:
+#
+#   python3 condor_individual_embeddings_workflow.py triplet_data.csv my_params.yml
+#
+# No R installation is needed on the submit node -- only Python 3 and
+# PyYAML (pip install --user pyyaml). Every fit runs inside the
+# tripletTools container image via HTCondor's container universe.
+#
+# What this does: fits a SEPARATE embedding for each unique worker_id in
+# triplet_data.csv, one Condor job per participant, then concatenates every
+# result into a single embeddings.csv indexed by worker_id and item. Local
+# equivalent: run_embeddings_from_list()'s "individual" output element.
+# ---------------------------------------------------------------------------
+
+# Directory (on the submit node) where all outputs are written: per-worker
+# input/output CSVs (in stage1_fit/), plus the concatenated embeddings.csv
+# and run_manifest.txt at the top level. Created if it doesn't exist.
+output_dir: condor_individual_embeddings_output
+
+# Embedding dimensionality, held FIXED across every participant -- choose
+# this beforehand (e.g. via a local estimate_dimensionality() run on the
+# pooled data) so every participant's embedding is directly comparable.
+# Required -- the workflow refuses to run without it.
+d: 5
+
+# Base random seed. Each participant's fit gets seed + (their position in
+# the sorted worker_id list), so every fit gets a distinct, reproducible
+# seed derived from this one value.
+seed: 1
+
+# --- HTCondor settings -------------------------------------------------------
+condor:
+  # docker:// reference to the tripletTools container image, built and
+  # published by .github/workflows/docker-publish.yml at the repo root.
+  # Every job runs inside this image via universe = container -- no R,
+  # conda, or tripletTools installation is assumed on whatever execute node
+  # the job lands on.
+  container_image: docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest
+  resources:
+    request_cpus: 1
+    request_memory: 4GB
+    request_disk: 8GB   # covers the pulled/unpacked container image
+
+# --- Embedding-fit settings ---------------------------------------------------
+# Applied to every participant's fit. run_group_embedding_from_list()'s own
+# train/test handling is used directly (no internal_test resampling,
+# unlike the dimensionality/learning-curve Condor workflow) -- there is no
+# model selection happening here, just production fits at the fixed d above.
+max_epochs: 50000
+tolerance: 1e-4
+tol_window: 10000
+device: cpu           # execute nodes in the general CHTC pool have no GPU
+geometry: euclidean
+radius: 1
+norm_penalty: 0
