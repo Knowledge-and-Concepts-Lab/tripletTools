@@ -210,12 +210,72 @@ def queue_from_block(varnames, rows):
     return "\n".join(lines)
 
 
+def submit_jobs_with_retry(stage_dir, jobs, output_col, build_and_submit, label,
+                            batch_size=None, max_retries=5):
+    """Submit `jobs`, verify every job's expected output file actually came
+    back, and resubmit just the ones that didn't -- up to `max_retries`
+    additional attempts -- before failing with a clear error naming exactly
+    which ones never produced valid output.
+
+    This exists because a real deployment of the sibling group-difference
+    workflow hit HTCondor jobs that reported clean "Normal termination
+    (return value 0)" yet whose output file came back empty or missing on
+    the submit node -- consistent with many jobs finishing (and each trying
+    to transfer output back) within the same narrow time window overloading
+    something in the transfer path, not a bug in the per-job R script (an R
+    error there would show up in a non-empty .err file and a nonzero return
+    value, neither of which was observed). See
+    vignette("condor_workflows_vignette") for the full writeup.
+
+    `jobs` is a list of tuples as built by the calling stage; `output_col`
+    is the index within each tuple of the bare output filename (resolved
+    relative to `stage_dir`). `build_and_submit(jobs_subset)` must write a
+    submit file for exactly those jobs and block until they finish (i.e. an
+    ordinary write_submit_file() + submit_and_wait() call).
+
+    `batch_size`, if set, splits `jobs` into sequential chunks submitted (and
+    retried) one at a time instead of all at once -- capping how many jobs
+    can possibly finish in the same narrow window in the first place, which
+    directly reduces how often this failure mode is triggered rather than
+    just cleaning up after it. Default `None` preserves the original
+    single-submission behavior.
+    """
+    def output_path(job):
+        return stage_dir / job[output_col]
+
+    batches = [jobs] if not batch_size else [
+        jobs[i:i + batch_size] for i in range(0, len(jobs), batch_size)
+    ]
+
+    for batch_num, batch in enumerate(batches, start=1):
+        remaining = batch
+        for attempt in range(1, max_retries + 2):
+            build_and_submit(remaining)
+            missing = [j for j in remaining
+                       if not output_path(j).exists() or output_path(j).stat().st_size == 0]
+            if not missing:
+                break
+            batch_note = f" (batch {batch_num}/{len(batches)})" if batch_size else ""
+            print(f"[condor_individual_embeddings] {label}{batch_note}: {len(missing)} of "
+                  f"{len(remaining)} output(s) missing/empty after attempt "
+                  f"{attempt} -- retrying ({[j[output_col] for j in missing]})")
+            remaining = missing
+        else:
+            sys.exit(
+                f"{label}: {len(remaining)} output(s) still missing/empty after "
+                f"{max_retries} retries: {[j[output_col] for j in remaining]}. "
+                f"Check their .err files in {stage_dir}/ for what actually happened -- "
+                "a clean, non-empty .out with an empty .err points to the file-transfer "
+                "issue described above rather than a script error."
+            )
+
+
 # ---------------------------------------------------------------------------
 # Stage
 # ---------------------------------------------------------------------------
 
 def run_fit_stage(work_dir, worker_ids, fieldnames, rows_by_worker, config,
-                   resources, container_image):
+                   resources, container_image, batch_size=None):
     stage_dir = work_dir / "stage1_fit"
     data_dir = stage_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -252,23 +312,28 @@ def run_fit_stage(work_dir, worker_ids, fieldnames, rows_by_worker, config,
         f"--norm_penalty={norm_penalty}"
     )
 
-    submit_path = stage_dir / "fit.sub"
-    write_submit_file(
-        submit_path,
-        container_image=container_image,
-        arguments=fixed_args,
-        transfer_input_files=f"{CONDOR_INDIVIDUAL_FIT_R}, data/$(worker_data)",
-        log=str(stage_dir / "fit.log"),
-        output=str(stage_dir / "fit_$(Process).out"),
-        error=str(stage_dir / "fit_$(Process).err"),
-        resources=resources,
-        initialdir=str(stage_dir),
-        queue_statement=queue_from_block(
-            ["worker_data", "embedding_out", "worker_id", "fit_seed"], jobs
-        ),
-    )
+    def build_and_submit(jobs_subset):
+        submit_path = stage_dir / "fit.sub"
+        write_submit_file(
+            submit_path,
+            container_image=container_image,
+            arguments=fixed_args,
+            transfer_input_files=f"{CONDOR_INDIVIDUAL_FIT_R}, data/$(worker_data)",
+            log=str(stage_dir / "fit.log"),
+            output=str(stage_dir / "fit_$(Process).out"),
+            error=str(stage_dir / "fit_$(Process).err"),
+            resources=resources,
+            initialdir=str(stage_dir),
+            queue_statement=queue_from_block(
+                ["worker_data", "embedding_out", "worker_id", "fit_seed"], jobs_subset
+            ),
+        )
+        submit_and_wait(submit_path, stage_dir / "fit.log", "Stage 1 (per-participant fits)")
 
-    submit_and_wait(submit_path, stage_dir / "fit.log", "Stage 1 (per-participant fits)")
+    submit_jobs_with_retry(stage_dir, jobs, output_col=1,
+                            build_and_submit=build_and_submit,
+                            label="Stage 1 (per-participant fits)",
+                            batch_size=batch_size)
     return stage_dir, jobs
 
 
@@ -324,11 +389,13 @@ def main():
         "docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest",
     )
     resources = condor_cfg.get("resources") or {}
+    batch_size = condor_cfg.get("batch_size")
 
     print(f"[condor_individual_embeddings] {len(worker_ids)} participants, d={config['d']}")
 
     stage1_dir, jobs = run_fit_stage(work_dir, worker_ids, fieldnames, rows_by_worker,
-                                      config, resources, container_image)
+                                      config, resources, container_image,
+                                      batch_size=batch_size)
 
     out_path = aggregate_embeddings(work_dir, stage1_dir, jobs)
 

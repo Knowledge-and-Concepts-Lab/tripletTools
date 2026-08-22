@@ -54,6 +54,21 @@ condor:
   # shared/heterogeneous pool like CHTC's.
   container_image: docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest
 
+  # Optional: cap how many jobs run/finish concurrently within Stage 1 and
+  # Stage 2, by submitting them in sequential chunks of this size instead of
+  # all at once. Unset (default) submits everything together. A real
+  # deployment of the sibling group-difference workflow saw jobs complete
+  # with a clean exit code but an empty output file when ~100 jobs finished
+  # within the same narrow window -- consistent with the file-transfer path
+  # getting overloaded, not a script bug (every job's own fit/comparison is
+  # automatically retried regardless, up to 5 times, whether or not this is
+  # set -- see vignette("condor_workflows_vignette")'s troubleshooting
+  # section). Setting batch_size reduces how often that retry is even
+  # needed by capping the size of any single completion burst; it costs some
+  # wall-clock time if the pool has free slots to spare, since batches run
+  # sequentially rather than all in parallel.
+  # batch_size: 25
+
 # --- Shared training defaults ------------------------------------------------
 # Any of these may be overridden inside dimensionality:/learning_curve:/
 # final_fit: below.

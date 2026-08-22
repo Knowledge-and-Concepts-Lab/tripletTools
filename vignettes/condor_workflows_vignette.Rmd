@@ -164,6 +164,62 @@ df -h .             # disk full in the sandbox?
 
 ---
 
+## A job finishes cleanly but its output file is empty
+
+This is a different failure mode from a stuck job above — the job is no longer running at all, `condor_q`/`condor_history` shows `Normal termination (return value 0)`, its `.err` is empty, and yet its expected output CSV is either missing or exists with 0 bytes.
+
+A clean exit code and an empty `.err` are the important clues: `Rscript` exits with status 1 by default on any uncaught R error, so a genuinely clean exit means the per-job R script ran to completion without error — it's not a data problem or a bug in the comparison/fit logic. This is consistent with a file-transfer issue instead: when on the order of a hundred jobs finish within the same narrow window, each trying to transfer its (tiny) output file back to the submit node at nearly the same moment, some of those transfers can silently come back empty. This was first hit running the group-difference workflow at 627 participants / 100 permutations, where roughly half of 101 comparison jobs came back empty despite every one logging a clean exit.
+
+**All three workflows now handle this automatically.** Every job-submission stage verifies each expected output file after `condor_wait` returns, and resubmits just the ones that came back missing or empty — up to 5 additional attempts — before failing with a clear error naming exactly which jobs never produced valid output (rather than the unhelpful bare traceback this used to produce). You'll see this in the driver's own output as e.g.:
+
+```
+[condor_group_diff] Stage 2 (comparisons): 53 of 101 output(s) missing/empty after attempt 1 -- retrying (...)
+[condor_group_diff] Stage 2 (comparisons): 4 of 53 output(s) missing/empty after attempt 2 -- retrying (...)
+```
+
+Nothing further to do in that case — just let it keep running.
+
+**If you want to reduce how often this happens in the first place** (rather than just cleaning up after it), set `condor.batch_size` in your config to cap how many jobs run/finish concurrently:
+
+```yaml
+condor:
+  batch_size: 25
+```
+
+This submits jobs in sequential chunks of that size instead of all at once, directly limiting how many can ever finish in the same narrow window. It costs some wall-clock time if the pool has free slots to spare (batches run one after another, not all in parallel), so it's a tradeoff worth making only if the automatic retries above are firing often enough to be a real nuisance.
+
+**If a comparison-only stage exhausts its retries anyway,** and the underlying fits are already done, it's often faster to finish that one stage locally than to keep fighting the transfer path: the group-difference workflow's Stage 2 in particular is cheap (reading two small embedding CSVs and one Procrustes alignment per replicate), so pulling `stage1_fit/` down to wherever you have `tripletTools` installed and computing the correlations directly avoids Condor's compare stage entirely for that run:
+
+```r
+library(tripletTools)
+
+stage1_dir <- "stage1_fit"   # after rsync-ing it down from the submit node
+
+read_embedding <- function(path) {
+  df <- read.csv(path, stringsAsFactors = FALSE)
+  m <- as.matrix(df[, grepl("^dim_", names(df)), drop = FALSE])
+  rownames(m) <- df$item
+  m
+}
+
+side_a_files <- list.files(stage1_dir, pattern = "^embedding_rep(\\d+)_sideA\\.csv$")
+replicate_ids <- sort(as.integer(sub("^embedding_rep(\\d+)_sideA\\.csv$", "\\1", side_a_files)))
+
+results <- do.call(rbind, lapply(replicate_ids, function(rep_id) {
+  emb_a <- read_embedding(file.path(stage1_dir, sprintf("embedding_rep%d_sideA.csv", rep_id)))
+  emb_b <- read_embedding(file.path(stage1_dir, sprintf("embedding_rep%d_sideB.csv", rep_id)))
+  emb_b <- emb_b[rownames(emb_a), , drop = FALSE]
+  sdist <- get.rep.dist(list(a = emb_a, b = emb_b))
+  data.frame(replicate_id = rep_id, is_true = (rep_id == 0), correlation = 1 - sdist[1, 2])
+}))
+
+observed    <- results$correlation[results$is_true]
+null_values <- results$correlation[!results$is_true]
+p_value     <- (1 + sum(null_values <= observed)) / (1 + length(null_values))
+```
+
+---
+
 ## Workflow 1: Dimensionality search, learning curve, and final embedding fit
 
 For the common case of "pick a dimension, check it against a learning curve, and fit the best embedding," `condor_workflow.py` runs all three stages back to back, dispatching every individual fit to HTCondor as its own job.

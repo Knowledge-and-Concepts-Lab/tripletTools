@@ -199,6 +199,63 @@ def queue_from_block(varnames, rows):
     return "\n".join(lines)
 
 
+def submit_jobs_with_retry(stage_dir, jobs, output_path_fn, build_and_submit, label,
+                            batch_size=None, max_retries=5):
+    """Submit `jobs`, verify every job's expected output file actually came
+    back, and resubmit just the ones that didn't -- up to `max_retries`
+    additional attempts -- before failing with a clear error naming exactly
+    which ones never produced valid output.
+
+    This exists because a real deployment of the sibling group-difference
+    workflow hit HTCondor jobs that reported clean "Normal termination
+    (return value 0)" yet whose output file came back empty or missing on
+    the submit node -- consistent with many jobs finishing (and each trying
+    to transfer output back) within the same narrow time window overloading
+    something in the transfer path, not a bug in the per-job R script (an R
+    error there would show up in a non-empty .err file and a nonzero return
+    value, neither of which was observed). See
+    vignette("condor_workflows_vignette") for the full writeup.
+
+    `output_path_fn(job)` returns the expected output Path for a given job
+    (this stage names results by Process index within a jobs list rather
+    than a per-job filename column, unlike the other two workflows, hence a
+    function instead of a fixed column index). `build_and_submit(jobs_subset)`
+    must write a submit file for exactly those jobs and block until they
+    finish (i.e. an ordinary write_submit_file() + submit_and_wait() call).
+
+    `batch_size`, if set, splits `jobs` into sequential chunks submitted (and
+    retried) one at a time instead of all at once -- capping how many jobs
+    can possibly finish in the same narrow window in the first place, which
+    directly reduces how often this failure mode is triggered rather than
+    just cleaning up after it. Default `None` preserves the original
+    single-submission behavior.
+    """
+    batches = [jobs] if not batch_size else [
+        jobs[i:i + batch_size] for i in range(0, len(jobs), batch_size)
+    ]
+
+    for batch_num, batch in enumerate(batches, start=1):
+        remaining = batch
+        for attempt in range(1, max_retries + 2):
+            build_and_submit(remaining)
+            missing = [j for j in remaining
+                       if not output_path_fn(j).exists() or output_path_fn(j).stat().st_size == 0]
+            if not missing:
+                break
+            batch_note = f" (batch {batch_num}/{len(batches)})" if batch_size else ""
+            print(f"[condor_workflow] {label}{batch_note}: {len(missing)} of "
+                  f"{len(remaining)} output(s) missing/empty after attempt "
+                  f"{attempt} -- retrying")
+            remaining = missing
+        else:
+            sys.exit(
+                f"{label}: {len(remaining)} output(s) still missing/empty after "
+                f"{max_retries} retries. Check their .err files in {stage_dir}/ for what "
+                "actually happened -- a clean, non-empty .out with an empty .err points "
+                "to the file-transfer issue described above rather than a script error."
+            )
+
+
 def write_csv(path, rows):
     if not rows:
         path.write_text("")
@@ -275,7 +332,7 @@ def summarize_learning_curve(results):
 # ---------------------------------------------------------------------------
 
 def run_dimensionality_stage(work_dir, data_path, config, seed, geometry, radius,
-                              norm_penalty, container_image):
+                              norm_penalty, container_image, batch_size=None):
     dim_cfg = config.get("dimensionality") or {}
     dims = parse_dims(dim_cfg.get("dims", "1:8"))
     n_restarts = int(get_config(dim_cfg, "n_restarts", config, 10))
@@ -283,16 +340,21 @@ def run_dimensionality_stage(work_dir, data_path, config, seed, geometry, radius
     if best_d_norm_penalty is None:
         best_d_norm_penalty = norm_penalty
 
-    jobs = [(d, restart, seed + (restart - 1) * 1000 + d)
-            for d in dims for restart in range(1, n_restarts + 1)]
+    # job_index (last field) names each job's output file (result_<job_index>.csv)
+    # independently of Condor's own $(Process) number for that particular
+    # submission -- required so that a retry submitting only a SUBSET of jobs
+    # (see submit_jobs_with_retry()) doesn't reassign low Process numbers to
+    # different jobs and overwrite already-good results with the same name.
+    combos = [(d, restart) for d in dims for restart in range(1, n_restarts + 1)]
+    jobs = [(d, restart, seed + (restart - 1) * 1000 + d, i)
+            for i, (d, restart) in enumerate(combos)]
 
     stage_dir = work_dir / "stage1_dimensionality"
     stage_dir.mkdir(parents=True, exist_ok=True)
 
-    # One queue line per job: Process $(Process) (0-based) maps to jobs[Process].
     fixed_args = (
         f"condor_fit.R --stage=dimensionality --triplet_data={data_path.name} "
-        f"--output=result_$(Process).csv --fraction=NA "
+        f"--output=result_$(job_index).csv --fraction=NA "
         f"--base_seed={seed} "
         f"--internal_test_frac={get_config(dim_cfg, 'internal_test_frac', config, 0.1)} "
         f"--max_epochs={get_config(dim_cfg, 'max_epochs', config, 50000)} "
@@ -303,21 +365,29 @@ def run_dimensionality_stage(work_dir, data_path, config, seed, geometry, radius
         f"--d=$(d) --restart=$(restart) --random_state=$(random_state)"
     )
 
-    submit_path = stage_dir / "dim.sub"
-    write_submit_file(
-        submit_path,
-        container_image=container_image,
-        arguments=fixed_args,
-        transfer_input_files=f"{CONDOR_FIT_R}, {data_path}",
-        log=str(stage_dir / "dim.log"),
-        output=str(stage_dir / "dim_$(Process).out"),
-        error=str(stage_dir / "dim_$(Process).err"),
-        resources=resources_config(dim_cfg, config),
-        initialdir=str(stage_dir),
-        queue_statement=queue_from_block(["d", "restart", "random_state"], jobs),
-    )
+    def build_and_submit(jobs_subset):
+        submit_path = stage_dir / "dim.sub"
+        write_submit_file(
+            submit_path,
+            container_image=container_image,
+            arguments=fixed_args,
+            transfer_input_files=f"{CONDOR_FIT_R}, {data_path}",
+            log=str(stage_dir / "dim.log"),
+            output=str(stage_dir / "dim_$(Process).out"),
+            error=str(stage_dir / "dim_$(Process).err"),
+            resources=resources_config(dim_cfg, config),
+            initialdir=str(stage_dir),
+            queue_statement=queue_from_block(
+                ["d", "restart", "random_state", "job_index"], jobs_subset
+            ),
+        )
+        submit_and_wait(submit_path, stage_dir / "dim.log", "Stage 1 (dimensionality)")
 
-    submit_and_wait(submit_path, stage_dir / "dim.log", "Stage 1 (dimensionality)")
+    submit_jobs_with_retry(
+        stage_dir, jobs, output_path_fn=lambda j: stage_dir / f"result_{j[3]}.csv",
+        build_and_submit=build_and_submit, label="Stage 1 (dimensionality)",
+        batch_size=batch_size,
+    )
 
     results = [read_result_row(stage_dir / f"result_{i}.csv") for i in range(len(jobs))]
     summary, best_d = summarize_dimensionality(results, n_restarts, best_d_norm_penalty)
@@ -329,22 +399,31 @@ def run_dimensionality_stage(work_dir, data_path, config, seed, geometry, radius
 
 
 def run_learning_curve_stage(work_dir, data_path, config, seed, best_d, norm_penalty,
-                              container_image):
+                              container_image, batch_size=None):
     lc_cfg = config.get("learning_curve") or {}
     by = get_config(lc_cfg, "by", config, 0.1)
     n_restarts = int(get_config(lc_cfg, "n_restarts", config, 10))
     fractions = compute_fractions(by)
 
-    jobs = [(frac, restart, seed + (restart - 1) * 1000 + i)
-            for i, frac in enumerate(fractions, start=1)
-            for restart in range(1, n_restarts + 1)]
+    # random_state matches estimate_learning_curve()'s own formula, keyed by
+    # the fraction's 1-based index `i` in the grid (not restart-dependent on
+    # its own). job_index is a separate, purely positional identity used
+    # only to name each job's output file -- see run_dimensionality_stage()
+    # for why this must be independent of Condor's own $(Process) number.
+    jobs = []
+    job_index = 0
+    for i, frac in enumerate(fractions, start=1):
+        for restart in range(1, n_restarts + 1):
+            random_state = seed + (restart - 1) * 1000 + i
+            jobs.append((frac, restart, random_state, job_index))
+            job_index += 1
 
     stage_dir = work_dir / "stage2_learning_curve"
     stage_dir.mkdir(parents=True, exist_ok=True)
 
     fixed_args = (
         f"condor_fit.R --stage=learning_curve --triplet_data={data_path.name} "
-        f"--output=result_$(Process).csv --d={best_d} "
+        f"--output=result_$(job_index).csv --d={best_d} "
         f"--base_seed={seed} "
         f"--internal_test_frac={get_config(lc_cfg, 'internal_test_frac', config, 0.1)} "
         f"--max_epochs={get_config(lc_cfg, 'max_epochs', config, 50000)} "
@@ -355,21 +434,29 @@ def run_learning_curve_stage(work_dir, data_path, config, seed, best_d, norm_pen
         f"--fraction=$(fraction) --restart=$(restart) --random_state=$(random_state)"
     )
 
-    submit_path = stage_dir / "lc.sub"
-    write_submit_file(
-        submit_path,
-        container_image=container_image,
-        arguments=fixed_args,
-        transfer_input_files=f"{CONDOR_FIT_R}, {data_path}",
-        log=str(stage_dir / "lc.log"),
-        output=str(stage_dir / "lc_$(Process).out"),
-        error=str(stage_dir / "lc_$(Process).err"),
-        resources=resources_config(lc_cfg, config),
-        initialdir=str(stage_dir),
-        queue_statement=queue_from_block(["fraction", "restart", "random_state"], jobs),
-    )
+    def build_and_submit(jobs_subset):
+        submit_path = stage_dir / "lc.sub"
+        write_submit_file(
+            submit_path,
+            container_image=container_image,
+            arguments=fixed_args,
+            transfer_input_files=f"{CONDOR_FIT_R}, {data_path}",
+            log=str(stage_dir / "lc.log"),
+            output=str(stage_dir / "lc_$(Process).out"),
+            error=str(stage_dir / "lc_$(Process).err"),
+            resources=resources_config(lc_cfg, config),
+            initialdir=str(stage_dir),
+            queue_statement=queue_from_block(
+                ["fraction", "restart", "random_state", "job_index"], jobs_subset
+            ),
+        )
+        submit_and_wait(submit_path, stage_dir / "lc.log", "Stage 2 (learning curve)")
 
-    submit_and_wait(submit_path, stage_dir / "lc.log", "Stage 2 (learning curve)")
+    submit_jobs_with_retry(
+        stage_dir, jobs, output_path_fn=lambda j: stage_dir / f"result_{j[3]}.csv",
+        build_and_submit=build_and_submit, label="Stage 2 (learning curve)",
+        batch_size=batch_size,
+    )
 
     results = [read_result_row(stage_dir / f"result_{i}.csv") for i in range(len(jobs))]
     summary = summarize_learning_curve(results)
@@ -460,17 +547,18 @@ def main():
         "container_image",
         "docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest",
     )
+    batch_size = condor_cfg.get("batch_size")
 
     print(f"[condor_workflow] geometry={geometry} norm_penalty={norm_penalty} "
           f"container_image={container_image}")
 
     best_d = run_dimensionality_stage(
         work_dir, args.triplet_data, config, seed, geometry, radius,
-        norm_penalty, container_image,
+        norm_penalty, container_image, batch_size=batch_size,
     )
     run_learning_curve_stage(
         work_dir, args.triplet_data, config, seed, best_d, norm_penalty,
-        container_image,
+        container_image, batch_size=batch_size,
     )
     run_final_stage(
         work_dir, args.triplet_data, config, seed, best_d, geometry, radius,

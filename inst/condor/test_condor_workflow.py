@@ -246,5 +246,81 @@ class TestSubmitFileGeneration(unittest.TestCase):
             self.assertIn("2,1,4", text)
 
 
+class TestSubmitJobsWithRetry(unittest.TestCase):
+    """jobs here are simple (name,) tuples; output_path_fn resolves each job's
+    expected file directly (this stage names results by a job_index field
+    rather than a fixed tuple column, unlike the other two workflows)."""
+
+    def test_all_succeed_first_try_calls_build_and_submit_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_dir = Path(tmp)
+            jobs = [("a",), ("b",)]
+            calls = []
+
+            def build_and_submit(jobs_subset):
+                calls.append(list(jobs_subset))
+                for (name,) in jobs_subset:
+                    (stage_dir / f"out_{name}.csv").write_text("data\n")
+
+            cw.submit_jobs_with_retry(
+                stage_dir, jobs, output_path_fn=lambda j: stage_dir / f"out_{j[0]}.csv",
+                build_and_submit=build_and_submit, label="test",
+            )
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0], jobs)
+
+    def test_missing_output_is_retried_with_only_the_missing_subset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_dir = Path(tmp)
+            jobs = [("a",), ("b",), ("c",)]
+            calls = []
+
+            def build_and_submit(jobs_subset):
+                calls.append([j[0] for j in jobs_subset])
+                for (name,) in jobs_subset:
+                    if name == "b" and len(calls) == 1:
+                        (stage_dir / f"out_{name}.csv").touch()  # simulates the failure
+                    else:
+                        (stage_dir / f"out_{name}.csv").write_text("data\n")
+
+            cw.submit_jobs_with_retry(
+                stage_dir, jobs, output_path_fn=lambda j: stage_dir / f"out_{j[0]}.csv",
+                build_and_submit=build_and_submit, label="test",
+            )
+            self.assertEqual(calls, [["a", "b", "c"], ["b"]])
+            self.assertGreater((stage_dir / "out_b.csv").stat().st_size, 0)
+
+    def test_persistently_missing_output_exits_after_max_retries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_dir = Path(tmp)
+            jobs = [("a",)]
+
+            def build_and_submit(jobs_subset):
+                pass  # never actually produces out_a.csv
+
+            with self.assertRaises(SystemExit):
+                cw.submit_jobs_with_retry(
+                    stage_dir, jobs, output_path_fn=lambda j: stage_dir / f"out_{j[0]}.csv",
+                    build_and_submit=build_and_submit, label="test", max_retries=2,
+                )
+
+    def test_batch_size_splits_into_sequential_chunks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_dir = Path(tmp)
+            jobs = [(str(i),) for i in range(5)]
+            calls = []
+
+            def build_and_submit(jobs_subset):
+                calls.append([j[0] for j in jobs_subset])
+                for (name,) in jobs_subset:
+                    (stage_dir / f"out_{name}.csv").write_text("data\n")
+
+            cw.submit_jobs_with_retry(
+                stage_dir, jobs, output_path_fn=lambda j: stage_dir / f"out_{j[0]}.csv",
+                build_and_submit=build_and_submit, label="test", batch_size=2,
+            )
+            self.assertEqual(calls, [["0", "1"], ["2", "3"], ["4"]])
+
+
 if __name__ == "__main__":
     unittest.main()
