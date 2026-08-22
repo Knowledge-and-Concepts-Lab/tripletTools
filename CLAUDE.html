@@ -72,7 +72,8 @@ inst/condor/              # HTCondor workflows: pure-Python orchestrators (submi
                            #                                   function group_difference_test()
                            #                                   (condor_group_fit.R,
                            #                                   condor_group_compare.R,
-                           #                                   group_diff_params_template.yml)
+                           #                                   group_diff_params_template.yml,
+                           #                                   README_group_diff.md - CHTC deploy steps)
 vignettes/
   tripletTools.Rmd                  # "Get started" guide (name matches pkgname -- pkgdown auto-promotes it
                                      #   to a top-level navbar link instead of the Articles dropdown). Only
@@ -227,6 +228,8 @@ docs/                     # pkgdown site — rebuild with pkgdown::build_site()<
 <ul><li>
 <strong>Two real bugs caught while testing this, both worth remembering as general gotchas:</strong> (1) in the R function, <code><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character()</a></code> on a named vector <strong>drops its names</strong> — <code>group_vec &lt;- as.character(group_vec[worker_ids])</code> silently produced an unnamed vector, making <code>names(group_vec)</code> <code>NULL</code> downstream and <code>triplet_list[ids]</code> resolve to an empty list, which only surfaced many calls later as an obscure <code>seq_len(split_idx)</code> error deep inside <code><a href="reference/run_group_embedding_from_list.html">run_group_embedding_from_list()</a></code>’s 70/30 fallback path — always re-attach names explicitly after <code><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character()</a></code> on anything you intend to keep named. (2) in the Python orchestrator’s compare stage, the same variable was initially used for both <code>transfer_input_files</code> (needs the path <em>on the submit node</em>, e.g. <code>../stage1_fit/embedding_repN_sideA.csv</code>) and <code>arguments</code> (needs the bare filename the file lands under <em>inside the job’s sandbox</em> post-transfer, since HTCondor strips directory components) — these must be two separate <code>queue ... from (...)</code> variables (<code>*_src</code> vs. <code>*_name</code>), confirmed by cross-checking <code>condor_workflow.py</code>’s existing, correct pattern (<code>data_path</code> for transfer vs. <code>data_path.name</code> for arguments).</li>
 </ul></li>
+<li>
+<code>inst/condor/README_group_diff.md</code> — CHTC deployment steps for <code>condor_group_diff_workflow.py</code>. Written after the user’s own recollection of the deploy steps had two real gaps worth remembering: (1) this workflow needs <strong>two</strong> R scripts (<code>condor_group_fit.R</code> + <code>condor_group_compare.R</code>, both required in the same directory as the orchestrator, since it locates them relative to its own file path) — easy to under-count as “one” by analogy to the other workflow’s single <code>condor_fit.R</code>; (2) the two required data inputs are a <strong>raw combined triplet-judgment CSV</strong> plus a group-labels CSV — not precomputed embeddings, since the whole point of the workflow is fitting embeddings itself once per (replicate, side).</li>
 </ul></div>
 </div>
 

@@ -39,7 +39,8 @@ Current version: **0.2.0**. Package URL:
                                #                                   function group_difference_test()
                                #                                   (condor_group_fit.R,
                                #                                   condor_group_compare.R,
-                               #                                   group_diff_params_template.yml)
+                               #                                   group_diff_params_template.yml,
+                               #                                   README_group_diff.md - CHTC deploy steps)
     vignettes/
       tripletTools.Rmd                  # "Get started" guide (name matches pkgname -- pkgdown auto-promotes it
                                          #   to a top-level navbar link instead of the Articles dropdown). Only
@@ -391,3 +392,14 @@ back to the returned matrices.
     (`*_src` vs. `*_name`), confirmed by cross-checking
     `condor_workflow.py`’s existing, correct pattern (`data_path` for
     transfer vs. `data_path.name` for arguments).
+- `inst/condor/README_group_diff.md` — CHTC deployment steps for
+  `condor_group_diff_workflow.py`. Written after the user’s own
+  recollection of the deploy steps had two real gaps worth
+  remembering: (1) this workflow needs **two** R scripts
+  (`condor_group_fit.R` + `condor_group_compare.R`, both required in the
+  same directory as the orchestrator, since it locates them relative to
+  its own file path) — easy to under-count as “one” by analogy to the
+  other workflow’s single `condor_fit.R`; (2) the two required data
+  inputs are a **raw combined triplet-judgment CSV** plus a group-labels
+  CSV — not precomputed embeddings, since the whole point of the
+  workflow is fitting embeddings itself once per (replicate, side).
