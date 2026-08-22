@@ -92,6 +92,9 @@
   : Standardise a legacy triadic comparison dataset
 - [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
   : Clean raw jsPsych triplet experiment data
+- [`reduce_embedding_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/reduce_embedding_dimension.md)
+  : Reduce an embedding to the lowest dimension that preserves its
+  structure
 - [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md)
   : Repeated stratified cross-validated logistic regression for
   embedding coordinates

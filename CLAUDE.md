@@ -100,6 +100,7 @@ Current version: **0.2.0**. Package URL:
 | [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md) | R/find_discriminating_triplets.R | Finds triplets where two embeddings of the same items make discrepant CKL predictions, for designing a follow-up human study |
 | [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md) | R/group_difference_test.R | Permutation test for whether two participant groups’ embeddings differ reliably; local (small-scale) companion to `inst/condor/condor_group_diff_workflow.py` |
 | [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md) | R/find_discrepant_items.R | Ranks items by how much their distance-to-others profile differs between two embeddings; alignment-free alternative to per-item Procrustes residuals |
+| [`reduce_embedding_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/reduce_embedding_dimension.md) | R/reduce_embedding_dimension.R | Reduces an embedding fit at a generously high `d` to the lowest dimension (via PCA) that preserves most of its variance, and reports triplet-prediction accuracy before/after |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`,
 `.get_compute_py()`. Internal helpers in
@@ -506,3 +507,32 @@ back to the returned matrices.
   tagging a fit with the wrong participant’s ID – verified this guard
   actually fires, and separately smoke-tested the whole per-job script
   end-to-end on one real `icon_triplets` participant.
+- [`reduce_embedding_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/reduce_embedding_dimension.md)
+  — companion to the per-participant Condor workflow above: rather than
+  running a full per-participant dimensionality search (expensive to
+  repeat hundreds of times on Condor), fit every participant at one
+  shared, generously high `d_max` locally on the submit node, then
+  reduce each one’s own fitted embedding down afterward via PCA
+  ([`base::svd()`](https://rdrr.io/r/base/svd.html) on the centered
+  coordinates), keeping the smallest number of leading principal
+  components whose cumulative variance meets a threshold (default 0.95).
+  PCA rather than classical MDS: since the embedding is already a set of
+  exact Euclidean coordinates, MDS’s eigendecomposition of the
+  double-centered distance Gram matrix is provably identical (up to
+  rotation) to PCA on the coordinates directly, so MDS would just be a
+  more expensive detour through an unnecessary n×n distance matrix to
+  the same answer. Also reports triplet-prediction accuracy of the
+  reduced embedding vs. the original full-dimension one (and a per-k
+  `diagnostics` table of the whole curve), evaluated against *every*
+  triplet the participant judged (train+test combined), not just their
+  own held-out split — deliberately, since a held-out-only accuracy
+  comparison would make the apparent “right” dimensionality partly an
+  artifact of which triplets happened to land in that participant’s
+  particular random split (a real concern the user raised), whereas the
+  truncation step itself is unsupervised (never looks at triplet
+  labels), so there’s no leakage in scoring it against the full dataset.
+  Verified on a synthetic embedding with 2 true dimensions + 3 near-flat
+  noise dimensions (correctly recovers `k=2`) and smoke-tested on a real
+  `icon_triplets` participant fit at `d=8` (variance concentrated in the
+  first 2 dimensions at 97%, reduced-embedding accuracy 0.909
+  vs. full-embedding accuracy 0.918).
