@@ -35,6 +35,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
+    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
     <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
     <li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
     <li><a class="dropdown-item" href="../articles/read_data_vignette.html">Reading Triplet Data</a></li>
@@ -907,214 +908,26 @@ job completes and the progress bar begins updating.</p>
 <h3 id="htcondor-cluster">HTCondor cluster<a class="anchor" aria-label="anchor" href="#htcondor-cluster"></a>
 </h3>
 <p>If you have access to an HTCondor cluster (e.g. UW–Madison’s CHTC),
-<code>tripletTools</code> ships a small, dependency-light Python driver
-that dispatches embedding fits to it directly via
-<code>condor_submit</code>/<code>condor_wait</code> — <strong>no R
-installation is needed on the submit node</strong>, only Python 3 and
-PyYAML:</p>
-<div class="sourceCode" id="cb32"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">--user</span> pyyaml</span></code></pre></div>
-<p>Every job needs R, <code>tripletTools</code>, and the
-<code>triplet-embeddings</code> conda environment available wherever
-HTCondor runs it — in practice, on a shared pool like CHTC’s, execute
-nodes are heterogeneous and ephemeral, so you should not assume any of
-that is pre-installed. Instead, every job runs inside the
-<code>tripletTools</code> container image (see <a href="#building-and-publishing-the-container-image">Building and
-publishing the container image</a> below) via HTCondor’s native
-<code>container</code> universe, which CHTC’s execute nodes support
-directly — no separate native container build or per-user template file
-needed on your end.</p>
-<p>There is no one-time setup step and no
-<code>future</code>/<code><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan()</a></code> involved: the driver builds and
-submits its own HTCondor submit files, so a run is just:</p>
-<div class="sourceCode" id="cb33"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" tabindex="-1"></a><span class="ex">python3</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "condor_workflow.py", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
-<span id="cb33-2"><a href="#cb33-2" tabindex="-1"></a>  triplet_data.csv my_params.yml</span></code></pre></div>
-<p>(see <a href="#an-end-to-end-condor-workflow">An end-to-end Condor
-workflow</a> below for what
-<code>triplet_data.csv</code>/<code>my_params.yml</code> need to
-contain). The driver submits one Condor job per fit — via a single
-<code>queue ... from (...)</code> block per stage, so HTCondor
-negotiates however many can run concurrently rather than the driver
-throttling that itself — waits for the whole stage to finish with
-<code>condor_wait</code>, and then aggregates the per-job result CSVs
-the same way
-<code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code>/<code><a href="../reference/estimate_learning_curve.html">estimate_learning_curve()</a></code>
-do internally (mean/sd loss and accuracy, one-SE <code>best_d</code>
-rule), before moving on to the next stage.</p>
-<p>Submit files use <code>container_image = docker://ghcr.io/...</code>
-— confirmed working on UW–Madison CHTC access points. If you’re on a
-different HTCondor pool and it rejects
-<code>universe = container</code>, you’ll need to adapt
-<code>write_submit_file()</code> in <code>condor_workflow.py</code> to
-your pool’s container mechanism (e.g. the older
-<code>+SingularityImage</code> classad).</p>
-</div>
-<div class="section level3">
-<h3 id="building-and-publishing-the-container-image">Building and publishing the container image<a class="anchor" aria-label="anchor" href="#building-and-publishing-the-container-image"></a>
-</h3>
-<pre><code><span><span class="va">Dockerfile</span>                                <span class="co"># builds the runtime image</span></span>
-<span><span class="va">.github</span><span class="op">/</span><span class="va">workflows</span><span class="op">/</span><span class="va">docker</span><span class="op">-</span><span class="va">publish.yml</span>      <span class="co"># builds + publishes it to ghcr.io on push</span></span>
-<span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor_fit.R</span>                  <span class="co"># per-job script that runs inside the image</span></span></code></pre>
-<p>The image layers a base R install, Miniconda, the
-<code>triplet-embeddings</code> conda environment (built via this
-package’s own <code><a href="../reference/setup_python_env.html">setup_python_env()</a></code>, so it’s created exactly
-the way a local install would be), and <code>tripletTools</code> itself
-installed from GitHub. The GitHub Actions workflow builds and pushes it
-to <code>ghcr.io/&lt;org&gt;/&lt;repo&gt;</code> automatically whenever
-<code>Dockerfile</code>, <code>R/</code>, <code>inst/python/</code>,
-<code>inst/requirements.txt</code>, or <code>DESCRIPTION</code> change
-on <code>main</code> — you don’t need Docker installed locally to use
-it, only to debug a failing build.</p>
-<p><strong>Disk requests are sized for the container.</strong> Pulling
-and unpacking the image (R + conda + PyTorch) adds several GB on top of
-whatever a job itself transfers, so <code>params_template.yml</code>’s
-shipped <code>defaults.resources.request_disk</code> is
-<code>8GB</code>. Override it per stage in your copy of the config if
-you need more.</p>
-<p><strong>CHTC staging paths</strong>, if your triplet dataset is large
-enough to need <code>/staging</code> rather than ordinary
-<code>transfer_input_files</code> (CHTC’s general guidance: under 1GB
-per file stays in <code>/home</code>; 1–30GB goes to personal staging):
-personal staging areas are at
-<code>/staging/&lt;first letter of your netid&gt;/&lt;netid&gt;</code>,
-exposed as <code>$STAGING</code> on Access Points and
-<code>$ENV(STAGING)</code> in submit files. A job that reads staging
-directly needs
-<code>requirements = (Target.HasCHTCStaging == true)</code>.</p>
-<p><strong>Avoiding a <code>docker://</code> pull on every job:</strong>
-HTCondor/Apptainer caches the image per execute node, which is fine at
-the job counts this workflow generates (dozens to a few hundred per
-stage). If you’re running this often enough that repeated pulls become a
-bottleneck, build the image into a <code>.sif</code> once and stage it
-instead of pulling from the registry every time — just point
-<code>condor.container_image</code> in your config at CHTC’s
-OSDF/Pelican staging path convention instead of the
-<code>docker://</code> reference:</p>
-<div class="sourceCode" id="cb35"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb35-1"><a href="#cb35-1" tabindex="-1"></a><span class="fu">condor</span><span class="kw">:</span></span>
-<span id="cb35-2"><a href="#cb35-2" tabindex="-1"></a><span class="at">  </span><span class="fu">container_image</span><span class="kw">:</span><span class="at"> osdf:///chtc$ENV(STAGING)/containers/tripletTools_v1.sif</span></span></code></pre></div>
-<p>(this also needs
-<code>requirements = (Target.HasCHTCStaging == true)</code> added to the
-relevant submit file in <code>condor_workflow.py</code> if you go this
-route). Give the <code>.sif</code> a version suffix and update the
-config’s path when you rebuild it, rather than overwriting the old
-filename — OSDF/Pelican caches by path, so reusing a filename can serve
-stale content.</p>
-</div>
-<div class="section level3">
-<h3 id="an-end-to-end-condor-workflow">An end-to-end Condor workflow<a class="anchor" aria-label="anchor" href="#an-end-to-end-condor-workflow"></a>
-</h3>
-<p>For the common case of “pick a dimension, check it against a learning
-curve, and fit the best embedding,” <code>tripletTools</code> ships a
-driver script that runs all three steps back to back, dispatching every
-individual fit to HTCondor as its own job:</p>
-<pre><code><span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor_workflow.py</span>     <span class="co"># Python orchestrator (runs on the submit node)</span></span>
-<span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">condor_fit.R</span>           <span class="co"># per-job fit script (runs inside the container)</span></span>
-<span><span class="va">inst</span><span class="op">/</span><span class="va">condor</span><span class="op">/</span><span class="va">params_template.yml</span>    <span class="co"># template configuration file</span></span></code></pre>
-<p>Locate them with:</p>
-<div class="sourceCode" id="cb37"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"condor"</span>, package <span class="op">=</span> <span class="st">"tripletTools"</span><span class="op">)</span></span></code></pre></div>
-<p><strong>Per run:</strong></p>
-<ol style="list-style-type: decimal">
-<li><p>Provide your triplet data as a combined CSV: a single file with
-one row per triplet judgment and a <code>worker_id</code> column, in the
-same format <code><a href="../reference/get.combined.html">get.combined()</a></code> reads (see
-<code>inst/extdata/icon_all_triplets.csv</code> for an example). This is
-usually already what you have on disk, so there’s no R-side step to
-produce it.</p></li>
-<li>
-<p>Copy <code>params_template.yml</code> and edit it for your run —
-the shipped copy documents every field inline:</p>
-<div class="sourceCode" id="cb38"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" tabindex="-1"></a><span class="fu">cp</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "params_template.yml", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
-<span id="cb38-2"><a href="#cb38-2" tabindex="-1"></a>   my_params.yml</span></code></pre></div>
-</li>
-<li>
-<p>Run the driver script. Since it only <em>orchestrates</em> —
-every actual embedding fit runs as its own Condor job — it’s safe to run
-directly on the submit node inside a persistent session
-(<code>screen</code>/<code>tmux</code>/<code>nohup</code>) rather than
-as a Condor job itself:</p>
-<div class="sourceCode" id="cb39"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" tabindex="-1"></a><span class="ex">python3</span> <span class="va">$(</span><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'cat(system.file("condor", "condor_workflow.py", package = "tripletTools"))'</span><span class="va">)</span> <span class="dt">\</span></span>
-<span id="cb39-2"><a href="#cb39-2" tabindex="-1"></a>  triplet_data.csv my_params.yml</span></code></pre></div>
-</li>
-</ol>
-<p>This produces, in the <code>output_dir</code> set in
-<code>my_params.yml</code>:</p>
-<table class="table">
-<colgroup>
-<col width="50%">
-<col width="50%">
-</colgroup>
-<thead><tr class="header">
-<th>File</th>
-<th>Contents</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td>
-<code>dimensionality_results.csv</code> /
-<code>dimensionality_summary.csv</code>
-</td>
-<td>
-<code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code>’s
-<code>results</code>/<code>summary</code>, one Condor job per
-(dimension, restart)</td>
-</tr>
-<tr class="even">
-<td>
-<code>learning_curve_results.csv</code> /
-<code>learning_curve_summary.csv</code>
-</td>
-<td>
-<code><a href="../reference/estimate_learning_curve.html">estimate_learning_curve()</a></code>’s
-<code>results</code>/<code>summary</code>, at the <code>best_d</code>
-selected above, one Condor job per (fraction, restart)</td>
-</tr>
-<tr class="odd">
-<td><code>best_embedding.csv</code></td>
-<td>The final embedding, fit at <code>best_d</code> on the <em>full</em>
-dataset (item names in the <code>item</code> column)</td>
-</tr>
-<tr class="even">
-<td><code>best_embedding_history.csv</code></td>
-<td>That final fit’s per-epoch training history (loss, accuracy,
-<code>norm_ratio</code>, …)</td>
-</tr>
-<tr class="odd">
-<td><code>run_manifest.txt</code></td>
-<td>Package version, input paths, <code>best_d</code>, and final loss,
-for provenance</td>
-</tr>
-</tbody>
-</table>
-<p>The final embedding is a dedicated fit rather than a reused fraction
-= 1.0 restart from the learning-curve stage:
-<code><a href="../reference/estimate_learning_curve.html">estimate_learning_curve()</a></code> deliberately holds out the same
-test set at every fraction so hold-out loss stays comparable across
-fractions, whereas the production embedding should use ordinary
-train/test early stopping over <em>all</em> available data.</p>
-<p><code>seed</code>, <code>geometry</code>, <code>radius</code>, and
-<code>norm_penalty</code> in the config apply to all three stages, so
-they describe one coherent embedding space throughout;
-<code>max_epochs</code>/<code>tolerance</code>/<code>tol_window</code>/<code>device</code>/<code>internal_test_frac</code>/Condor
-<code>resources</code> can be overridden per stage (e.g. a faster budget
-for the dimensionality search, a more generous one for the final fit) —
-see the comments in <code>params_template.yml</code>.
-<code>internal_test_frac</code> (default <code>0.1</code>) is only used
-by the dimensionality and learning-curve stages; see <a href="#how-best_d-is-determined">How <code>best_d</code> is
-determined</a> above for why each restart resamples its own
-<code>internal_test</code> subset rather than every restart sharing one
-fixed hold-out. Reproducibility carries over exactly from the serial
-case: given the same <code>seed</code>, each job’s
-<code>random_state</code> (and internal_test split) is derived with the
-identical formulas
-<code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code>/<code><a href="../reference/estimate_learning_curve.html">estimate_learning_curve()</a></code>
-use internally, so a Condor run and an in-process call with the same
-seed produce numerically identical fits.</p>
+the dimensionality-search-to-final-fit pipeline above (and two other
+embedding-related workflows — a group-difference permutation test, and
+per-participant individual embeddings) can be dispatched to it directly
+instead of running via <code>future</code>/<code><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan()</a></code> on your
+own machine. This uses a completely separate mechanism from the local
+multicore approach above: a small Python driver on the submit node, with
+every actual fit running inside the <code>tripletTools</code> container
+image on Condor execute nodes — <strong>no R installation is needed on
+the submit node</strong>, only Python 3 and PyYAML.</p>
+<p>See <code><a href="../articles/condor_workflows_vignette.html">vignette("condor_workflows_vignette")</a></code> for the full
+deployment guide: initial submit-node setup, the general procedure
+common to all three workflows, the container image these jobs run in,
+troubleshooting a job that seems stuck, and a dedicated section per
+workflow (including this one, <code>condor_workflow.py</code>).</p>
 </div>
 <div class="section level3">
 <h3 id="checking-the-active-plan">Checking the active plan<a class="anchor" aria-label="anchor" href="#checking-the-active-plan"></a>
 </h3>
 <p>At any point you can confirm which plan is in effect:</p>
-<div class="sourceCode" id="cb40"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://future.futureverse.org" class="external-link">future</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://future.futureverse.org/reference/plan.html" class="external-link">plan</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># prints a description of the current plan</span></span></code></pre></div>
 <p><code>plan(sequential)</code> (the default) runs everything serially
