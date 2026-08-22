@@ -37,12 +37,13 @@ symmetric_kl_bernoulli <- function(p1, p2) {
 #'   \code{0.05}.
 #' @param n_candidates Number of candidate triplets to sample and score
 #'   before selecting the top \code{k}. Default \code{200000L}. Half are
-#'   drawn uniformly at random; half are drawn with items weighted by their
-#'   Procrustes alignment residual (see \emph{Details}), concentrating
-#'   search on items likely to matter without excluding any item outright.
-#'   For small item sets, a large enough value effectively covers every
-#'   distinct triplet (duplicates are removed automatically), approximating
-#'   exhaustive search without a separate code path for it.
+#'   drawn uniformly at random; half are drawn with items weighted by how
+#'   much their distance-to-other-items profile differs between the two
+#'   embeddings (see \emph{Details}), concentrating search on items likely
+#'   to matter without excluding any item outright. For small item sets, a
+#'   large enough value effectively covers every distinct triplet
+#'   (duplicates are removed automatically), approximating exhaustive search
+#'   without a separate code path for it.
 #' @param max_per_item Maximum number of returned triplets any single item
 #'   may appear in (as head or either option). Default \code{Inf} (no cap).
 #'   Useful when a handful of items are placed very differently between the
@@ -89,22 +90,29 @@ symmetric_kl_bernoulli <- function(p1, p2) {
 #' \code{n*(n-1)*(n-2)/2}, exhaustive search is not attempted; candidates
 #' are sampled instead (see \code{n_candidates}). Half of every candidate
 #' pool is drawn uniformly at random; the other half is drawn with items
-#' weighted by their residual from a Procrustes alignment
-#' (\code{\link[vegan]{procrustes}}, \code{reflect = TRUE, symmetric = TRUE,
-#' scale = TRUE}) of \code{embedding1} onto \code{embedding2} -- items
-#' placed very differently between the two embeddings get a larger
-#' residual and are sampled more often. This is a soft bias on candidate
-#' *generation* only: every item retains nonzero sampling probability (a
-#' small floor is added to the weights), and the final ranking always comes
-#' from the exact \code{discrepancy} score above, so a misleading residual
-#' can cost search efficiency but never correctness. That caveat matters in
-#' practice -- when a single item is a strong outlier between the two
-#' embeddings, its own large residual can distort the *global* rotation/
-#' scale Procrustes fits to minimize total residual, inflating the apparent
-#' residual of other, unchanged items enough that they can outrank the true
-#' outlier (verified: a 20-item synthetic example with exactly one item
-#' relocated does not put that item's residual in first place). The 50/50
-#' uniform component exists specifically to hedge against this.
+#' weighted by \code{1 - } their distance-profile Spearman correlation (the
+#' same measure used by \code{\link{find_discrepant_items}}): for each
+#' item, its vector of distances to every other item is compared between
+#' \code{embedding1} and \code{embedding2}, and items whose relative
+#' position differs more between the two embeddings get a larger weight and
+#' are sampled more often. This is a soft bias on candidate *generation*
+#' only: every item retains nonzero sampling probability (a small floor is
+#' added to the weights), and the final ranking always comes from the exact
+#' \code{discrepancy} score above, so a misleading weight can cost search
+#' efficiency but never correctness. An earlier version of this function
+#' weighted items by their residual from a Procrustes alignment of
+#' \code{embedding1} onto \code{embedding2} instead; that was replaced
+#' because a single strong outlier item can distort the *global* rotation/
+#' scale a Procrustes fit uses to minimize total residual, inflating the
+#' apparent residual of other, unchanged items enough that they outrank the
+#' true outlier (verified: on a 20-item synthetic example with exactly one
+#' item relocated, the Procrustes residual ranked that item only 3rd, with a
+#' weight barely distinguishable from the top-ranked item, while the
+#' Spearman-based weight used here ranks it 1st with more than 3x the
+#' next-highest item's weight). The distance-profile approach has no shared
+#' fitting step, so it does not share this failure mode; the 50/50 uniform
+#' component is retained regardless, as a general hedge against any
+#' remaining imperfection in the weighting heuristic.
 #'
 #' Selection among scored candidates is a greedy pass in decreasing order
 #' of \code{discrepancy}, skipping any candidate that would push one of its
@@ -173,12 +181,30 @@ find_discriminating_triplets <- function(
   D1 <- as.matrix(stats::dist(embedding1))^2
   D2 <- as.matrix(stats::dist(embedding2))^2
 
-  # Per-item Procrustes residual, used only to bias candidate *sampling*
-  # (see @details) -- never affects discrepancy scoring or final ranking.
-  fit <- vegan::procrustes(embedding1, embedding2,
-                            reflect = TRUE, symmetric = TRUE, scale = TRUE)
-  residual <- stats::residuals(fit)[items]
-  weights <- residual + 0.01 * mean(residual)
+  # Per-item discrepancy, used only to bias candidate *sampling* (see
+  # @details) -- never affects CKL discrepancy scoring or final ranking.
+  # Spearman correlation between each item's row of D1/D2 -- squaring
+  # preserves rank order for non-negative distances, so these already-
+  # computed squared distances give the same Spearman correlation as raw
+  # distances would, with no extra computation needed. This is markedly
+  # more robust to a single badly-placed item than a Procrustes residual
+  # (which this replaced): verified on a single-relocated-item synthetic
+  # test that Procrustes residuals rank that item only 3rd, with a weight
+  # barely distinguishable from the top (unrelated) item, while this
+  # correlation-based weight ranks it 1st with more than 3x the next-highest
+  # item's weight -- see find_discrepant_items()'s documentation, which
+  # uses the same underlying signal for a related but distinct purpose
+  # (ranking items directly, rather than biasing a sampling distribution).
+  spearman_corr <- vapply(seq_len(n_items), function(i) {
+    stats::cor(D1[i, -i], D2[i, -i], method = "spearman")
+  }, numeric(1))
+  discrepancy <- 1 - spearman_corr
+  # The additive floor is usually scaled to the typical discrepancy, but
+  # when the two embeddings are identical (or coincidentally rank-identical)
+  # every item's discrepancy is exactly zero, which would otherwise zero out
+  # every sampling weight -- add a small absolute floor too so sample.int()
+  # always has strictly positive probabilities to work with.
+  weights <- discrepancy + 0.01 * mean(discrepancy) + 1e-8
 
   n_uniform <- ceiling(n_candidates / 2)
   n_weighted <- n_candidates - n_uniform

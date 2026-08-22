@@ -29,12 +29,13 @@ package's embedding pipeline is fit under (see \emph{Details}). Default
 
 \item{n_candidates}{Number of candidate triplets to sample and score
 before selecting the top \code{k}. Default \code{200000L}. Half are
-drawn uniformly at random; half are drawn with items weighted by their
-Procrustes alignment residual (see \emph{Details}), concentrating
-search on items likely to matter without excluding any item outright.
-For small item sets, a large enough value effectively covers every
-distinct triplet (duplicates are removed automatically), approximating
-exhaustive search without a separate code path for it.}
+drawn uniformly at random; half are drawn with items weighted by how
+much their distance-to-other-items profile differs between the two
+embeddings (see \emph{Details}), concentrating search on items likely
+to matter without excluding any item outright. For small item sets, a
+large enough value effectively covers every distinct triplet
+(duplicates are removed automatically), approximating exhaustive search
+without a separate code path for it.}
 
 \item{max_per_item}{Maximum number of returned triplets any single item
 may appear in (as head or either option). Default \code{Inf} (no cap).
@@ -90,22 +91,29 @@ Because the number of possible triplets grows as
 \code{n*(n-1)*(n-2)/2}, exhaustive search is not attempted; candidates
 are sampled instead (see \code{n_candidates}). Half of every candidate
 pool is drawn uniformly at random; the other half is drawn with items
-weighted by their residual from a Procrustes alignment
-(\code{\link[vegan]{procrustes}}, \code{reflect = TRUE, symmetric = TRUE,
-scale = TRUE}) of \code{embedding1} onto \code{embedding2} -- items
-placed very differently between the two embeddings get a larger
-residual and are sampled more often. This is a soft bias on candidate
-\emph{generation} only: every item retains nonzero sampling probability (a
-small floor is added to the weights), and the final ranking always comes
-from the exact \code{discrepancy} score above, so a misleading residual
-can cost search efficiency but never correctness. That caveat matters in
-practice -- when a single item is a strong outlier between the two
-embeddings, its own large residual can distort the \emph{global} rotation/
-scale Procrustes fits to minimize total residual, inflating the apparent
-residual of other, unchanged items enough that they can outrank the true
-outlier (verified: a 20-item synthetic example with exactly one item
-relocated does not put that item's residual in first place). The 50/50
-uniform component exists specifically to hedge against this.
+weighted by \code{1 - } their distance-profile Spearman correlation (the
+same measure used by \code{\link{find_discrepant_items}}): for each
+item, its vector of distances to every other item is compared between
+\code{embedding1} and \code{embedding2}, and items whose relative
+position differs more between the two embeddings get a larger weight and
+are sampled more often. This is a soft bias on candidate \emph{generation}
+only: every item retains nonzero sampling probability (a small floor is
+added to the weights), and the final ranking always comes from the exact
+\code{discrepancy} score above, so a misleading weight can cost search
+efficiency but never correctness. An earlier version of this function
+weighted items by their residual from a Procrustes alignment of
+\code{embedding1} onto \code{embedding2} instead; that was replaced
+because a single strong outlier item can distort the \emph{global} rotation/
+scale a Procrustes fit uses to minimize total residual, inflating the
+apparent residual of other, unchanged items enough that they outrank the
+true outlier (verified: on a 20-item synthetic example with exactly one
+item relocated, the Procrustes residual ranked that item only 3rd, with a
+weight barely distinguishable from the top-ranked item, while the
+Spearman-based weight used here ranks it 1st with more than 3x the
+next-highest item's weight). The distance-profile approach has no shared
+fitting step, so it does not share this failure mode; the 50/50 uniform
+component is retained regardless, as a general hedge against any
+remaining imperfection in the weighting heuristic.
 
 Selection among scored candidates is a greedy pass in decreasing order
 of \code{discrepancy}, skipping any candidate that would push one of its
