@@ -61,7 +61,8 @@ data ready for modelling. Optionally writes the results to disk.</p>
 <span>  max_prop_wrong <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  test_prop <span class="op">=</span> <span class="fl">0.1</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">42</span>,</span>
-<span>  stimuli_extension <span class="op">=</span> <span class="st">".png"</span></span>
+<span>  stimuli_extension <span class="op">=</span> <span class="st">".png"</span>,</span>
+<span>  worker_id_regex <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -119,6 +120,18 @@ Passed to <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>.
 <dd><p>Character. File extension (including the leading
 dot) to strip from stimulus and choice names. Default: <code>".png"</code>.</p></dd>
 
+
+<dt id="arg-worker-id-regex">worker_id_regex<a class="anchor" aria-label="anchor" href="#arg-worker-id-regex"></a></dt>
+<dd><p>Character or <code>NULL</code>. Only used when a file has
+no recognised participant-ID column (see <em>Column-name flexibility</em>
+below). A regular expression with one capture group, applied to the
+file's base name (without directory or extension); the captured group
+becomes that file's <code>worker_id</code>. For example,
+<code>"motion_(\\d+)_part\\d+"</code> extracts <code>"87059"</code> from
+<code>"motion_87059_part1.csv"</code>. If <code>NULL</code> (default), or if the
+regex does not match, the full base file name is used as the
+<code>worker_id</code> instead.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -131,6 +144,28 @@ dot) to strip from stimulus and choice names. Default: <code>".png"</code>.</p><
 <dt><code>levels</code></dt>
 <dd><p>Data frame mapping integer stimulus indices to file
 names and paths.</p></dd>
+
+
+</dl></div>
+    <div class="section level2">
+    <h2 id="column-name-flexibility">Column-name flexibility<a class="anchor" aria-label="anchor" href="#column-name-flexibility"></a></h2>
+
+
+<p>Different jsPsych triplet experiments (and different versions of the same
+experiment code) do not always export identical column names. Before
+combining files, each one is checked for a small set of known aliases:</p><dl><dt>Trial category</dt>
+<dd><p>Recognised input names: <code>trial_category</code>,
+<code>sampleAlg</code>, <code>AlgSample</code>. If none is found in a file, the
+function stops with an error naming that file.</p></dd>
+
+<dt>Participant ID (<code>worker_id</code>)</dt>
+<dd><p>Recognised input names:
+<code>worker_id</code>, <code>sessionID</code>, <code>session_ID</code>, <code>puid</code>,
+<code>Participant.ID</code>, <code>sub_id</code>, <code>pid</code>. If none is found,
+an ID is derived from the file name instead (see
+<code>worker_id_regex</code>) rather than raising an error, since some
+jsPsych configurations never write a participant-ID column at all and
+rely on one file per participant instead.</p></dd>
 
 
 </dl></div>

@@ -16,7 +16,8 @@ read_raw_data(
   max_prop_wrong = 1,
   test_prop = 0.1,
   seed = 42,
-  stimuli_extension = ".png"
+  stimuli_extension = ".png",
+  worker_id_regex = NULL
 )
 ```
 
@@ -78,6 +79,17 @@ read_raw_data(
   Character. File extension (including the leading dot) to strip from
   stimulus and choice names. Default: `".png"`.
 
+- worker_id_regex:
+
+  Character or `NULL`. Only used when a file has no recognised
+  participant-ID column (see *Column-name flexibility* below). A regular
+  expression with one capture group, applied to the file's base name
+  (without directory or extension); the captured group becomes that
+  file's `worker_id`. For example, `"motion_(\\d+)_part\\d+"` extracts
+  `"87059"` from `"motion_87059_part1.csv"`. If `NULL` (default), or if
+  the regex does not match, the full base file name is used as the
+  `worker_id` instead.
+
 ## Value
 
 A list returned invisibly with two elements:
@@ -91,3 +103,25 @@ A list returned invisibly with two elements:
 - `levels`:
 
   Data frame mapping integer stimulus indices to file names and paths.
+
+## Column-name flexibility
+
+Different jsPsych triplet experiments (and different versions of the
+same experiment code) do not always export identical column names.
+Before combining files, each one is checked for a small set of known
+aliases:
+
+- Trial category:
+
+  Recognised input names: `trial_category`, `sampleAlg`, `AlgSample`. If
+  none is found in a file, the function stops with an error naming that
+  file.
+
+- Participant ID (`worker_id`):
+
+  Recognised input names: `worker_id`, `sessionID`, `session_ID`,
+  `puid`, `Participant.ID`, `sub_id`, `pid`. If none is found, an ID is
+  derived from the file name instead (see `worker_id_regex`) rather than
+  raising an error, since some jsPsych configurations never write a
+  participant-ID column at all and rely on one file per participant
+  instead.

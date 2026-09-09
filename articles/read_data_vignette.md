@@ -34,8 +34,11 @@ If you collected your data with a jsPsych triplet experiment,
 handles the full cleaning pipeline in one call. Point it at the
 directory containing the raw participant CSV files and it will:
 
-1.  Read and combine all CSVs in the directory.
-2.  Filter rows to experiment trials (`trial_category` equal to
+1.  Read and combine all CSVs in the directory, resolving known
+    column-name variants along the way (see [Column-name
+    flexibility](#column-name-flexibility) below) — different jsPsych
+    experiment versions don’t always export identical column names.
+2.  Filter rows to experiment trials (the trial-category column equal to
     `"random"`, `"check"`, or `"validation"`).
 3.  Apply quality-control exclusions: remove participants with too few
     trials (`filter_incomplete`), unusually fast mean reaction times
@@ -43,7 +46,9 @@ directory containing the raw participant CSV files and it will:
     (`filter_failed_catch`).
 4.  Strip file paths and extensions from stimulus names.
 5.  Split the comma-separated `choices` column into labelled `Left` /
-    `Right` columns and derive `winner` / `loser`.
+    `Right` columns and derive `winner` / `loser` from the `response`
+    column, which is recognised whether it’s coded as a 0-based button
+    index or as a literal key name like `"arrowleft"`/`"arrowright"`.
 6.  Assign a random 80/20 train/test split (configurable) via
     `assign_sample_sets`.
 7.  Optionally write a cleaned trial CSV and a stimulus-level
@@ -79,6 +84,51 @@ All QC thresholds default to permissive values (`min_trials = 0`,
 [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
 with only `data_dir` set will read and clean the files without excluding
 anyone.
+
+### Column-name flexibility
+
+Not every jsPsych triplet experiment (or every version of the same
+experiment’s code) exports identical column names. Before combining
+files,
+[`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
+checks each one individually for a small set of known aliases:
+
+| Standard name | Also recognised as |
+|----|----|
+| `trial_category` | `sampleAlg`, `AlgSample` |
+| `worker_id` (participant) | `sessionID`, `session_ID`, `puid`, `Participant.ID`, `sub_id`, `pid` |
+
+If a file has no column matching any of the `trial_category` aliases,
+[`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
+stops with an error naming that file — there’s no way to identify
+experiment trials without it. A missing `worker_id` column is handled
+more permissively, since some jsPsych configurations never write one at
+all and instead rely on one file per participant: in that case, the
+participant’s ID is derived from the file name instead.
+
+By default the whole file name (minus directory and extension) is used
+as the ID. If your file names embed the ID alongside other text —
+e.g. `motion_87059_part1.csv` — pass a one-capture-group regular
+expression via `worker_id_regex` to extract just the ID:
+
+``` r
+
+result <- read_raw_data(
+  data_dir        = "experiment/raw_data/",
+  worker_id_regex = "motion_(\\d+)_part\\d+"   # captures "87059" from "motion_87059_part1.csv"
+)
+```
+
+If the regex doesn’t match a given file name, that file falls back to
+using its full base name as the ID, the same as when `worker_id_regex`
+is left at its default of `NULL`.
+
+Similarly, the `response` column that identifies which option was chosen
+is recognised whether it’s a 0-based button index (`0`/`1`) or a literal
+key name from a jsPsych keyboard-response trial
+(`"arrowleft"`/`"arrowright"`, matched case-insensitively) — this is
+detected row by row, so a directory mixing both encodings still resolves
+correctly.
 
 ------------------------------------------------------------------------
 
