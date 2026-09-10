@@ -135,6 +135,8 @@ Every vignette is also available from within R/RStudio
   : Prediction accuracy by cluster
 - [`plot_cis()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_cis.md)
   : Plot column means and confidence intervals
+- [`plot_directions()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_directions.md)
+  : Scatterplot with directional arrows
 - [`plot_pics()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.md)
   : Plot pictures in a scatterplot
 - [`prepare_triplet_matrices()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/prepare_triplet_matrices.md)
