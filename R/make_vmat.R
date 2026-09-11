@@ -7,15 +7,23 @@
 #'   participant. Names should be participant identifiers, as returned by
 #'   `get_combined`.
 #'
-#' @returns Names list with two elements. `majority` is a matrix with one row per
-#'   validation triplet, reporting the winning choice and proportion of participants
-#'   who selected ite. `bysbj` is a matrix indicating, for each participant (rows)
-#'   and validation triplet (columns), the choice the participant made.
+#' @returns Names list with two elements. `majority` is a data frame with one row
+#'   per validation triplet, with columns `triplet` (the unique triplet code from
+#'   `make.tripnames`), `majority` (the winning choice), `pmaj` (proportion of
+#'   participants who selected it), and `Center`/`Left`/`Right` (the triplet's
+#'   items, in the format `test.model` expects -- see Details). `bysbj` is a
+#'   matrix indicating, for each participant (rows) and validation triplet
+#'   (columns), the choice the participant made.
 #'
 #' @details
 #' Each validation triplet is identified with a unique code of the kind generated
 #' by `make.tripnames` which indicates the target word and the two options, with
 #' the options ordered alphabetically.
+#'
+#' Because `majority` includes `Center`/`Left`/`Right` columns, it can be passed
+#' directly to \code{\link{test.model}} (together with a fitted embedding) to
+#' get each validation triplet's predicted response as an added `ModPred`
+#' column, and compare that to the human majority vote in `majority`.
 #'
 #' Where a participant judged a particular validation triplet the entries of `bysbj`
 #' will indicate the proportion of times the participant's decision agreed with
@@ -78,6 +86,24 @@ make.vmat <- function(triplist){
     pmaj[i,2] <- names(which.max(thisone)) #Winner
     pmaj[i,3] <- max(thisone)/sum(thisone) #proportion voting for winner
   }
+
+  #Add Center/Left/Right columns so `majority` can be passed directly to
+  #test.model(). Center and the *set* of two options are looked up from the
+  #original data (one representative row per unique triplet) rather than
+  #parsed back out of the "triplet" string, since make.tripnames() joins
+  #Center/Left/Right with "_" and item names themselves can contain
+  #underscores (e.g. "dots_070deg"), which would make a naive string split
+  #ambiguous. Left/Right are then alphabetically ordered (pmin/pmax) to match
+  #make.tripnames()'s own convention -- the same triplet can appear with the
+  #two options on either side across trials/participants, and Left/Right here
+  #should reflect the fixed alphabetical order baked into the triplet name,
+  #not whichever ordering happened to appear first in the data.
+  first_idx <- match(trips, vdat$tripnames)
+  left_vals  <- vdat$Left[first_idx]
+  right_vals <- vdat$Right[first_idx]
+  pmaj$Center <- vdat$Center[first_idx]
+  pmaj$Left   <- pmin(left_vals, right_vals)
+  pmaj$Right  <- pmax(left_vals, right_vals)
 
   #Initialize numeric by-subject matrix
   bysbj <- matrix(NA, dim(resp)[1], dim(resp)[2]) #Output matrix

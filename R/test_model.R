@@ -2,7 +2,8 @@
 #'
 #' This function generates predicted responses on a set of triplet items given
 #' an embedding of the items, and appends the model prediction as an additional
-#' column named ModPred to the triplet data file.
+#' column to the triplet data file, named after the embedding argument itself
+#' by default (see \code{pred_name} below).
 #'
 #' @importFrom stats dist
 #'
@@ -12,15 +13,27 @@
 #'  named Center, Left and Right, and names here must match row names of model.
 #' @param isemb Is model an embedding? If T (default), compute Euclidean distance
 #'  matrix; otherwise just treat model as the distance matrix
+#' @param pred_name Character or \code{NULL} (default). Name of the appended
+#'  prediction column. When \code{NULL}, this is derived automatically from
+#'  the expression passed as \code{m} -- e.g. \code{test.model(icon3d, valsum)}
+#'  names the column \code{icon3d} -- sanitized with \code{\link{make.names}}
+#'  so it's always a valid column name (this matters most when \code{m} is
+#'  passed as something other than a plain variable name, e.g.
+#'  \code{test.model(embeddings[[1]], valsum)}, where the derived name will be
+#'  the sanitized deparsed expression rather than something meaningful). Set
+#'  this explicitly for a predictable name regardless of how \code{m} is
+#'  passed, e.g. when calling \code{test.model} from inside another function.
 #'
-#' @return Returns the triplet dataframe with the column ModPred added, which contains
-#'  the predicted triplet response given the embedding/distance matrix.
+#' @return Returns the triplet dataframe with the prediction column added,
+#'  which contains the predicted triplet response given the embedding/distance
+#'  matrix.
 #'
 #' @details
-#' The returned object will be a data frame with an added field `ModPred` that
-#' contains the predicted response for the triplet given the embedding. This response
-#' will be whichever of the two choice items (Left or Right) has the smallest Euclidean
-#' distance to the target item (Center) in the embedding space.
+#' The returned object will be a data frame with an added field (named per
+#' \code{pred_name} above) that contains the predicted response for the
+#' triplet given the embedding. This response will be whichever of the two
+#' choice items (Left or Right) has the smallest Euclidean distance to the
+#' target item (Center) in the embedding space.
 #'
 #' If the triplet dataframe
 #' also includes a field labelled `Answer` that contains the true, human-generated
@@ -29,27 +42,40 @@
 #'
 #' `mean(output$ModPred==output$Answer)`
 #'
-#' ...where `output` is the dataframe returned by the function.
+#' ...where `output` is the dataframe returned by the function, and `ModPred`
+#' is replaced by whatever `pred_name` was used (see above).
 #'
 #' @export
 #'
 #' @examples
-#' m <- data.frame(
+#' toy_embedding <- data.frame(
 #'   x=c(1,1.1,2,2.1),
 #'   y=c(1.25,1.75,1.25,2.75))
 #'
-#' row.names(m) <- c("cat","dog","car","boat")
+#' row.names(toy_embedding) <- c("cat","dog","car","boat")
 #'
-#' m <- as.matrix(m)
+#' toy_embedding <- as.matrix(toy_embedding)
 #'
 #' tr <- data.frame(
 #'    Center=c("cat", "car"),
 #'    Left = c("dog", "boat"),
 #'    Right= c("car", "dog"))
 #'
-#' test.model(m, tr, isemb=TRUE)
+#' # Appends a column named "toy_embedding"
+#' test.model(toy_embedding, tr, isemb=TRUE)
+#'
+#' # Appends a column named "ModPred" instead
+#' test.model(toy_embedding, tr, isemb=TRUE, pred_name = "ModPred")
 
-test.model <- function(m, vdat, isemb = TRUE){
+test.model <- function(m, vdat, isemb = TRUE, pred_name = NULL){
+  ### Determine the name of the predicted-response column to append. Captured
+  ### here, before `m` is reassigned below, because substitute() only sees the
+  ### caller's original expression while `m` is still an unevaluated promise --
+  ### capturing it after `m <- as.matrix(m)` would just return "m" itself.
+  if (is.null(pred_name)) {
+    pred_name <- make.names(deparse(substitute(m)))
+  }
+
   ### Check arguments
   #Check that m can be coerced to a numeric matrix
   m <- try({
@@ -109,7 +135,7 @@ test.model <- function(m, vdat, isemb = TRUE){
       if(d1<d2)out[i1]<-items[option1[i1]] else out[i1]<-items[option2[i1]]
     }
     out<-cbind(vdat,out)
-    names(out)[dim(out)[2]]<-"ModPred"
+    names(out)[dim(out)[2]]<-pred_name
   }
   out
 }

@@ -4,7 +4,7 @@
 \alias{test.model}
 \title{Test embedding model predictions.}
 \usage{
-test.model(m, vdat, isemb = TRUE)
+test.model(m, vdat, isemb = TRUE, pred_name = NULL)
 }
 \arguments{
 \item{m}{An embedding of the stimuli or matrix of distances among stimuli.
@@ -15,21 +15,35 @@ named Center, Left and Right, and names here must match row names of model.}
 
 \item{isemb}{Is model an embedding? If T (default), compute Euclidean distance
 matrix; otherwise just treat model as the distance matrix}
+
+\item{pred_name}{Character or \code{NULL} (default). Name of the appended
+prediction column. When \code{NULL}, this is derived automatically from
+the expression passed as \code{m} -- e.g. \code{test.model(icon3d, valsum)}
+names the column \code{icon3d} -- sanitized with \code{\link{make.names}}
+so it's always a valid column name (this matters most when \code{m} is
+passed as something other than a plain variable name, e.g.
+\code{test.model(embeddings[[1]], valsum)}, where the derived name will be
+the sanitized deparsed expression rather than something meaningful). Set
+this explicitly for a predictable name regardless of how \code{m} is
+passed, e.g. when calling \code{test.model} from inside another function.}
 }
 \value{
-Returns the triplet dataframe with the column ModPred added, which contains
-the predicted triplet response given the embedding/distance matrix.
+Returns the triplet dataframe with the prediction column added,
+which contains the predicted triplet response given the embedding/distance
+matrix.
 }
 \description{
 This function generates predicted responses on a set of triplet items given
 an embedding of the items, and appends the model prediction as an additional
-column named ModPred to the triplet data file.
+column to the triplet data file, named after the embedding argument itself
+by default (see \code{pred_name} below).
 }
 \details{
-The returned object will be a data frame with an added field \code{ModPred} that
-contains the predicted response for the triplet given the embedding. This response
-will be whichever of the two choice items (Left or Right) has the smallest Euclidean
-distance to the target item (Center) in the embedding space.
+The returned object will be a data frame with an added field (named per
+\code{pred_name} above) that contains the predicted response for the
+triplet given the embedding. This response will be whichever of the two
+choice items (Left or Right) has the smallest Euclidean distance to the
+target item (Center) in the embedding space.
 
 If the triplet dataframe
 also includes a field labelled \code{Answer} that contains the true, human-generated
@@ -38,21 +52,26 @@ a proportion correct score as follows:
 
 \code{mean(output$ModPred==output$Answer)}
 
-...where \code{output} is the dataframe returned by the function.
+...where \code{output} is the dataframe returned by the function, and \code{ModPred}
+is replaced by whatever \code{pred_name} was used (see above).
 }
 \examples{
-m <- data.frame(
+toy_embedding <- data.frame(
   x=c(1,1.1,2,2.1),
   y=c(1.25,1.75,1.25,2.75))
 
-row.names(m) <- c("cat","dog","car","boat")
+row.names(toy_embedding) <- c("cat","dog","car","boat")
 
-m <- as.matrix(m)
+toy_embedding <- as.matrix(toy_embedding)
 
 tr <- data.frame(
    Center=c("cat", "car"),
    Left = c("dog", "boat"),
    Right= c("car", "dog"))
 
-test.model(m, tr, isemb=TRUE)
+# Appends a column named "toy_embedding"
+test.model(toy_embedding, tr, isemb=TRUE)
+
+# Appends a column named "ModPred" instead
+test.model(toy_embedding, tr, isemb=TRUE, pred_name = "ModPred")
 }

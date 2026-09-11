@@ -50,8 +50,11 @@ get.hoacc <- function (em, td, trialtype="test", isemb = TRUE)
   #Pull out the trials to be evaluated:
   td <- subset(td, td$sampleSet == trialtype)
 
-  #Test the embedding:
-  td <- test.model(em, td, isemb=isemb)
+  #Test the embedding. pred_name is fixed explicitly here (rather than relying
+  #on test.model()'s default, which names the column after whatever
+  #expression is passed as `em` -- here always the local parameter name
+  #"em", not anything meaningful) so downstream `td$ModPred` stays correct.
+  td <- test.model(em, td, isemb=isemb, pred_name = "ModPred")
 
   #Return mean proportion correct
   mean(td$Answer == td$ModPred)
