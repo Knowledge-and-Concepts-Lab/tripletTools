@@ -112,6 +112,9 @@
 - [`sample_internal_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
   : Split a triplet matrix into a fitting subset and an internal-test
   subset
+- [`set_validation_behavior()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/set_validation_behavior.md)
+  : Set how validation trials are used in an already-split triplet
+  dataset
 - [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md)
   : Set up the Python environment for triplet embeddings
 - [`strsplit1()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.md)

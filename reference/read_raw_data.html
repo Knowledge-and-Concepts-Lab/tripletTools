@@ -61,6 +61,7 @@ data ready for modelling. Optionally writes the results to disk.</p>
 <span>  max_prop_wrong <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  test_prop <span class="op">=</span> <span class="fl">0.1</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">42</span>,</span>
+<span>  train_with_validation <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  stimuli_extension <span class="op">=</span> <span class="st">".png"</span>,</span>
 <span>  worker_id_regex <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -114,6 +115,14 @@ assigned to the test set in the train/test split. Passed to
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
 <dd><p>Integer. Random seed for reproducible train/test splitting.
 Passed to <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>. Default: <code>42</code>.</p></dd>
+
+
+<dt id="arg-train-with-validation">train_with_validation<a class="anchor" aria-label="anchor" href="#arg-train-with-validation"></a></dt>
+<dd><p>Logical. Whether <code>sampleAlg ==
+"validation"</code> trials are assigned to <code>"train"</code> (<code>TRUE</code>, the
+default) or held out as <code>"test"</code> (<code>FALSE</code>) – set this to
+<code>FALSE</code> when validation trials are instead being used to evaluate
+a fitted embedding. Passed to <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>.</p></dd>
 
 
 <dt id="arg-stimuli-extension">stimuli_extension<a class="anchor" aria-label="anchor" href="#arg-stimuli-extension"></a></dt>

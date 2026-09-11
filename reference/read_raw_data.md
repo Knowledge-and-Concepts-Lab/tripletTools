@@ -16,6 +16,7 @@ read_raw_data(
   max_prop_wrong = 1,
   test_prop = 0.1,
   seed = 42,
+  train_with_validation = TRUE,
   stimuli_extension = ".png",
   worker_id_regex = NULL
 )
@@ -73,6 +74,14 @@ read_raw_data(
   Integer. Random seed for reproducible train/test splitting. Passed to
   [`assign_sample_sets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md).
   Default: `42`.
+
+- train_with_validation:
+
+  Logical. Whether `sampleAlg == "validation"` trials are assigned to
+  `"train"` (`TRUE`, the default) or held out as `"test"` (`FALSE`) –
+  set this to `FALSE` when validation trials are instead being used to
+  evaluate a fitted embedding. Passed to
+  [`assign_sample_sets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md).
 
 - stimuli_extension:
 

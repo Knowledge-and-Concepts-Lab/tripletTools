@@ -132,9 +132,34 @@ integer-mapping CSV to disk.</li>
 <span>  min_trials     <span class="op">=</span> <span class="fl">200</span>,       <span class="co"># drop participants with fewer trials than this</span></span>
 <span>  min_mean_rt_ms <span class="op">=</span> <span class="fl">200</span>,       <span class="co"># drop participants with mean RT below this (ms)</span></span>
 <span>  max_prop_wrong <span class="op">=</span> <span class="fl">0.20</span>,      <span class="co"># drop participants who fail &gt;20% of catch trials</span></span>
-<span>  test_prop      <span class="op">=</span> <span class="fl">0.20</span>,      <span class="co"># fraction of trials assigned to the test set</span></span>
-<span>  seed           <span class="op">=</span> <span class="fl">42</span></span>
+<span>  test_prop      <span class="op">=</span> <span class="fl">0.20</span>,      <span class="co"># fraction of "random" trials assigned to the test set</span></span>
+<span>  seed           <span class="op">=</span> <span class="fl">42</span>,</span>
+<span>  train_with_validation <span class="op">=</span> <span class="cn">TRUE</span>   <span class="co"># FALSE holds validation trials out as "test" instead</span></span>
 <span><span class="op">)</span></span></code></pre></div>
+<p><code>validation</code> trials are a separate category from the
+<code>random</code> trials that <code>test_prop</code> splits:
+<code>train_with_validation</code> (default <code>TRUE</code>) sends all
+of them to <code>sampleSet = "train"</code>; set it to
+<code>FALSE</code> when validation trials are instead being held out to
+evaluate a fitted embedding, which sends all of them to
+<code>sampleSet = "test"</code> instead. This is passed through to
+<code><a href="../reference/assign_sample_sets.html">assign_sample_sets()</a></code>, which can also be called again
+directly on already-cleaned data (it still has the
+<code>sampleAlg</code> column) to flip this without redoing the whole
+pipeline – doing so with the same <code>seed</code> reproduces an
+identical split of the <code>random</code> trials, since validation
+trials don’t consume any of the random draws <code>test_prop</code>
+uses.</p>
+<p>If your data are already split into a list of per-participant data
+frames (e.g. from <code><a href="../reference/get.combined.html">get.combined()</a></code>) rather than one combined
+data frame with a <code>worker_id</code> column,
+<code><a href="../reference/set_validation_behavior.html">set_validation_behavior()</a></code> does the same flip more directly
+– it only touches <code>sampleSet</code> for validation trials, leaving
+everything else as-is, and accepts either a single data frame or a whole
+list at once:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">triplets_for_training</span>  <span class="op">&lt;-</span> <span class="fu"><a href="../reference/set_validation_behavior.html">set_validation_behavior</a></span><span class="op">(</span><span class="va">triplet_list</span>, mode <span class="op">=</span> <span class="st">"train"</span><span class="op">)</span></span>
+<span><span class="va">triplets_for_evaluation</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/set_validation_behavior.html">set_validation_behavior</a></span><span class="op">(</span><span class="va">triplet_list</span>, mode <span class="op">=</span> <span class="st">"test"</span><span class="op">)</span></span></code></pre></div>
 <p>The function returns a list invisibly with two elements:</p>
 <ul>
 <li>
@@ -196,7 +221,7 @@ used as the ID. If your file names embed the ID alongside other text —
 e.g. <code>motion_87059_part1.csv</code> — pass a one-capture-group
 regular expression via <code>worker_id_regex</code> to extract just the
 ID:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/read_raw_data.html">read_raw_data</a></span><span class="op">(</span></span>
 <span>  data_dir        <span class="op">=</span> <span class="st">"experiment/raw_data/"</span>,</span>
 <span>  worker_id_regex <span class="op">=</span> <span class="st">"motion_(\\d+)_part\\d+"</span>   <span class="co"># captures "87059" from "motion_87059_part1.csv"</span></span>
@@ -225,7 +250,7 @@ matching column names case-insensitively and ignoring punctuation, so it
 can usually find the right columns even when they are named
 differently.</p>
 <p>Pass the path to a single combined CSV file:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/read_legacy.html">read_legacy</a></span><span class="op">(</span><span class="st">"data/old_experiment.csv"</span><span class="op">)</span></span></code></pre></div>
 <p>The function recognises many common alternative column names
 automatically. For example:</p>
@@ -291,7 +316,7 @@ integer mapping.</li>
 </ul>
 <p>The function returns a list invisibly with the paths to these two
 files:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span><span class="op">$</span><span class="va">data_file</span>    <span class="co"># path to the standardised CSV</span></span>
 <span><span class="va">result</span><span class="op">$</span><span class="va">levels_file</span>  <span class="co"># path to the levels mapping CSV</span></span></code></pre></div>
 <p>Once you have a standardised CSV from either function, load it into R
@@ -350,7 +375,7 @@ the path to the data file. This function returns a named list, where
 each element includes the triplet judgment data from a single subject,
 and elements are named by the subject identified. This package includes
 an example dataset in this format, <code>icon_triplets</code>:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">icon_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   head winner loser worker_id   rt Center  Left Right Answer  sampleAlg</span></span>
 <span><span class="co">#&gt; 1   29     24    19  3n7ggxph 3096  pnhns pncnb pdcos  pncnb     random</span></span>
@@ -372,7 +397,7 @@ the same order they are listed in the matrix.</p>
 <p>The data from each participant is a separate element in the list, and
 the elements are labeled by the <code>worker\_id</code> label in the raw
 data file. You can see all the subject labels as follows:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">icon_triplets</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "3n7ggxph" "b5wma4no" "d8mmm1qn" "jn7bbjc0" "pbby694o" "sc2xbd6w"</span></span></code></pre></div>
 <p>To learn more about this dataset, try
@@ -418,7 +443,7 @@ element contains the embedding information computed for one participant.
 The elements are labeled by the participant id (<code>worker_id</code>).
 The <code>icon_emb_ind</code> object contains a list of the kind
 returned by this function:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">icon_emb_ind</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt;           dim_0     dim_1      dim_2</span></span>
 <span><span class="co">#&gt; fdfob 0.6411938 0.9710717 -0.9336048</span></span>

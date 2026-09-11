@@ -63,9 +63,38 @@ result <- read_raw_data(
   min_trials     = 200,       # drop participants with fewer trials than this
   min_mean_rt_ms = 200,       # drop participants with mean RT below this (ms)
   max_prop_wrong = 0.20,      # drop participants who fail >20% of catch trials
-  test_prop      = 0.20,      # fraction of trials assigned to the test set
-  seed           = 42
+  test_prop      = 0.20,      # fraction of "random" trials assigned to the test set
+  seed           = 42,
+  train_with_validation = TRUE   # FALSE holds validation trials out as "test" instead
 )
+```
+
+`validation` trials are a separate category from the `random` trials
+that `test_prop` splits: `train_with_validation` (default `TRUE`) sends
+all of them to `sampleSet = "train"`; set it to `FALSE` when validation
+trials are instead being held out to evaluate a fitted embedding, which
+sends all of them to `sampleSet = "test"` instead. This is passed
+through to
+[`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md),
+which can also be called again directly on already-cleaned data (it
+still has the `sampleAlg` column) to flip this without redoing the whole
+pipeline – doing so with the same `seed` reproduces an identical split
+of the `random` trials, since validation trials don’t consume any of the
+random draws `test_prop` uses.
+
+If your data are already split into a list of per-participant data
+frames (e.g. from
+[`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md))
+rather than one combined data frame with a `worker_id` column,
+[`set_validation_behavior()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/set_validation_behavior.md)
+does the same flip more directly – it only touches `sampleSet` for
+validation trials, leaving everything else as-is, and accepts either a
+single data frame or a whole list at once:
+
+``` r
+
+triplets_for_training  <- set_validation_behavior(triplet_list, mode = "train")
+triplets_for_evaluation <- set_validation_behavior(triplet_list, mode = "test")
 ```
 
 The function returns a list invisibly with two elements:
