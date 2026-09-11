@@ -99,6 +99,11 @@ normalize_response <- function(response) {
 #'   \code{\link{assign_sample_sets}}. Default: \code{0.2}.
 #' @param seed Integer. Random seed for reproducible train/test splitting.
 #'   Passed to \code{\link{assign_sample_sets}}. Default: \code{42}.
+#' @param train_with_validation Logical. Whether \code{sampleAlg ==
+#'   "validation"} trials are assigned to \code{"train"} (\code{TRUE}, the
+#'   default) or held out as \code{"test"} (\code{FALSE}) -- set this to
+#'   \code{FALSE} when validation trials are instead being used to evaluate
+#'   a fitted embedding. Passed to \code{\link{assign_sample_sets}}.
 #' @param stimuli_extension Character. File extension (including the leading
 #'   dot) to strip from stimulus and choice names. Default: \code{".png"}.
 #' @param worker_id_regex Character or \code{NULL}. Only used when a file has
@@ -155,6 +160,7 @@ read_raw_data <- function(
     max_prop_wrong    = 1.0,
     test_prop         = 0.1,
     seed              = 42,
+    train_with_validation = TRUE,
     stimuli_extension = ".png",
     worker_id_regex   = NULL
 ) {
@@ -230,7 +236,8 @@ read_raw_data <- function(
     Answer    = f$winner,
     sampleAlg = f$sampleAlg
   ) %>%
-    assign_sample_sets(test_prop = test_prop, seed = seed)
+    assign_sample_sets(test_prop = test_prop, seed = seed,
+                       train_with_validation = train_with_validation)
 
   # ── Stimulus-level mapping ─────────────────────────────
   levels_map <- data.frame(item = unique_labels) %>%
