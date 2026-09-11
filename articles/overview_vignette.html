@@ -223,13 +223,13 @@ majority.</p>
 <span></span>
 <span><span class="co"># One row per unique validation triplet</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">vmat</span><span class="op">$</span><span class="va">majority</span><span class="op">)</span></span>
-<span><span class="co">#&gt;             triplet majority pmaj</span></span>
-<span><span class="co">#&gt; 1 fdfow_fnmyb_pdhos    fnmyb  1.0</span></span>
-<span><span class="co">#&gt; 2 fdmob_fdfow_pnhob    fdfow  1.0</span></span>
-<span><span class="co">#&gt; 3 fdmob_fdmow_fdmyb    fdmyb  0.8</span></span>
-<span><span class="co">#&gt; 4 fdmob_fnmob_pdcos    fnmob  1.0</span></span>
-<span><span class="co">#&gt; 5 fdmow_fdmyw_fnfyw    fdmyw  1.0</span></span>
-<span><span class="co">#&gt; 6 fdmow_fnfyw_pncnb    fnfyw  1.0</span></span></code></pre></div>
+<span><span class="co">#&gt;             triplet majority pmaj Center  Left Right</span></span>
+<span><span class="co">#&gt; 1 fdfow_fnmyb_pdhos    fnmyb  1.0  fdfow fnmyb pdhos</span></span>
+<span><span class="co">#&gt; 2 fdmob_fdfow_pnhob    fdfow  1.0  fdmob fdfow pnhob</span></span>
+<span><span class="co">#&gt; 3 fdmob_fdmow_fdmyb    fdmyb  0.8  fdmob fdmow fdmyb</span></span>
+<span><span class="co">#&gt; 4 fdmob_fnmob_pdcos    fnmob  1.0  fdmob fnmob pdcos</span></span>
+<span><span class="co">#&gt; 5 fdmow_fdmyw_fnfyw    fdmyw  1.0  fdmow fdmyw fnfyw</span></span>
+<span><span class="co">#&gt; 6 fdmow_fnfyw_pncnb    fnfyw  1.0  fdmow fnfyw pncnb</span></span></code></pre></div>
 <p>The <code>pmaj</code> column shows the proportion of participants who
 agreed with the majority choice. Values near 1.0 indicate near-universal
 agreement; values near 0.5 indicate a closely split decision.</p>
@@ -308,9 +308,13 @@ which the embedding’s prediction matches the participant’s answer:</p>
 generally considered reasonable for a 2-D embedding.</p>
 <p><code>test.model</code> returns trial-level predictions, making it
 easy to inspect specific errors or compute accuracy on any subset of
-trials:</p>
+trials. By default the prediction column is named after whatever
+expression is passed as the embedding argument (sanitized into a valid
+column name), so pass <code>pred_name</code> explicitly for a
+predictable name when calling it with something other than a plain
+variable, as here:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">result</span>     <span class="op">&lt;-</span> <span class="fu"><a href="../reference/test.model.html">test.model</a></span><span class="op">(</span><span class="va">icon_emb_ind</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="va">icon_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">result</span>     <span class="op">&lt;-</span> <span class="fu"><a href="../reference/test.model.html">test.model</a></span><span class="op">(</span><span class="va">icon_emb_ind</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="va">icon_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, pred_name <span class="op">=</span> <span class="st">"ModPred"</span><span class="op">)</span></span>
 <span><span class="va">test_rows</span>  <span class="op">&lt;-</span> <span class="va">result</span><span class="op">$</span><span class="va">sampleSet</span> <span class="op">==</span> <span class="st">"test"</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">ModPred</span><span class="op">[</span><span class="va">test_rows</span><span class="op">]</span> <span class="op">==</span> <span class="va">result</span><span class="op">$</span><span class="va">Answer</span><span class="op">[</span><span class="va">test_rows</span><span class="op">]</span>, na.rm<span class="op">=</span><span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 0.6875</span></span></code></pre></div>

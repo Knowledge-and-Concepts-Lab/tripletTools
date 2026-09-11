@@ -141,13 +141,13 @@ vmat <- make.vmat(icon_triplets)
 
 # One row per unique validation triplet
 head(vmat$majority)
-#>             triplet majority pmaj
-#> 1 fdfow_fnmyb_pdhos    fnmyb  1.0
-#> 2 fdmob_fdfow_pnhob    fdfow  1.0
-#> 3 fdmob_fdmow_fdmyb    fdmyb  0.8
-#> 4 fdmob_fnmob_pdcos    fnmob  1.0
-#> 5 fdmow_fdmyw_fnfyw    fdmyw  1.0
-#> 6 fdmow_fnfyw_pncnb    fnfyw  1.0
+#>             triplet majority pmaj Center  Left Right
+#> 1 fdfow_fnmyb_pdhos    fnmyb  1.0  fdfow fnmyb pdhos
+#> 2 fdmob_fdfow_pnhob    fdfow  1.0  fdmob fdfow pnhob
+#> 3 fdmob_fdmow_fdmyb    fdmyb  0.8  fdmob fdmow fdmyb
+#> 4 fdmob_fnmob_pdcos    fnmob  1.0  fdmob fnmob pdcos
+#> 5 fdmow_fdmyw_fnfyw    fdmyw  1.0  fdmow fdmyw fnfyw
+#> 6 fdmow_fnfyw_pncnb    fnfyw  1.0  fdmow fnfyw pncnb
 ```
 
 The `pmaj` column shows the proportion of participants who agreed with
@@ -245,11 +245,15 @@ Chance performance is 0.50. Values above approximately 0.60 are
 generally considered reasonable for a 2-D embedding.
 
 `test.model` returns trial-level predictions, making it easy to inspect
-specific errors or compute accuracy on any subset of trials:
+specific errors or compute accuracy on any subset of trials. By default
+the prediction column is named after whatever expression is passed as
+the embedding argument (sanitized into a valid column name), so pass
+`pred_name` explicitly for a predictable name when calling it with
+something other than a plain variable, as here:
 
 ``` r
 
-result     <- test.model(icon_emb_ind[[1]], icon_triplets[[1]])
+result     <- test.model(icon_emb_ind[[1]], icon_triplets[[1]], pred_name = "ModPred")
 test_rows  <- result$sampleSet == "test"
 mean(result$ModPred[test_rows] == result$Answer[test_rows], na.rm=TRUE)
 #> [1] 0.6875

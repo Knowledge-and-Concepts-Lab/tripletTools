@@ -1211,12 +1211,12 @@
 <p><strong>Test embedding model predictions</strong></p>
 <div class="section level3">
 <h3 id="description-25">Description<a class="anchor" aria-label="anchor" href="#description-25"></a></h3>
-<p>This function generates predicted responses on a set of triplet items given an embedding of the items, and appends the model prediction as an additional column named <code>ModPred</code> to the triplet data file.</p>
+<p>This function generates predicted responses on a set of triplet items given an embedding of the items, and appends the model prediction as an additional column to the triplet data file, named after the embedding argument itself by default (see <code>pred_name</code> below).</p>
 </div>
 <div class="section level3">
 <h3 id="usage-25">Usage<a class="anchor" aria-label="anchor" href="#usage-25"></a></h3>
 <div class="sourceCode" id="cb46"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/test.model.html">test.model</a></span><span class="op">(</span><span class="va">m</span>, <span class="va">vdat</span>, isemb <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="reference/test.model.html">test.model</a></span><span class="op">(</span><span class="va">m</span>, <span class="va">vdat</span>, isemb <span class="op">=</span> <span class="cn">TRUE</span>, pred_name <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="arguments-20">Arguments<a class="anchor" aria-label="anchor" href="#arguments-20"></a></h3>
@@ -1228,35 +1228,41 @@
 <td>Data frame containing triplet data. Must include columns named <code>Center</code>, <code>Left</code>, and <code>Right</code>, and names here must match row names of model.</td>
 </tr><tr><td><code>isemb</code></td>
 <td>Is model an embedding? If <code>TRUE</code> (default), compute Euclidean distance matrix; otherwise treat model as the distance matrix.</td>
+</tr><tr><td><code>pred_name</code></td>
+<td>Character or <code>NULL</code> (default). Name of the appended prediction column. When <code>NULL</code>, derived automatically from the expression passed as <code>m</code> – e.g. <code>test.model(icon3d, valsum)</code> names the column <code>icon3d</code> – sanitized with <code><a href="https://rdrr.io/r/base/make.names.html" class="external-link">make.names()</a></code>. Set this explicitly for a predictable name when <code>m</code> isn’t a plain variable (e.g. <code>test.model(embeddings[[1]], valsum)</code>), or when calling <code>test.model</code> from inside another function.</td>
 </tr></tbody></table></div>
 <div class="section level3">
 <h3 id="details-22">Details<a class="anchor" aria-label="anchor" href="#details-22"></a></h3>
-<p>The returned object will be a data frame with an added field <code>ModPred</code> that contains the predicted response for the triplet given the embedding. This response will be whichever of the two choice items (<code>Left</code> or <code>Right</code>) has the smallest Euclidean distance to the target item (<code>Center</code>) in the embedding space.</p>
+<p>The returned object will be a data frame with an added field (named per <code>pred_name</code> above) that contains the predicted response for the triplet given the embedding. This response will be whichever of the two choice items (<code>Left</code> or <code>Right</code>) has the smallest Euclidean distance to the target item (<code>Center</code>) in the embedding space.</p>
 <p>If the triplet dataframe also includes a field labelled <code>Answer</code> that contains the true, human-generated answer for the triplet, then the model predictions can be easily converted to a proportion correct score as follows:</p>
 <div class="sourceCode" id="cb47"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">output</span><span class="op">$</span><span class="va">ModPred</span> <span class="op">==</span> <span class="va">output</span><span class="op">$</span><span class="va">Answer</span><span class="op">)</span></span></code></pre></div>
-<p>where <code>output</code> is the dataframe returned by the function.</p>
+<p>where <code>output</code> is the dataframe returned by the function, and <code>ModPred</code> is replaced by whatever <code>pred_name</code> was used (see above).</p>
 </div>
 <div class="section level3">
 <h3 id="value-20">Value<a class="anchor" aria-label="anchor" href="#value-20"></a></h3>
-<p>Returns the triplet dataframe with the column <code>ModPred</code> added, which contains the predicted triplet response given the embedding or distance matrix.</p>
+<p>Returns the triplet dataframe with the prediction column added, which contains the predicted triplet response given the embedding or distance matrix.</p>
 </div>
 <div class="section level3">
 <h3 id="examples-20">Examples<a class="anchor" aria-label="anchor" href="#examples-20"></a></h3>
 <div class="sourceCode" id="cb48"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">toy_embedding</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1.1</span>, <span class="fl">2</span>, <span class="fl">2.1</span><span class="op">)</span>,</span>
 <span>  y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1.25</span>, <span class="fl">1.75</span>, <span class="fl">1.25</span>, <span class="fl">2.75</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/row.names.html" class="external-link">row.names</a></span><span class="op">(</span><span class="va">m</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cat"</span>, <span class="st">"dog"</span>, <span class="st">"car"</span>, <span class="st">"boat"</span><span class="op">)</span></span>
-<span><span class="va">m</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">m</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/row.names.html" class="external-link">row.names</a></span><span class="op">(</span><span class="va">toy_embedding</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cat"</span>, <span class="st">"dog"</span>, <span class="st">"car"</span>, <span class="st">"boat"</span><span class="op">)</span></span>
+<span><span class="va">toy_embedding</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="va">toy_embedding</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">tr</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>   Center <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cat"</span>, <span class="st">"car"</span><span class="op">)</span>,</span>
 <span>   Left   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"dog"</span>, <span class="st">"boat"</span><span class="op">)</span>,</span>
 <span>   Right  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"car"</span>, <span class="st">"dog"</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="reference/test.model.html">test.model</a></span><span class="op">(</span><span class="va">m</span>, <span class="va">tr</span>, isemb <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<span><span class="co"># Appends a column named "toy_embedding"</span></span>
+<span><span class="fu"><a href="reference/test.model.html">test.model</a></span><span class="op">(</span><span class="va">toy_embedding</span>, <span class="va">tr</span>, isemb <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Appends a column named "ModPred" instead</span></span>
+<span><span class="fu"><a href="reference/test.model.html">test.model</a></span><span class="op">(</span><span class="va">toy_embedding</span>, <span class="va">tr</span>, isemb <span class="op">=</span> <span class="cn">TRUE</span>, pred_name <span class="op">=</span> <span class="st">"ModPred"</span><span class="op">)</span></span></code></pre></div>
 <hr></div>
 </div>
 <div class="section level2">
