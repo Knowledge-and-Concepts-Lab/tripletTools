@@ -51,16 +51,21 @@ used to compare embeddings across participants):
 
 ``` r
 
-sdist <- get.rep.dist(list(triplet = emotion_triplet_embedding, bge = emotion_bge_embedding))
+sdist <- get.rep.dist(list(triplet = emotion_triplet_embedding, bge = emotion_bge_embedding),
+                      metric = "corr_dist")
 observed_corr <- 1 - sdist[1, 2]   # get.rep.dist() returns a *distance*; 1 - distance is the correlation
 observed_corr
 #> 0.313
 ```
 
-([`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)’s
-default distance is `1 - sqrt(1 - ss)`, the Procrustes equivalent of a
-correlation — see its own documentation. Its output matrix doesn’t carry
-the input list’s names, hence indexing by position.)
+(`metric = "corr_dist"` gives `1 - sqrt(1 - ss)`, the Procrustes
+equivalent of a correlation – see
+[`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)’s
+own documentation for its other metric options, of which `"sqrt_ss"`
+(the default when `metric` isn’t specified) is the recommended choice
+when you want an actual distance rather than a correlation, e.g. for
+clustering. Its output matrix doesn’t carry the input list’s names,
+hence indexing by position.)
 
 **One thing worth flagging before you reach for this on your own data:**
 it’s tempting, when comparing two embeddings, to first convert each to
@@ -425,7 +430,8 @@ the first section of this vignette.
 
 ``` r
 
-sdist <- get.rep.dist(list(triplet = animal_triplet_embedding, successor = Q))
+sdist <- get.rep.dist(list(triplet = animal_triplet_embedding, successor = Q),
+                      metric = "corr_dist")
 observed_corr <- 1 - sdist[1, 2]
 observed_corr
 #> 0.282
@@ -464,7 +470,8 @@ sweep <- do.call(rbind, lapply(gammas, function(g) {
   P_g <- S_g; P_g[P_g < 0] <- 0; P_g <- P_g / rowSums(P_g)
   Q_g <- sqrt(P_g); rownames(Q_g) <- target_items
 
-  sdist_g <- get.rep.dist(list(triplet = animal_triplet_embedding, successor = Q_g))
+  sdist_g <- get.rep.dist(list(triplet = animal_triplet_embedding, successor = Q_g),
+                          metric = "corr_dist")
   data.frame(
     gamma          = g,
     observed_corr  = 1 - sdist_g[1, 2],

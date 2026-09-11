@@ -447,21 +447,21 @@
 <div class="section level3">
 <h3 id="usage-8">Usage<a class="anchor" aria-label="anchor" href="#usage-8"></a></h3>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="va">elist</span>, rootflag <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="va">elist</span>, metric <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sqrt_ss"</span>, <span class="st">"corr_dist"</span>, <span class="st">"ss"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="arguments-8">Arguments<a class="anchor" aria-label="anchor" href="#arguments-8"></a></h3>
-<table class="table"><thead><tr><th>Argument</th>
+<table class="table"><colgroup><col width="50%"><col width="50%"></colgroup><thead><tr><th>Argument</th>
 <th>Description</th>
 </tr></thead><tbody><tr><td><code>elist</code></td>
 <td>List of embeddings.</td>
-</tr><tr><td><code>rootflag</code></td>
-<td>Compute square root of distance? Defaults to <code>TRUE</code>.</td>
+</tr><tr><td><code>metric</code></td>
+<td>Which distance to compute from the Procrustes fit between each pair: <code>"sqrt_ss"</code> (default) is <code>sqrt(ss)</code>, the standard Procrustes distance from the shape-analysis literature – an actual Euclidean distance between the two optimally aligned configurations, recommended for distance-based methods like clustering, k-medoids, or MDS. <code>"corr_dist"</code> is <code>1 - sqrt(1 - ss)</code>, i.e. one minus the Procrustes “correlation” (this was the function’s only behavior before <code>metric</code> was added, previously selected via <code>rootflag = TRUE</code>); not guaranteed to satisfy the triangle inequality. <code>"ss"</code> is the raw normalized sum of squares (<code>sqrt_ss^2</code>), which behaves like a <em>squared</em> distance – rank-based methods (single/complete linkage) are unaffected by using <code>"ss"</code> vs. <code>"sqrt_ss"</code>, but methods sensitive to the actual metric values (Ward’s linkage, k-medoids, MDS) should use <code>"sqrt_ss"</code>.</td>
 </tr></tbody></table></div>
 <div class="section level3">
 <h3 id="details-8">Details<a class="anchor" aria-label="anchor" href="#details-8"></a></h3>
 <p>Each element of the list should contain a matrix of embedding coordinates from one participant. Each embedding should contain the same items in the same order, and should be of the same dimension.</p>
-<p>By default the distance metric is the procrustes equivalent of Pearson’s correlation, that is <code>1 - sqrt(1 - ss)</code> where <code>ss</code> is the normalized sum of squares from the aligned embeddings. If <code>rootflag=FALSE</code>, the normalized sum of squares is used as the distance metric.</p>
+<p>All three metrics are computed from <code>ss</code>, the normalized sum of squares from a symmetric Procrustes alignment (rotation, reflection, and scaling) between each pair, and are already bounded in [0,1] – no further normalization is needed before using them for clustering.</p>
 </div>
 <div class="section level3">
 <h3 id="value-7">Value<a class="anchor" aria-label="anchor" href="#value-7"></a></h3>
@@ -483,7 +483,10 @@
 <span></span>
 <span><span class="va">slist</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">s1</span>, <span class="va">s2</span>, <span class="va">s3</span><span class="op">)</span></span>
 <span><span class="va">sdist</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="va">slist</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">sdist</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">sdist</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Cluster participants using the recommended default metric:</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/hclust.html" class="external-link">hclust</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/dist.html" class="external-link">as.dist</a></span><span class="op">(</span><span class="va">sdist</span><span class="op">)</span>, method <span class="op">=</span> <span class="st">"ward.D"</span><span class="op">)</span></span></code></pre></div>
 <hr></div>
 </div>
 <div class="section level2">

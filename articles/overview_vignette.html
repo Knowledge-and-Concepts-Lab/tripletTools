@@ -412,7 +412,12 @@ the stimulus set.</p>
 distance</em> between all pairs of embeddings. Two embeddings that can
 be brought into near-perfect alignment by rotation, scaling, and
 reflection have a low distance; embeddings that remain dissimilar after
-alignment have a high distance.</p>
+alignment have a high distance. Its default
+<code>metric = "sqrt_ss"</code> is the standard Procrustes distance used
+in the shape-analysis literature, and the recommended choice for exactly
+the kind of distance-based clustering below (see
+<code><a href="../reference/get.rep.dist.html">?get.rep.dist</a></code> for the other available metrics, e.g. a
+correlation-style alternative).</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">repdist</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="va">icon_emb_ind</span><span class="op">)</span></span></code></pre></div>
 <p>We can cluster participants by their representational distances using

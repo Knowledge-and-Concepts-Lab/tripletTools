@@ -147,14 +147,19 @@ good the best-possible fit is. <code><a href="../reference/get.rep.dist.html">ge
 this for pairs of embeddings in this package (it’s normally used to
 compare embeddings across participants):</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">sdist</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>triplet <span class="op">=</span> <span class="va">emotion_triplet_embedding</span>, bge <span class="op">=</span> <span class="va">emotion_bge_embedding</span><span class="op">)</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">sdist</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>triplet <span class="op">=</span> <span class="va">emotion_triplet_embedding</span>, bge <span class="op">=</span> <span class="va">emotion_bge_embedding</span><span class="op">)</span>,</span>
+<span>                      metric <span class="op">=</span> <span class="st">"corr_dist"</span><span class="op">)</span></span>
 <span><span class="va">observed_corr</span> <span class="op">&lt;-</span> <span class="fl">1</span> <span class="op">-</span> <span class="va">sdist</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">]</span>   <span class="co"># get.rep.dist() returns a *distance*; 1 - distance is the correlation</span></span>
 <span><span class="va">observed_corr</span></span>
 <span><span class="co">#&gt; 0.313</span></span></code></pre></div>
-<p>(<code><a href="../reference/get.rep.dist.html">get.rep.dist()</a></code>’s default distance is
+<p>(<code>metric = "corr_dist"</code> gives
 <code>1 - sqrt(1 - ss)</code>, the Procrustes equivalent of a
-correlation — see its own documentation. Its output matrix doesn’t carry
-the input list’s names, hence indexing by position.)</p>
+correlation – see <code><a href="../reference/get.rep.dist.html">get.rep.dist()</a></code>’s own documentation for
+its other metric options, of which <code>"sqrt_ss"</code> (the default
+when <code>metric</code> isn’t specified) is the recommended choice when
+you want an actual distance rather than a correlation, e.g. for
+clustering. Its output matrix doesn’t carry the input list’s names,
+hence indexing by position.)</p>
 <p><strong>One thing worth flagging before you reach for this on your
 own data:</strong> it’s tempting, when comparing two embeddings, to
 first convert each to an item-by-item distance matrix and
@@ -486,7 +491,8 @@ Procrustes/ceiling tools from the first section of this vignette.</p>
 <h3 id="comparing-to-the-triplet-embedding">Comparing to the triplet embedding<a class="anchor" aria-label="anchor" href="#comparing-to-the-triplet-embedding"></a>
 </h3>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">sdist</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>triplet <span class="op">=</span> <span class="va">animal_triplet_embedding</span>, successor <span class="op">=</span> <span class="va">Q</span><span class="op">)</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">sdist</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>triplet <span class="op">=</span> <span class="va">animal_triplet_embedding</span>, successor <span class="op">=</span> <span class="va">Q</span><span class="op">)</span>,</span>
+<span>                      metric <span class="op">=</span> <span class="st">"corr_dist"</span><span class="op">)</span></span>
 <span><span class="va">observed_corr</span> <span class="op">&lt;-</span> <span class="fl">1</span> <span class="op">-</span> <span class="va">sdist</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">]</span></span>
 <span><span class="va">observed_corr</span></span>
 <span><span class="co">#&gt; 0.282</span></span>
@@ -523,7 +529,8 @@ a result at a single value:</p>
 <span>  <span class="va">P_g</span> <span class="op">&lt;-</span> <span class="va">S_g</span>; <span class="va">P_g</span><span class="op">[</span><span class="va">P_g</span> <span class="op">&lt;</span> <span class="fl">0</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fl">0</span>; <span class="va">P_g</span> <span class="op">&lt;-</span> <span class="va">P_g</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">P_g</span><span class="op">)</span></span>
 <span>  <span class="va">Q_g</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">P_g</span><span class="op">)</span>; <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">Q_g</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="va">target_items</span></span>
 <span></span>
-<span>  <span class="va">sdist_g</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>triplet <span class="op">=</span> <span class="va">animal_triplet_embedding</span>, successor <span class="op">=</span> <span class="va">Q_g</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="va">sdist_g</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>triplet <span class="op">=</span> <span class="va">animal_triplet_embedding</span>, successor <span class="op">=</span> <span class="va">Q_g</span><span class="op">)</span>,</span>
+<span>                          metric <span class="op">=</span> <span class="st">"corr_dist"</span><span class="op">)</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>    gamma          <span class="op">=</span> <span class="va">g</span>,</span>
 <span>    observed_corr  <span class="op">=</span> <span class="fl">1</span> <span class="op">-</span> <span class="va">sdist_g</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">]</span>,</span>

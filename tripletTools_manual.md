@@ -478,15 +478,15 @@ distance between each pair and returns this as a distance matrix.
 
 ``` r
 
-get.rep.dist(elist, rootflag = TRUE)
+get.rep.dist(elist, metric = c("sqrt_ss", "corr_dist", "ss"))
 ```
 
 ### Arguments
 
-| Argument   | Description                                          |
-|------------|------------------------------------------------------|
-| `elist`    | List of embeddings.                                  |
-| `rootflag` | Compute square root of distance? Defaults to `TRUE`. |
+| Argument | Description |
+|----|----|
+| `elist` | List of embeddings. |
+| `metric` | Which distance to compute from the Procrustes fit between each pair: `"sqrt_ss"` (default) is `sqrt(ss)`, the standard Procrustes distance from the shape-analysis literature – an actual Euclidean distance between the two optimally aligned configurations, recommended for distance-based methods like clustering, k-medoids, or MDS. `"corr_dist"` is `1 - sqrt(1 - ss)`, i.e. one minus the Procrustes “correlation” (this was the function’s only behavior before `metric` was added, previously selected via `rootflag = TRUE`); not guaranteed to satisfy the triangle inequality. `"ss"` is the raw normalized sum of squares (`sqrt_ss^2`), which behaves like a *squared* distance – rank-based methods (single/complete linkage) are unaffected by using `"ss"` vs. `"sqrt_ss"`, but methods sensitive to the actual metric values (Ward’s linkage, k-medoids, MDS) should use `"sqrt_ss"`. |
 
 ### Details
 
@@ -494,10 +494,10 @@ Each element of the list should contain a matrix of embedding
 coordinates from one participant. Each embedding should contain the same
 items in the same order, and should be of the same dimension.
 
-By default the distance metric is the procrustes equivalent of Pearson’s
-correlation, that is `1 - sqrt(1 - ss)` where `ss` is the normalized sum
-of squares from the aligned embeddings. If `rootflag=FALSE`, the
-normalized sum of squares is used as the distance metric.
+All three metrics are computed from `ss`, the normalized sum of squares
+from a symmetric Procrustes alignment (rotation, reflection, and
+scaling) between each pair, and are already bounded in \[0,1\] – no
+further normalization is needed before using them for clustering.
 
 ### Value
 
@@ -521,6 +521,9 @@ s3 <- matrix(
 slist <- list(s1, s2, s3)
 sdist <- get.rep.dist(slist)
 head(sdist)
+
+# Cluster participants using the recommended default metric:
+hclust(as.dist(sdist), method = "ward.D")
 ```
 
 ------------------------------------------------------------------------

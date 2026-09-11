@@ -49,7 +49,7 @@ distance between each pair and returns this as a distance matrix.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get.rep.dist</span><span class="op">(</span><span class="va">elist</span>, rootflag <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get.rep.dist</span><span class="op">(</span><span class="va">elist</span>, metric <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sqrt_ss"</span>, <span class="st">"corr_dist"</span>, <span class="st">"ss"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -60,8 +60,39 @@ distance between each pair and returns this as a distance matrix.</p>
 <dd><p>List of embeddings.</p></dd>
 
 
-<dt id="arg-rootflag">rootflag<a class="anchor" aria-label="anchor" href="#arg-rootflag"></a></dt>
-<dd><p>Computer square root of distance? Defaults to TRUE</p></dd>
+<dt id="arg-metric">metric<a class="anchor" aria-label="anchor" href="#arg-metric"></a></dt>
+<dd><p>Character. Which distance to compute from the Procrustes
+fit between each pair, one of:</p><dl><dt><code>"sqrt_ss"</code></dt>
+<dd><p>(default) <code>sqrt(ss)</code>, the standard
+Procrustes distance used in the shape-analysis literature. Unlike
+<code>"corr_dist"</code> below, this corresponds to an actual Euclidean
+distance between the two optimally aligned (rotated, reflected, and
+scaled) configurations, so it is the recommended choice for
+distance-based methods like hierarchical clustering, k-medoids, or
+MDS.</p></dd>
+
+<dt><code>"corr_dist"</code></dt>
+<dd><p><code>1 - sqrt(1 - ss)</code>, i.e. one minus the
+Procrustes "correlation" <code>sqrt(1 - ss)</code>. This was this
+function's only behavior before the <code>metric</code> argument was
+added (then selected via <code>rootflag = TRUE</code>); kept for backward
+compatibility and for contexts that specifically want "1 minus a
+correlation-like similarity" rather than a proper distance – it is
+not guaranteed to satisfy the triangle inequality.</p></dd>
+
+<dt><code>"ss"</code></dt>
+<dd><p>The raw normalized sum of squares (equivalently
+<code>sqrt_ss^2</code>), i.e. this behaves like a <em>squared</em> distance.
+Rank-based clustering methods (e.g. single/complete linkage) give
+identical results whether they're fed <code>"ss"</code> or
+<code>"sqrt_ss"</code>, since one is a monotonic transform of the other,
+but methods that use the actual metric values (Ward's linkage,
+k-medoids, MDS) should use <code>"sqrt_ss"</code> instead.</p></dd>
+
+
+</dl><p>This argument replaces the previous <code>rootflag</code> argument
+(<code>rootflag = TRUE</code> corresponded to <code>metric = "corr_dist"</code>,
+and <code>rootflag = FALSE</code> to <code>metric = "ss"</code>).</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -73,10 +104,10 @@ distance between each pair and returns this as a distance matrix.</p>
     <p>Each element of the list should contain a matrix of embedding coordinates
 from one participant. Each embedding should contain the same items in
 the same order, and should be of the same dimension.</p>
-<p>By default the distance metric is the procrustes equivalent of Pearon's
-correlation, that is <code>1 - sqrt(1 - ss)</code> where <code>ss</code> is the normalized
-sum of squares from the aligned embeddings. If <code>rootflag=FALSE</code>, the normalized
-sum of squares is used as the distance metric.</p>
+<p>All three metrics are computed from <code>ss</code>, the normalized sum of
+squares from a symmetric Procrustes alignment (rotation, reflection, and
+scaling) between each pair, and are already bounded in \([0,1]\) – no
+further normalization is needed before using them for clustering.</p>
     </div>
 
     <div class="section level2">
@@ -105,10 +136,20 @@ sum of squares is used as the distance metric.</p>
 <span class="r-in"><span><span class="va">sdist</span> <span class="op">&lt;-</span> <span class="fu">get.rep.dist</span><span class="op">(</span><span class="va">slist</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">sdist</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>              [,1]         [,2]      [,3]</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1,] 0.0000000000 0.0001698827 0.3822792</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [2,] 0.0001698827 0.0000000000 0.3830504</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [3,] 0.3822792319 0.3830504168 0.0000000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>            [,1]       [,2]      [,3]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1,] 0.00000000 0.01843194 0.7863975</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [2,] 0.01843194 0.00000000 0.7870027</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [3,] 0.78639752 0.78700268 0.0000000</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">#Cluster participants using the recommended default metric:</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/stats/hclust.html" class="external-link">hclust</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/dist.html" class="external-link">as.dist</a></span><span class="op">(</span><span class="va">sdist</span><span class="op">)</span>, method <span class="op">=</span> <span class="st">"ward.D"</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Call:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> hclust(d = as.dist(sdist), method = "ward.D")</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Cluster method   : ward.D </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Number of objects: 3 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

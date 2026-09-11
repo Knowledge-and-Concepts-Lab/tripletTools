@@ -367,7 +367,11 @@ stimulus set.
 pairs of embeddings. Two embeddings that can be brought into
 near-perfect alignment by rotation, scaling, and reflection have a low
 distance; embeddings that remain dissimilar after alignment have a high
-distance.
+distance. Its default `metric = "sqrt_ss"` is the standard Procrustes
+distance used in the shape-analysis literature, and the recommended
+choice for exactly the kind of distance-based clustering below (see
+[`?get.rep.dist`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)
+for the other available metrics, e.g. a correlation-style alternative).
 
 ``` r
 
