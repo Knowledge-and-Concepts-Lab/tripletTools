@@ -168,7 +168,12 @@ group_difference_test <- function(
   fit_replicate <- function(side_a_ids, side_b_ids, replicate_index) {
     emb_a <- fit_one_side(side_a_ids, seed + replicate_index * 2L)
     emb_b <- fit_one_side(side_b_ids, seed + replicate_index * 2L + 1L)
-    sdist <- get.rep.dist(list(a = emb_a, b = emb_b))
+    #metric fixed explicitly here (rather than relying on get.rep.dist()'s
+    #default, which is the standard sqrt(ss) Procrustes distance, not this
+    #function's "correlation" convention) so 1 - sdist[1,2] below is really
+    #the Procrustes correlation, immune to whatever get.rep.dist()'s own
+    #default becomes.
+    sdist <- get.rep.dist(list(a = emb_a, b = emb_b), metric = "corr_dist")
     1 - sdist[1, 2]
   }
 

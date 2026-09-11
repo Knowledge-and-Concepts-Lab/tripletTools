@@ -46,13 +46,14 @@ library(tripletTools)
 The obvious way to compare two embeddings of the same items is a Procrustes fit: find the rotation, reflection, and scaling of one configuration that best superimposes it on the other, and report how good the best-possible fit is. `get.rep.dist()` already does this for pairs of embeddings in this package (it's normally used to compare embeddings across participants):
 
 ```{r naive-compare}
-sdist <- get.rep.dist(list(triplet = emotion_triplet_embedding, bge = emotion_bge_embedding))
+sdist <- get.rep.dist(list(triplet = emotion_triplet_embedding, bge = emotion_bge_embedding),
+                      metric = "corr_dist")
 observed_corr <- 1 - sdist[1, 2]   # get.rep.dist() returns a *distance*; 1 - distance is the correlation
 observed_corr
 #> 0.313
 ```
 
-(`get.rep.dist()`'s default distance is `1 - sqrt(1 - ss)`, the Procrustes equivalent of a correlation — see its own documentation. Its output matrix doesn't carry the input list's names, hence indexing by position.)
+(`metric = "corr_dist"` gives `1 - sqrt(1 - ss)`, the Procrustes equivalent of a correlation -- see `get.rep.dist()`'s own documentation for its other metric options, of which `"sqrt_ss"` (the default when `metric` isn't specified) is the recommended choice when you want an actual distance rather than a correlation, e.g. for clustering. Its output matrix doesn't carry the input list's names, hence indexing by position.)
 
 **One thing worth flagging before you reach for this on your own data:** it's tempting, when comparing two embeddings, to first convert each to an item-by-item distance matrix and Procrustes-align *those* — especially if you want a method that doesn't care about the two embeddings' raw dimensionality. Don't do this. Euclidean distance is a *nonlinear* function of coordinates, so a raw pairwise distance matrix computed from a genuinely low-rank configuration is generally **not** itself low-rank — a truly 3-dimensional configuration's distance matrix will typically have rank close to `n - 1`, not 3. Feeding that distance matrix into rank/ceiling analysis (below) as if it were a coordinate matrix will badly overstate the configuration's effective dimensionality. Just Procrustes-align the raw coordinate matrices directly, as above — `vegan::procrustes()` (which `get.rep.dist()` calls internally) automatically zero-pads the lower-dimensional one, so mismatched dimensionality is handled correctly with no extra steps.
 
@@ -253,7 +254,8 @@ rownames(Q) <- target_items
 ### Comparing to the triplet embedding
 
 ```{r successor-compare}
-sdist <- get.rep.dist(list(triplet = animal_triplet_embedding, successor = Q))
+sdist <- get.rep.dist(list(triplet = animal_triplet_embedding, successor = Q),
+                      metric = "corr_dist")
 observed_corr <- 1 - sdist[1, 2]
 observed_corr
 #> 0.282
@@ -280,7 +282,8 @@ sweep <- do.call(rbind, lapply(gammas, function(g) {
   P_g <- S_g; P_g[P_g < 0] <- 0; P_g <- P_g / rowSums(P_g)
   Q_g <- sqrt(P_g); rownames(Q_g) <- target_items
 
-  sdist_g <- get.rep.dist(list(triplet = animal_triplet_embedding, successor = Q_g))
+  sdist_g <- get.rep.dist(list(triplet = animal_triplet_embedding, successor = Q_g),
+                          metric = "corr_dist")
   data.frame(
     gamma          = g,
     observed_corr  = 1 - sdist_g[1, 2],

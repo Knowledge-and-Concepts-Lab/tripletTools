@@ -18,6 +18,9 @@
 # correlation convention used throughout tripletTools (e.g. the
 # "Comparing Triplet Embeddings" vignette), computed via get.rep.dist()
 # itself rather than re-deriving the ss -> correlation formula here.
+# metric = "corr_dist" is passed explicitly since get.rep.dist()'s default
+# is the (unrelated, standard Procrustes) sqrt(ss) distance, not this
+# 1-minus-correlation convention.
 
 parse_args <- function(raw) {
   bad <- !grepl("^--[^=]+=", raw)
@@ -55,7 +58,7 @@ if (!setequal(rownames(emb_a), rownames(emb_b))) {
 }
 emb_b <- emb_b[rownames(emb_a), , drop = FALSE]
 
-sdist <- get.rep.dist(list(a = emb_a, b = emb_b))
+sdist <- get.rep.dist(list(a = emb_a, b = emb_b), metric = "corr_dist")
 correlation <- 1 - sdist[1, 2]
 
 result <- data.frame(

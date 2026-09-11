@@ -1,5 +1,9 @@
 test_that("group list mean works", {
-  repdist <- get.rep.dist(icon_emb_ind)
+  # metric fixed explicitly: this test's expected values were computed from
+  # the clustering that "corr_dist" (this function's original, only
+  # behavior) produces, and Ward's-method clustering is sensitive to which
+  # metric is used, not just its rank order.
+  repdist <- get.rep.dist(icon_emb_ind, metric = "corr_dist")
   hc <- hclust(as.dist(repdist), method = "ward.D")
   clusts <- cutree(hc, 2)
 

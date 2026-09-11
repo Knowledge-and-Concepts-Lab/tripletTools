@@ -229,7 +229,7 @@ If z-scores are reliably positive across participants, this is evidence of meani
 
 ## Representational distances between participants
 
-`get.rep.dist` computes the pairwise *procrustes distance* between all pairs of embeddings. Two embeddings that can be brought into near-perfect alignment by rotation, scaling, and reflection have a low distance; embeddings that remain dissimilar after alignment have a high distance.
+`get.rep.dist` computes the pairwise *procrustes distance* between all pairs of embeddings. Two embeddings that can be brought into near-perfect alignment by rotation, scaling, and reflection have a low distance; embeddings that remain dissimilar after alignment have a high distance. Its default `metric = "sqrt_ss"` is the standard Procrustes distance used in the shape-analysis literature, and the recommended choice for exactly the kind of distance-based clustering below (see `?get.rep.dist` for the other available metrics, e.g. a correlation-style alternative).
 
 ```{r repdist}
 repdist <- get.rep.dist(icon_emb_ind)
