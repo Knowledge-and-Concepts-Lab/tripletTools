@@ -21,7 +21,9 @@ train_embedding(
   geometry = c("euclidean", "sphere"),
   radius = 1,
   warm_start = NULL,
-  norm_penalty = 0
+  norm_penalty = 0,
+  rotate = TRUE,
+  center = TRUE
 )
 ```
 
@@ -121,6 +123,34 @@ train_embedding(
   stage, including the Euclidean warm-start stage of
   `geometry = "sphere"`; has no effect on the constrained spherical
   stage itself, since `norm_ratio` is always `~1` there by construction.
+
+- rotate:
+
+  Logical. If `TRUE` (default), rotate the returned embedding so its
+  dimensions are ordered by decreasing variance (`dim_0` captures the
+  most spread, `dim_1` the next most, etc), the same idea as PCA. This
+  is a pure rotation – it changes neither any pairwise distance nor any
+  item's own norm, so it's safe to leave on for `geometry = "sphere"`
+  too – computed from the *centered* embedding (so an off-center
+  centroid, which nothing in the loss constrains to be at the origin,
+  doesn't distort which direction counts as "first") but applied to the
+  original, uncentered coordinates, so nothing is translated. Set to
+  `FALSE` to get the embedding in whatever orientation training happened
+  to converge to.
+
+- center:
+
+  Logical. If `TRUE` (default), translate the returned embedding so its
+  centroid sits at the origin – like `rotate`, this changes no pairwise
+  distance, but unlike `rotate` it does *not* preserve each item's own
+  norm, so it only ever applies when `geometry = "euclidean"` (silently
+  ignored for `geometry = "sphere"`, where translating would move items
+  off the sphere). Note that `history`'s
+  `max_norm`/`median_norm`/`norm_ratio` columns are computed during
+  training, *before* this final centering step, so they reflect the
+  embedding's position at each checkpoint prior to centering –
+  recomputing norms directly from the returned (centered) `embedding`
+  will not generally match the last row of `history`.
 
 ## Value
 

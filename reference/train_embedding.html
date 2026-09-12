@@ -68,7 +68,9 @@ embedding on a single subset of responses.</p>
 <span>  geometry <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"euclidean"</span>, <span class="st">"sphere"</span><span class="op">)</span>,</span>
 <span>  radius <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  warm_start <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  norm_penalty <span class="op">=</span> <span class="fl">0</span></span>
+<span>  norm_penalty <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  rotate <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  center <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -172,6 +174,35 @@ to every internal fit stage, including the Euclidean warm-start stage
 of <code>geometry = "sphere"</code>; has no effect on the constrained
 spherical stage itself, since <code>norm_ratio</code> is always <code>~1</code>
 there by construction.</p></dd>
+
+
+<dt id="arg-rotate">rotate<a class="anchor" aria-label="anchor" href="#arg-rotate"></a></dt>
+<dd><p>Logical.  If <code>TRUE</code> (default), rotate the returned
+embedding so its dimensions are ordered by decreasing variance (<code>dim_0</code>
+captures the most spread, <code>dim_1</code> the next most, etc), the same idea
+as PCA.  This is a pure rotation – it changes neither any pairwise
+distance nor any item's own norm, so it's safe to leave on for
+<code>geometry = "sphere"</code> too – computed from the <em>centered</em>
+embedding (so an off-center centroid, which nothing in the loss
+constrains to be at the origin, doesn't distort which direction counts
+as "first") but applied to the original, uncentered coordinates, so
+nothing is translated.  Set to <code>FALSE</code> to get the embedding in
+whatever orientation training happened to converge to.</p></dd>
+
+
+<dt id="arg-center">center<a class="anchor" aria-label="anchor" href="#arg-center"></a></dt>
+<dd><p>Logical.  If <code>TRUE</code> (default), translate the returned
+embedding so its centroid sits at the origin – like <code>rotate</code>, this
+changes no pairwise distance, but unlike <code>rotate</code> it does
+<em>not</em> preserve each item's own norm, so it only ever applies when
+<code>geometry = "euclidean"</code> (silently ignored for <code>geometry =
+"sphere"</code>, where translating would move items off the sphere).  Note
+that <code>history</code>'s <code>max_norm</code>/<code>median_norm</code>/<code>norm_ratio</code>
+columns are computed during training, <em>before</em> this final
+centering step, so they reflect the embedding's position at each
+checkpoint prior to centering – recomputing norms directly from the
+returned (centered) <code>embedding</code> will not generally match the last
+row of <code>history</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
