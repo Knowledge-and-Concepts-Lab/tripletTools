@@ -22,6 +22,16 @@ triplet data frame.
 This function is useful for finding responses to a given triplet,
 which is especially important when computing within and between-participant
 consistency on validation trials.
+
+The two options (\code{Left}/\code{Right}) are ordered using
+\code{\link[stringr]{str_sort}(numeric = TRUE)} before being joined into the
+name, so embedded numbers are compared by numeric value rather than
+digit-by-digit (e.g. \code{"deg2"} sorts before \code{"deg10"}, not after).
+This ordering only needs to be consistent -- the same two options always
+producing the same name regardless of which was \code{Left} and which was
+\code{Right} on a given trial -- not "alphabetical" in any meaningful
+sense, which is why using an ordering that also happens to sort numbers
+sensibly is a strict improvement with no downside.
 }
 \examples{
 trips <- icon_triplets[[1]] #Triplet data for participant 1

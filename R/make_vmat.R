@@ -17,8 +17,8 @@
 #'
 #' @details
 #' Each validation triplet is identified with a unique code of the kind generated
-#' by `make.tripnames` which indicates the target word and the two options, with
-#' the options ordered alphabetically.
+#' by `make.tripnames`, which indicates the target word and the two options in a
+#' consistent, numeric-aware order (see `\link{make.tripnames}`).
 #'
 #' Because `majority` includes `Center`/`Left`/`Right` columns, it can be passed
 #' directly to \code{\link{test.model}} (together with a fitted embedding) to
@@ -32,6 +32,7 @@
 #' trials are repeated to evaluate self-consistency). Where a participant did not judge
 #' a given triplet, the entry in `bysbj`will be NA.
 #'
+#' @importFrom stringr str_sort
 #'
 #' @export
 #'
@@ -61,7 +62,7 @@ make.vmat <- function(triplist){
 
   tripnames <- make.tripnames(vdat) #Get triplet names
   vdat <- cbind(vdat, tripnames) #Add as column
-  trips <- sort(unique(tripnames)) #Unique triplets sorted
+  trips <- str_sort(unique(tripnames), numeric = TRUE) #Unique triplets sorted
   ntrips <- length(trips) #Number of unique triplets
 
   #Initialize response matrix
@@ -93,17 +94,22 @@ make.vmat <- function(triplist){
   #parsed back out of the "triplet" string, since make.tripnames() joins
   #Center/Left/Right with "_" and item names themselves can contain
   #underscores (e.g. "dots_070deg"), which would make a naive string split
-  #ambiguous. Left/Right are then alphabetically ordered (pmin/pmax) to match
-  #make.tripnames()'s own convention -- the same triplet can appear with the
-  #two options on either side across trials/participants, and Left/Right here
-  #should reflect the fixed alphabetical order baked into the triplet name,
-  #not whichever ordering happened to appear first in the data.
+  #ambiguous. Left/Right are then ordered the same way make.tripnames() orders
+  #them (str_sort(numeric = TRUE), not plain pmin/pmax) -- the same triplet
+  #can appear with the two options on either side across trials/participants,
+  #and Left/Right here should reflect the same fixed, numeric-aware order
+  #baked into the triplet name, not whichever ordering happened to appear
+  #first in the data, and not plain alphabetical order either (which would
+  #disagree with make.tripnames() whenever item names contain numbers, e.g.
+  #ordering "deg10" before "deg2").
   first_idx <- match(trips, vdat$tripnames)
   left_vals  <- vdat$Left[first_idx]
   right_vals <- vdat$Right[first_idx]
+  ordered <- mapply(function(a, b) str_sort(c(a, b), numeric = TRUE),
+                     left_vals, right_vals)
   pmaj$Center <- vdat$Center[first_idx]
-  pmaj$Left   <- pmin(left_vals, right_vals)
-  pmaj$Right  <- pmax(left_vals, right_vals)
+  pmaj$Left   <- ordered[1, ]
+  pmaj$Right  <- ordered[2, ]
 
   #Initialize numeric by-subject matrix
   bysbj <- matrix(NA, dim(resp)[1], dim(resp)[2]) #Output matrix

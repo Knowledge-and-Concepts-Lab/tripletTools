@@ -26,8 +26,8 @@ a subject-by-trial matrix of judgments on these items.
 }
 \details{
 Each validation triplet is identified with a unique code of the kind generated
-by \code{make.tripnames} which indicates the target word and the two options, with
-the options ordered alphabetically.
+by \code{make.tripnames}, which indicates the target word and the two options in a
+consistent, numeric-aware order (see \verb{\link{make.tripnames}}).
 
 Because \code{majority} includes \code{Center}/\code{Left}/\code{Right} columns, it can be passed
 directly to \code{\link{test.model}} (together with a fitted embedding) to

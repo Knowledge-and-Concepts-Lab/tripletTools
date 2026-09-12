@@ -22,8 +22,8 @@ A named list with three elements:
 \eqn{n_{\text{train}} \times 3} with columns \code{head}, \code{winner},
 \code{loser}.}
 \item{\code{X_test}}{Integer matrix in the same format as \code{X_train}.}
-\item{\code{all_items}}{Character vector of item names, sorted
-alphabetically -- row \code{i} (1-based) of this vector is the item
+\item{\code{all_items}}{Character vector of item names, sorted as
+described above -- row \code{i} (1-based) of this vector is the item
 at zero-based index \code{i - 1} in \code{X_train}/\code{X_test}.}
 }
 }
@@ -36,10 +36,13 @@ indices, and splits into \code{X_train}/\code{X_test} matrices.
 \section{Item indexing}{
 
 All unique item names in \code{Center}, \code{Left}, and \code{Right}
-across all participants are collected and sorted alphabetically; this
-sorted order defines the zero-based integer indices used in the returned
-matrices, and is also returned as \code{all_items} so callers can restore
-item names on a fitted embedding afterward.
+across all participants are collected and sorted -- using
+\code{\link[stringr]{str_sort}(numeric = TRUE)}, so embedded numbers are
+compared by numeric value rather than digit-by-digit (e.g. \code{"deg2"}
+sorts before \code{"deg10"}, not after) -- and this sorted order defines
+the zero-based integer indices used in the returned matrices. It is also
+returned as \code{all_items} so callers can restore item names on a
+fitted embedding afterward.
 }
 
 \section{Filtering}{

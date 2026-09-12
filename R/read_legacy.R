@@ -78,7 +78,7 @@
 #' @importFrom readr read_csv write_csv
 #' @importFrom utils write.csv
 #' @importFrom stats setNames
-#' @importFrom stringr str_to_lower
+#' @importFrom stringr str_to_lower str_sort
 #' @importFrom tools file_path_sans_ext
 #' @importFrom rlang .data
 #'
@@ -147,9 +147,11 @@ read_legacy <- function(input_file) {
   }
 
   # ── Stimulus factor levels ─────────────────────────────
-  all_stimuli    <- sort(unique(c(new_data$Center, new_data$Left,
-                                  new_data$Right)))
+  # numeric = TRUE compares embedded numbers by value (e.g. "deg2" before
+  # "deg10"), not digit-by-digit.
+  all_stimuli    <- unique(c(new_data$Center, new_data$Left, new_data$Right))
   all_stimuli    <- all_stimuli[!is.na(all_stimuli)]
+  all_stimuli    <- str_sort(all_stimuli, numeric = TRUE)
   stimulus_levels <- data.frame(
     numeric_value = seq(0, length(all_stimuli) - 1),
     stimulus      = all_stimuli,

@@ -146,7 +146,7 @@ normalize_response <- function(response) {
 #' @importFrom data.table rbindlist
 #' @importFrom readr read_csv write_csv
 #' @importFrom dplyr filter select mutate rename if_else
-#' @importFrom stringr str_replace_all str_split_fixed
+#' @importFrom stringr str_replace_all str_split_fixed str_sort
 #' @importFrom rlang .data
 #' @importFrom tools file_path_sans_ext
 #'
@@ -222,7 +222,9 @@ read_raw_data <- function(
 
   # ── Build final dataset ────────────────────────────────
   split_choices <- str_split_fixed(f$choices, ",", 2)
-  unique_labels <- sort(unique(c(f$head, f$winner, f$loser)))
+  # numeric = TRUE compares embedded numbers by value (e.g. "deg2" before
+  # "deg10"), not digit-by-digit.
+  unique_labels <- str_sort(unique(c(f$head, f$winner, f$loser)), numeric = TRUE)
 
   df1 <- data.frame(
     head      = as.numeric(factor(f$head,   levels = unique_labels)) - 1,
