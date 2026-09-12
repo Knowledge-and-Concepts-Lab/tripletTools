@@ -6,6 +6,31 @@ from salmon.triplets.offline import OfflineEmbedding
 import os
 
 
+def _rotate_by_variance(embedding):
+    """
+    Rotate an embedding so its dimensions are ordered by decreasing variance
+    (same idea as PCA: dim_0 captures the most spread, dim_1 the next most,
+    etc), without changing any pairwise distance or any point's own norm.
+
+    The rotation matrix is computed from the *centered* embedding (via SVD),
+    then applied to the *original, uncentered* embedding -- so the result is
+    a pure rotation (embedding @ V for an orthogonal V), not a translation.
+    This matters because a fitted embedding's centroid is not fixed at the
+    origin (nothing in the loss constrains it -- only pairwise distances are
+    identified, so translation is a free nuisance parameter) and empirically
+    can be a non-trivial fraction of the embedding's overall scale. Computing
+    V from centered data avoids that arbitrary offset contaminating which
+    direction gets called "first"; applying V to the original coordinates
+    (rather than to the centered ones) preserves each point's exact position
+    up to rotation only, which in particular preserves every point's norm --
+    required for a geometry="sphere" embedding, where each point's norm is
+    the sphere radius by construction.
+    """
+    centered = embedding - embedding.mean(axis=0, keepdims=True)
+    _, _, vt = np.linalg.svd(centered, full_matrices=False)
+    return embedding @ vt.T
+
+
 def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print_every,
                   device, noise_model="CKL", embedding=None, random_state=None,
                   module_kwargs=None, stage_label=None, norm_penalty=0.0):
@@ -119,7 +144,8 @@ def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print
 
 def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000,
                            print_every=100, device=None, random_state=None,
-                           geometry="euclidean", radius=1.0, warm_start=None, norm_penalty=0.0):
+                           geometry="euclidean", radius=1.0, warm_start=None, norm_penalty=0.0,
+                           rotate=True, center=True):
     """
     Train embedding model with early stopping based on test loss.
 
@@ -172,6 +198,26 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
         warm-start stage of geometry="sphere" -- it has no effect on the
         constrained spherical stage itself, since norm_ratio is always ~1
         there by construction.
+    rotate: bool (default True). Rotate the final returned embedding so its
+        dimensions are ordered by decreasing variance (dim_0 captures the
+        most spread, dim_1 the next most, etc) -- see _rotate_by_variance().
+        This is a pure rotation: it changes neither any pairwise distance
+        nor any point's own norm (so it's safe for geometry="sphere" too),
+        it only re-orients the axes. Set to False to get the embedding in
+        whatever orientation training happened to converge to.
+    center: bool (default True). Translate the final returned embedding so
+        its centroid sits at the origin. Like rotate, this changes no
+        pairwise distance -- translation doesn't affect distances either --
+        but unlike rotate, it does NOT preserve each point's own norm, so it
+        is only applied when geometry="euclidean" (silently ignored for
+        geometry="sphere", where every point's norm must stay exactly
+        `radius`; translating would move points off the sphere entirely).
+        Worth knowing: `history`'s max_norm/median_norm/norm_ratio columns
+        are computed epoch-by-epoch *during* training, before this final
+        centering step, so they reflect the embedding's position at each
+        checkpoint prior to centering -- recomputing norms directly from
+        the returned (centered) embedding will not generally match the
+        final row of `history`.
 
     Returns:
     best_embedding, lowest_loss, epoch_stopped, counter, history
@@ -220,12 +266,17 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
     module_kwargs = {} if geometry == "euclidean" else {"module__radius": radius}
     stage_label = "[fitting constrained spherical embedding]" if geometry == "sphere" else None
 
-    return _fit_offline(
+    best_embedding, lowest_loss, epoch, counter, history = _fit_offline(
         X_train, X_test, n=n, d=d, max_epochs=max_epochs, tolerance=tolerance,
         tol_window=tol_window, print_every=print_every, device=device,
         noise_model=noise_model, embedding=start_embedding, random_state=random_state,
         module_kwargs=module_kwargs, stage_label=stage_label, norm_penalty=norm_penalty,
     )
+    if rotate:
+        best_embedding = _rotate_by_variance(best_embedding)
+    if center and geometry == "euclidean":
+        best_embedding = best_embedding - best_embedding.mean(axis=0, keepdims=True)
+    return best_embedding, lowest_loss, epoch, counter, history
 
 
 def process_all_workers(input_file, additional_data_file, output_dir,

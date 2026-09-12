@@ -17,7 +17,9 @@ train_embedding(
   geometry = c("euclidean", "sphere"),
   radius = 1,
   warm_start = NULL,
-  norm_penalty = 0
+  norm_penalty = 0,
+  rotate = TRUE,
+  center = TRUE
 )
 }
 \arguments{
@@ -93,6 +95,31 @@ to every internal fit stage, including the Euclidean warm-start stage
 of \code{geometry = "sphere"}; has no effect on the constrained
 spherical stage itself, since \code{norm_ratio} is always \code{~1}
 there by construction.}
+
+\item{rotate}{Logical.  If \code{TRUE} (default), rotate the returned
+embedding so its dimensions are ordered by decreasing variance (\code{dim_0}
+captures the most spread, \code{dim_1} the next most, etc), the same idea
+as PCA.  This is a pure rotation -- it changes neither any pairwise
+distance nor any item's own norm, so it's safe to leave on for
+\code{geometry = "sphere"} too -- computed from the \emph{centered}
+embedding (so an off-center centroid, which nothing in the loss
+constrains to be at the origin, doesn't distort which direction counts
+as "first") but applied to the original, uncentered coordinates, so
+nothing is translated.  Set to \code{FALSE} to get the embedding in
+whatever orientation training happened to converge to.}
+
+\item{center}{Logical.  If \code{TRUE} (default), translate the returned
+embedding so its centroid sits at the origin -- like \code{rotate}, this
+changes no pairwise distance, but unlike \code{rotate} it does
+\emph{not} preserve each item's own norm, so it only ever applies when
+\code{geometry = "euclidean"} (silently ignored for \code{geometry =
+"sphere"}, where translating would move items off the sphere).  Note
+that \code{history}'s \code{max_norm}/\code{median_norm}/\code{norm_ratio}
+columns are computed during training, \emph{before} this final
+centering step, so they reflect the embedding's position at each
+checkpoint prior to centering -- recomputing norms directly from the
+returned (centered) \code{embedding} will not generally match the last
+row of \code{history}.}
 }
 \value{
 A named list with five elements:
