@@ -127,6 +127,8 @@
   : Summarize per-restart learning-curve results
 - [`test.model()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.md)
   : Test embedding model predictions.
+- [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)
+  : Test whether embeddings show any cluster structure at all
 - [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
   : Train a single triplet embedding model
 - [`write_embedding_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_embedding_list.md)

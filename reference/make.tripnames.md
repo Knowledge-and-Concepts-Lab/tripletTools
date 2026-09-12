@@ -27,6 +27,16 @@ This function is useful for finding responses to a given triplet, which
 is especially important when computing within and between-participant
 consistency on validation trials.
 
+The two options (`Left`/`Right`) are ordered using
+[`str_sort`](https://stringr.tidyverse.org/reference/str_order.html)`(numeric = TRUE)`
+before being joined into the name, so embedded numbers are compared by
+numeric value rather than digit-by-digit (e.g. `"deg2"` sorts before
+`"deg10"`, not after). This ordering only needs to be consistent – the
+same two options always producing the same name regardless of which was
+`Left` and which was `Right` on a given trial – not "alphabetical" in
+any meaningful sense, which is why using an ordering that also happens
+to sort numbers sensibly is a strict improvement with no downside.
+
 ## Examples
 
 ``` r

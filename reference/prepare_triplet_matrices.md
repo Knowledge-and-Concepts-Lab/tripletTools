@@ -40,17 +40,20 @@ A named list with three elements:
 
 - `all_items`:
 
-  Character vector of item names, sorted alphabetically – row `i`
+  Character vector of item names, sorted as described above – row `i`
   (1-based) of this vector is the item at zero-based index `i - 1` in
   `X_train`/`X_test`.
 
 ## Item indexing
 
 All unique item names in `Center`, `Left`, and `Right` across all
-participants are collected and sorted alphabetically; this sorted order
-defines the zero-based integer indices used in the returned matrices,
-and is also returned as `all_items` so callers can restore item names on
-a fitted embedding afterward.
+participants are collected and sorted – using
+[`str_sort`](https://stringr.tidyverse.org/reference/str_order.html)`(numeric = TRUE)`,
+so embedded numbers are compared by numeric value rather than
+digit-by-digit (e.g. `"deg2"` sorts before `"deg10"`, not after) – and
+this sorted order defines the zero-based integer indices used in the
+returned matrices. It is also returned as `all_items` so callers can
+restore item names on a fitted embedding afterward.
 
 ## Filtering
 

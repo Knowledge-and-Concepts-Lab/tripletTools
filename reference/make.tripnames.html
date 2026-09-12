@@ -71,6 +71,15 @@ in the triplet dataframe.</p>
     <p>This function is useful for finding responses to a given triplet,
 which is especially important when computing within and between-participant
 consistency on validation trials.</p>
+<p>The two options (<code>Left</code>/<code>Right</code>) are ordered using
+<code><a href="https://stringr.tidyverse.org/reference/str_order.html" class="external-link">str_sort</a>(numeric = TRUE)</code> before being joined into the
+name, so embedded numbers are compared by numeric value rather than
+digit-by-digit (e.g. <code>"deg2"</code> sorts before <code>"deg10"</code>, not after).
+This ordering only needs to be consistent – the same two options always
+producing the same name regardless of which was <code>Left</code> and which was
+<code>Right</code> on a given trial – not "alphabetical" in any meaningful
+sense, which is why using an ordering that also happens to sort numbers
+sensibly is a strict improvement with no downside.</p>
     </div>
 
     <div class="section level2">

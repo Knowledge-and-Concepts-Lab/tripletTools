@@ -85,8 +85,8 @@ when <code>sampleSet</code> is absent or entirely <code>NA</code>. Default <code
 <dd><p>Integer matrix in the same format as <code>X_train</code>.</p></dd>
 
 <dt><code>all_items</code></dt>
-<dd><p>Character vector of item names, sorted
-alphabetically – row <code>i</code> (1-based) of this vector is the item
+<dd><p>Character vector of item names, sorted as
+described above – row <code>i</code> (1-based) of this vector is the item
 at zero-based index <code>i - 1</code> in <code>X_train</code>/<code>X_test</code>.</p></dd>
 
 
@@ -96,10 +96,13 @@ at zero-based index <code>i - 1</code> in <code>X_train</code>/<code>X_test</cod
 
 
 <p>All unique item names in <code>Center</code>, <code>Left</code>, and <code>Right</code>
-across all participants are collected and sorted alphabetically; this
-sorted order defines the zero-based integer indices used in the returned
-matrices, and is also returned as <code>all_items</code> so callers can restore
-item names on a fitted embedding afterward.</p>
+across all participants are collected and sorted – using
+<code><a href="https://stringr.tidyverse.org/reference/str_order.html" class="external-link">str_sort</a>(numeric = TRUE)</code>, so embedded numbers are
+compared by numeric value rather than digit-by-digit (e.g. <code>"deg2"</code>
+sorts before <code>"deg10"</code>, not after) – and this sorted order defines
+the zero-based integer indices used in the returned matrices. It is also
+returned as <code>all_items</code> so callers can restore item names on a
+fitted embedding afterward.</p>
     </div>
     <div class="section level2">
     <h2 id="filtering">Filtering<a class="anchor" aria-label="anchor" href="#filtering"></a></h2>
