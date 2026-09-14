@@ -10,14 +10,17 @@
 # PyYAML (pip install --user pyyaml). Every embedding fit runs inside the
 # tripletTools container image via HTCondor's container universe.
 #
-# What this does: generates one synthetic ground-truth embedding, simulates
-# a triplet dataset from it under each of `alphas` (the "generating"
-# choice model), then fits a recovery embedding from EVERY (generating
-# alpha, fitting alpha) pair -- len(alphas)^2 completely independent fits
-# -- and scores each one's recovery error (Procrustes distance) against
-# the known ground truth. Answers whether recovery is always best when the
-# fitting choice model matches the one that generated the data, and how
-# fast it degrades off that diagonal.
+# What this does: generates `n_replicates` independent synthetic
+# ground-truth embeddings, each with its own simulated triplet dataset
+# under every value in `alphas` (the "generating" choice model), then fits
+# a recovery embedding from EVERY (replicate, generating alpha, fitting
+# alpha) combination -- n_replicates * len(alphas)^2 completely independent
+# fits -- and scores each one's recovery error (Procrustes distance)
+# against that replicate's own known ground truth. Answers whether
+# recovery is always best when the fitting choice model matches the one
+# that generated the data, how fast it degrades off that diagonal, and
+# (via the replicates) whether any of that holds up across more than one
+# random draw rather than being a single simulation's noise.
 #
 # alpha is one continuum, not a set of unrelated methods: finite alpha is
 # a Student-t kernel (alpha=1 is exactly Crowd Kernel with mu=1); alpha=Inf
@@ -25,11 +28,23 @@
 # ---------------------------------------------------------------------------
 
 # Directory (on the submit node) where all outputs are written:
-# stage0_simulate/ (ground truth + per-generating-alpha triplet CSVs),
-# stage1_fit/ (per-pair fit outputs), plus results_long.csv,
-# error_matrix.csv, and run_manifest.txt at the top level. Created if it
+# stage0_simulate/ (per-replicate ground truth + per-generating-alpha
+# triplet CSVs), stage1_fit/ (per-fit outputs), plus results_long.csv
+# (every individual fit's result -- the right input for any real
+# statistical comparison across replicates), error_matrix_mean.csv /
+# error_matrix_sd.csv (a quick-look generating x fitting grid, averaged
+# over replicates), and run_manifest.txt at the top level. Created if it
 # doesn't exist.
 output_dir: condor_recovery_sweep_output
+
+# Number of independent replicate simulations. Each replicate draws its
+# own ground-truth embedding and its own triplets under every alpha, so
+# this is what turns a single noisy point estimate per (generating,
+# fitting) cell into a distribution -- needed before trusting any specific
+# claim about which off-diagonal cells beat the matched-model diagonal.
+# Total fits = n_replicates * len(alphas)^2 (20 * 8^2 = 1280 with the
+# defaults below).
+n_replicates: 20
 
 # Embedding dimensionality. Used for BOTH the synthetic ground truth
 # itself and every recovery fit -- get.rep.dist()'s Procrustes comparison
@@ -40,10 +55,11 @@ d: 3
 # The alpha continuum, used as BOTH the generating and fitting choice
 # model grid (every value is crossed with every other). Use `.inf` (not
 # `Inf`/`inf`) for YAML's infinity literal. Calibrated cost: at the
-# max_epochs/tol_window below, one fit took ~46 minutes locally, so 8
-# alphas (64 fits) is roughly 49 hours of fitting work in total -- this is
-# exactly why it's worth spreading across Condor rather than running
-# serially.
+# max_epochs/tol_window below, one fit took ~46 minutes locally, so with
+# n_replicates=20 the full 1280 fits is roughly 980 hours of total fitting
+# work -- entirely why this is a Condor job, not a local loop: with enough
+# execute slots running concurrently, wall-clock is however long the
+# slowest single fit takes, not the sum of all of them.
 alphas: [0.1, 0.5, 1, 2, 5, 10, 20, .inf]
 
 # Triplets simulated per generating alpha (shared across all fitting
@@ -54,11 +70,14 @@ n_triplets_per_gen: 4000
 # early stopping, identical across every fit.
 test_frac: 0.1
 
-# Base random seed. Ground truth generation uses this seed directly; each
-# generating alpha's triplet simulation uses 1000 + its position in
-# `alphas`; each fit's initialization/training uses
-# seed + 100*(generating position) + (fitting position), so every one of
-# the len(alphas)^2 fits gets a distinct, reproducible seed.
+# Base random seed. Each replicate r gets its own seed range,
+# seed + r*100000, comfortably separated from every other replicate's;
+# within a replicate, ground-truth generation uses that replicate's base
+# seed directly, each generating alpha's triplet simulation uses
+# base + 1000 + its position in `alphas`, and each fit's
+# initialization/training uses base + 100*(generating position) +
+# (fitting position) -- so every one of the n_replicates * len(alphas)^2
+# fits gets a distinct, reproducible seed.
 seed: 1
 
 # --- Synthetic ground-truth embedding -----------------------------------
@@ -91,8 +110,8 @@ condor:
     request_disk: 8GB   # covers the pulled/unpacked container image
 
 # --- Embedding-fit settings ---------------------------------------------------
-# Applied to every one of the len(alphas)^2 fits. Calibrated locally
-# (15000/1500 still hit the epoch ceiling with test accuracy still
+# Applied to every one of the n_replicates * len(alphas)^2 fits. Calibrated
+# locally (15000/1500 still hit the epoch ceiling with test accuracy still
 # improving; 60000/3000 plateaus, ~46 min/fit on CPU) -- adjust if your
 # own calibration run on the execute nodes' hardware suggests otherwise.
 max_epochs: 60000

@@ -11,32 +11,43 @@ kernel, alpha=1 is exactly Crowd Kernel with mu=1, alpha=Inf is the exact
 Gaussian/gamma=0.5 limit), so this is one continuum being crossed with
 itself, not eight unrelated methods.
 
-Design: a single synthetic ground-truth embedding (hierarchical/multi-scale,
-so choice models with different tail behavior have the best chance to
-diverge) is simulated once. For each of len(alphas) *generating* alphas, one
-triplet dataset is drawn from the ground truth. Every (generating alpha,
-fitting alpha) pair is then an independent embedding fit -- recovering an
-embedding from that one generating alpha's triplets using that one fitting
-alpha's choice model -- scored by Procrustes distance back to the known
-ground truth. With 8 alphas that is 64 completely independent fits, each
-taking tens of minutes locally; an embarrassingly parallel workload, hence
-Condor.
+Design: `n_replicates` independent synthetic ground-truth embeddings
+(hierarchical/multi-scale, so choice models with different tail behavior
+have the best chance to diverge) are simulated, each with its own seed.
+Within each replicate, for each of len(alphas) *generating* alphas, one
+triplet dataset is drawn from that replicate's own ground truth. Every
+(replicate, generating alpha, fitting alpha) combination is then an
+independent embedding fit -- recovering an embedding from that replicate's
+generating-alpha triplets using that fitting alpha's choice model --
+scored by Procrustes distance back to that replicate's own known ground
+truth. With 8 alphas and 20 replicates that is 1280 completely independent
+fits, each taking tens of minutes; an embarrassingly parallel workload,
+hence Condor -- replicating isn't just "more of the same run," it's what
+turns a single noisy point estimate per (generating, fitting) cell into a
+distribution the diagonal-vs-off-diagonal comparison can actually be
+trusted against.
 
 Runs in a single Condor stage plus local setup/aggregation:
-  0. Simulate (local, not a Condor job): generate the ground-truth embedding
-     and, for each generating alpha, one triplet dataset from it. Pure
-     Python (stdlib `random`/`math` only, matching this repo's other
-     orchestrators' minimal-dependency convention) -- no R or numpy needed
-     for this step, so it runs directly on the submit node before anything
-     is queued.
-  1. Fit: one job per (generating alpha, fitting alpha) pair, submitted
-     together as a single queue block. Each job reads its assigned triplet
-     file and the ground-truth embedding, fits one embedding under its
-     assigned fitting alpha, and scores recovery error via Procrustes
-     distance -- writing a single-row result CSV.
+  0. Simulate (local, not a Condor job): for each replicate, generate its
+     own ground-truth embedding and, for each generating alpha, one
+     triplet dataset from it. Pure Python (stdlib `random`/`math` only,
+     matching this repo's other orchestrators' minimal-dependency
+     convention) -- no R or numpy needed for this step, so it runs
+     directly on the submit node before anything is queued.
+  1. Fit: one job per (replicate, generating alpha, fitting alpha)
+     combination, submitted together as a single queue block. Each job
+     reads its assigned triplet file and its replicate's ground-truth
+     embedding, fits one embedding under its assigned fitting alpha, and
+     scores recovery error via Procrustes distance -- writing a
+     single-row result CSV.
   2. Aggregate (local, not a Condor job): once every fit job has finished,
-     concatenate all per-pair result rows into results_long.csv and pivot
-     into error_matrix.csv (rows = generating alpha, cols = fitting alpha).
+     concatenate every result row (one per (replicate, generating,
+     fitting) combination) into results_long.csv, and also pivot into
+     error_matrix_mean.csv / error_matrix_sd.csv (rows = generating alpha,
+     cols = fitting alpha, cells = mean/SD of recovery error across
+     replicates) for a quick first look -- results_long.csv is what any
+     more careful statistical comparison (e.g. paired tests between
+     specific cells) should actually be run on.
 
 Every fit job runs condor_recovery_fit.R (in this same directory) inside
 the tripletTools container image via HTCondor's container universe -- no R
@@ -68,6 +79,14 @@ except ImportError:
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONDOR_RECOVERY_FIT_R = SCRIPT_DIR / "condor_recovery_fit.R"
+
+# Gap between replicates' seed ranges. Within one replicate, ground-truth
+# generation uses the replicate's base seed directly, per-generating-alpha
+# triplet simulation uses base + 1000 + (alpha position), and per-fit seeds
+# use base + 100*(gen position) + (fit position) -- all comfortably under
+# 1100, so a 100000 stride leaves plenty of headroom and keeps each
+# replicate's seeds human-readably distinct from the next.
+REPLICATE_SEED_STRIDE = 100_000
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +192,16 @@ def write_triplets_csv(path, rows):
 
 
 def simulate_stage(work_dir, config):
+    """Generate every replicate's ground truth and triplet sets. Each
+    replicate gets its own well-separated seed range (REPLICATE_SEED_STRIDE
+    apart) so ground-truth generation, per-generating-alpha triplet
+    simulation, and (in run_fit_stage) per-fit seeds never collide across
+    replicates while staying fully deterministic from the one `seed` in
+    the config.
+
+    Returns a list of dicts, one per replicate:
+      {"rep": r, "gt_path": Path, "triplet_paths": {alpha_label: Path}}
+    """
     sim_dir = work_dir / "stage0_simulate"
     sim_dir.mkdir(parents=True, exist_ok=True)
 
@@ -185,26 +214,34 @@ def simulate_stage(work_dir, config):
     within_sd        = float(get_config(synth_cfg, "within_sd", 0.3))
     seed             = int(config.get("seed", 1))
     d                = int(config["d"])
+    n_replicates     = int(get_config(config, "n_replicates", 1))
+    n_triplets       = int(get_config(config, "n_triplets_per_gen", 4000))
 
-    items = make_synthetic_embedding(n_super, n_sub_per_super, n_items_per_sub,
-                                      super_radius, sub_offset, within_sd, seed, d=d)
-    gt_path = sim_dir / "ground_truth.csv"
-    write_ground_truth_csv(gt_path, items)
-    coords = [c for _name, c in items]
+    replicates = []
+    for r in range(n_replicates):
+        rep_seed = seed + r * REPLICATE_SEED_STRIDE
 
-    n_triplets = int(get_config(config, "n_triplets_per_gen", 4000))
-    triplet_paths = {}
-    for gi, alpha in enumerate(config["alphas"]):
-        label = alpha_label(alpha)
-        rows = simulate_triplets(coords, alpha, n_triplets, seed=1000 + gi)
-        path = sim_dir / f"triplets_gen{label}.csv"
-        write_triplets_csv(path, rows)
-        triplet_paths[label] = path
+        items = make_synthetic_embedding(n_super, n_sub_per_super, n_items_per_sub,
+                                          super_radius, sub_offset, within_sd, rep_seed, d=d)
+        gt_path = sim_dir / f"ground_truth_rep{r}.csv"
+        write_ground_truth_csv(gt_path, items)
+        coords = [c for _name, c in items]
 
-    print(f"[condor_recovery_sweep] Simulated {len(items)}-item ground truth and "
-          f"{len(triplet_paths)} generating-alpha triplet sets ({n_triplets} triplets each) "
-          f"in {sim_dir}")
-    return gt_path, triplet_paths
+        triplet_paths = {}
+        for gi, alpha in enumerate(config["alphas"]):
+            label = alpha_label(alpha)
+            rows = simulate_triplets(coords, alpha, n_triplets, seed=rep_seed + 1000 + gi)
+            path = sim_dir / f"triplets_rep{r}_gen{label}.csv"
+            write_triplets_csv(path, rows)
+            triplet_paths[label] = path
+
+        replicates.append({"rep": r, "gt_path": gt_path, "triplet_paths": triplet_paths})
+
+    n_items = n_super * n_sub_per_super * n_items_per_sub
+    print(f"[condor_recovery_sweep] Simulated {n_replicates} replicate(s) of a "
+          f"{n_items}-item ground truth, each with {len(config['alphas'])} generating-alpha "
+          f"triplet sets ({n_triplets} triplets each), in {sim_dir}")
+    return replicates
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +309,7 @@ def queue_from_block(varnames, rows):
 # Stage 1: fit
 # ---------------------------------------------------------------------------
 
-def run_fit_stage(work_dir, gt_path, triplet_paths, config, resources, container_image):
+def run_fit_stage(work_dir, replicates, config, resources, container_image):
     stage_dir = work_dir / "stage1_fit"
     stage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -286,31 +323,41 @@ def run_fit_stage(work_dir, gt_path, triplet_paths, config, resources, container
 
     alphas = config["alphas"]
 
-    # Two variables per triplet file: *_src is where write_submit_file finds
-    # the file to transfer (relative to this stage's initialdir, i.e.
-    # reaching back into stage0_simulate/); *_name is the bare filename the
-    # file lands under inside the job's sandbox after transfer (HTCondor
-    # strips any directory component from transfer_input_files) -- same
-    # pattern, and same rationale, as condor_group_diff_workflow.py's
-    # embedding_a_src/embedding_a_name pair.
+    # Four variables identify each file's location: *_src is where
+    # write_submit_file finds the file to transfer (relative to this
+    # stage's initialdir, i.e. reaching back into stage0_simulate/);
+    # *_name is the bare filename the file lands under inside the job's
+    # sandbox after transfer (HTCondor strips any directory component from
+    # transfer_input_files) -- same pattern, and same rationale, as
+    # condor_group_diff_workflow.py's embedding_a_src/embedding_a_name
+    # pair. Both the ground truth AND the triplets now vary per job (one
+    # ground truth per replicate, not one shared file), so both need this
+    # src/name split, not just the triplets as in the single-replicate
+    # version of this workflow.
     #
-    # Jobs indexed by position, not by (gen, fit) label strings, so
+    # Jobs indexed by position, not by (rep, gen, fit) label strings, so
     # filenames stay simple regardless of how alpha values print.
-    jobs = []  # (triplets_src, triplets_name, output_name, gen_label, fit_label, fit_seed)
-    for gi, gen_alpha in enumerate(alphas):
-        gen_label = alpha_label(gen_alpha)
-        triplets_src_path = triplet_paths[gen_label]
-        triplets_src = f"../stage0_simulate/{triplets_src_path.name}"
-        for fi, fit_alpha in enumerate(alphas):
-            fit_label = alpha_label(fit_alpha)
-            output_name = f"result_gen{gi}fit{fi}.csv"
-            fit_seed = seed + gi * 100 + fi
-            jobs.append((triplets_src, triplets_src_path.name, output_name,
-                         gen_label, fit_label, fit_seed))
+    jobs = []  # (triplets_src, triplets_name, gt_src, gt_name, output_name, rep, gen_label, fit_label, fit_seed)
+    for rep_info in replicates:
+        r = rep_info["rep"]
+        gt_path = rep_info["gt_path"]
+        gt_src = f"../stage0_simulate/{gt_path.name}"
+        rep_seed = seed + r * REPLICATE_SEED_STRIDE
+
+        for gi, gen_alpha in enumerate(alphas):
+            gen_label = alpha_label(gen_alpha)
+            triplets_src_path = rep_info["triplet_paths"][gen_label]
+            triplets_src = f"../stage0_simulate/{triplets_src_path.name}"
+            for fi, fit_alpha in enumerate(alphas):
+                fit_label = alpha_label(fit_alpha)
+                output_name = f"result_rep{r}_gen{gi}fit{fi}.csv"
+                fit_seed = rep_seed + gi * 100 + fi
+                jobs.append((triplets_src, triplets_src_path.name, gt_src, gt_path.name,
+                             output_name, r, gen_label, fit_label, fit_seed))
 
     fixed_args = (
         "condor_recovery_fit.R --triplets=$(triplets_name) "
-        f"--ground_truth={gt_path.name} "
+        "--ground_truth=$(gt_name) --replicate=$(rep) "
         "--gen_alpha=$(gen_label) --fit_alpha=$(fit_label) --output=$(output_name) "
         f"--d={d} --seed=$(fit_seed) --test_frac={test_frac} "
         f"--max_epochs={max_epochs} --tolerance={tolerance} --tol_window={tol_window} "
@@ -322,18 +369,21 @@ def run_fit_stage(work_dir, gt_path, triplet_paths, config, resources, container
         submit_path,
         container_image=container_image,
         arguments=fixed_args,
-        transfer_input_files=f"{CONDOR_RECOVERY_FIT_R}, {gt_path}, $(triplets_src)",
+        transfer_input_files=f"{CONDOR_RECOVERY_FIT_R}, $(gt_src), $(triplets_src)",
         log=str(stage_dir / "fit.log"),
         output=str(stage_dir / "fit_$(Process).out"),
         error=str(stage_dir / "fit_$(Process).err"),
         resources=resources,
         initialdir=str(stage_dir),
         queue_statement=queue_from_block(
-            ["triplets_src", "triplets_name", "output_name", "gen_label", "fit_label", "fit_seed"],
+            ["triplets_src", "triplets_name", "gt_src", "gt_name", "output_name",
+             "rep", "gen_label", "fit_label", "fit_seed"],
             jobs,
         ),
     )
 
+    print(f"[condor_recovery_sweep] Queuing {len(jobs)} fit jobs "
+          f"({len(replicates)} replicates x {len(alphas)}x{len(alphas)} alpha pairs)")
     submit_and_wait(submit_path, stage_dir / "fit.log", "Stage 1 (recovery fits)")
     return stage_dir, jobs
 
@@ -342,36 +392,61 @@ def run_fit_stage(work_dir, gt_path, triplet_paths, config, resources, container
 # Aggregation
 # ---------------------------------------------------------------------------
 
+def _mean_sd(values):
+    n = len(values)
+    mean = sum(values) / n
+    if n < 2:
+        return mean, float("nan")
+    variance = sum((v - mean) ** 2 for v in values) / (n - 1)
+    return mean, math.sqrt(variance)
+
+
 def aggregate_results(work_dir, stage1_dir, jobs, alphas):
+    """results_long.csv keeps every individual (replicate, generating,
+    fitting) fit's result -- the right input for any real statistical
+    comparison (e.g. a paired test between two specific fitting alphas for
+    the same generating alpha, across replicates). error_matrix_mean.csv /
+    error_matrix_sd.csv pivot that into a quick-look generating x fitting
+    grid, averaged over replicates -- useful for a first glance, not a
+    substitute for looking at results_long.csv directly."""
     long_rows = []
-    error_by_pair = {}
-    for _triplets_src, _triplets_name, output_name, gen_label, fit_label, _fit_seed in jobs:
+    errors_by_pair = {}
+    for _triplets_src, _triplets_name, _gt_src, _gt_name, output_name, rep, gen_label, fit_label, _fit_seed in jobs:
         path = stage1_dir / output_name
         if not path.exists():
-            sys.exit(f"Expected fit output missing: {path} (gen={gen_label}, fit={fit_label}). "
-                      "Check stage1_fit/fit_*.err for that job's failure.")
+            sys.exit(f"Expected fit output missing: {path} (rep={rep}, gen={gen_label}, "
+                      f"fit={fit_label}). Check stage1_fit/fit_*.err for that job's failure.")
         with open(path, newline="") as f:
             row = next(csv.DictReader(f))
         long_rows.append(row)
-        error_by_pair[(gen_label, fit_label)] = row["recovery_error"]
+        errors_by_pair.setdefault((gen_label, fit_label), []).append(float(row["recovery_error"]))
 
     long_path = work_dir / "results_long.csv"
     with open(long_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["gen_alpha", "fit_alpha", "recovery_error",
-                                                "loss", "epoch"])
+        writer = csv.DictWriter(f, fieldnames=["replicate", "gen_alpha", "fit_alpha",
+                                                "recovery_error", "loss", "epoch"])
         writer.writeheader()
         writer.writerows(long_rows)
 
     labels = [alpha_label(a) for a in alphas]
-    matrix_path = work_dir / "error_matrix.csv"
-    with open(matrix_path, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow([""] + [f"fit_{lbl}" for lbl in labels])
-        for gen_lbl in labels:
-            writer.writerow([f"gen_{gen_lbl}"] +
-                             [error_by_pair.get((gen_lbl, fit_lbl), "") for fit_lbl in labels])
 
-    return long_path, matrix_path
+    def write_matrix(path, stat_index):
+        with open(path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([""] + [f"fit_{lbl}" for lbl in labels])
+            for gen_lbl in labels:
+                row = []
+                for fit_lbl in labels:
+                    values = errors_by_pair.get((gen_lbl, fit_lbl))
+                    row.append(_mean_sd(values)[stat_index] if values else "")
+                writer.writerow([f"gen_{gen_lbl}"] + row)
+
+    mean_path = work_dir / "error_matrix_mean.csv"
+    sd_path = work_dir / "error_matrix_sd.csv"
+    write_matrix(mean_path, 0)
+    write_matrix(sd_path, 1)
+
+    return long_path, mean_path, sd_path
 
 
 # ---------------------------------------------------------------------------
@@ -406,29 +481,33 @@ def main():
     )
     resources = condor_cfg.get("resources") or {}
 
+    n_replicates = int(get_config(config, "n_replicates", 1))
     n_pairs = len(config["alphas"]) ** 2
-    print(f"[condor_recovery_sweep] {len(config['alphas'])} alphas -> {n_pairs} "
-          f"(generating, fitting) pairs, d={config['d']}")
+    n_total = n_replicates * n_pairs
+    print(f"[condor_recovery_sweep] {n_replicates} replicate(s) x {len(config['alphas'])} alphas "
+          f"-> {n_total} total fits, d={config['d']}")
 
-    gt_path, triplet_paths = simulate_stage(work_dir, config)
-    stage1_dir, jobs = run_fit_stage(work_dir, gt_path, triplet_paths, config,
-                                      resources, container_image)
-    long_path, matrix_path = aggregate_results(work_dir, stage1_dir, jobs, config["alphas"])
+    replicates = simulate_stage(work_dir, config)
+    stage1_dir, jobs = run_fit_stage(work_dir, replicates, config, resources, container_image)
+    long_path, mean_path, sd_path = aggregate_results(work_dir, stage1_dir, jobs, config["alphas"])
 
     manifest = [
         f"Run finished:    {__import__('datetime').datetime.utcnow().isoformat()}Z",
         f"config:          {args.params.resolve()}",
         f"alphas:          {config['alphas']}",
+        f"n_replicates:    {n_replicates}",
         f"n_pairs:         {n_pairs}",
+        f"n_total_fits:    {n_total}",
         f"d:               {config['d']}",
         f"container_image: {container_image}",
         f"results_long:    {long_path}",
-        f"error_matrix:    {matrix_path}",
+        f"error_matrix_mean: {mean_path}",
+        f"error_matrix_sd:   {sd_path}",
     ]
     (work_dir / "run_manifest.txt").write_text("\n".join(manifest) + "\n")
 
-    print(f"[condor_recovery_sweep] Done. {n_pairs} fits written to {long_path} and "
-          f"{matrix_path}")
+    print(f"[condor_recovery_sweep] Done. {n_total} fits written to {long_path}, "
+          f"{mean_path}, and {sd_path}")
 
 
 if __name__ == "__main__":

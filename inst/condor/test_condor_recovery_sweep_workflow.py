@@ -147,14 +147,33 @@ class TestCsvIO(unittest.TestCase):
             self.assertEqual(out[1]["loser"], "5")
 
 
+class TestMeanSd(unittest.TestCase):
+    def test_mean_and_sd(self):
+        mean, sd = rs._mean_sd([1.0, 2.0, 3.0])
+        self.assertAlmostEqual(mean, 2.0)
+        self.assertAlmostEqual(sd, 1.0)
+
+    def test_single_value_sd_is_nan(self):
+        mean, sd = rs._mean_sd([5.0])
+        self.assertAlmostEqual(mean, 5.0)
+        self.assertTrue(math.isnan(sd))
+
+
 class TestAggregateResults(unittest.TestCase):
-    def _make_job_output(self, stage1_dir, output_name, gen_alpha, fit_alpha, error):
+    def _make_job_output(self, stage1_dir, output_name, rep, gen_alpha, fit_alpha, error):
         with open(stage1_dir / output_name, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["gen_alpha", "fit_alpha", "recovery_error", "loss", "epoch"])
-            writer.writerow([gen_alpha, fit_alpha, error, 0.45, 1000])
+            writer.writerow(["replicate", "gen_alpha", "fit_alpha", "recovery_error", "loss", "epoch"])
+            writer.writerow([rep, gen_alpha, fit_alpha, error, 0.45, 1000])
 
-    def test_aggregate_builds_long_and_matrix_outputs(self):
+    def _job(self, output_name, rep, gen_label, fit_label):
+        # (triplets_src, triplets_name, gt_src, gt_name, output_name, rep, gen_label, fit_label, fit_seed)
+        return (f"../stage0_simulate/triplets_rep{rep}_gen{gen_label}.csv",
+                f"triplets_rep{rep}_gen{gen_label}.csv",
+                f"../stage0_simulate/ground_truth_rep{rep}.csv", f"ground_truth_rep{rep}.csv",
+                output_name, rep, gen_label, fit_label, 100 + rep)
+
+    def test_aggregate_builds_long_output_with_replicate_column(self):
         with tempfile.TemporaryDirectory() as tmp:
             work_dir = Path(tmp)
             stage1_dir = work_dir / "stage1_fit"
@@ -162,41 +181,123 @@ class TestAggregateResults(unittest.TestCase):
 
             alphas = [1.0, 2.0]
             jobs = [
-                ("../stage0_simulate/triplets_gen1.0.csv", "triplets_gen1.0.csv",
-                 "r_g0f0.csv", "1.0", "1.0", 101),
-                ("../stage0_simulate/triplets_gen1.0.csv", "triplets_gen1.0.csv",
-                 "r_g0f1.csv", "1.0", "2.0", 102),
-                ("../stage0_simulate/triplets_gen2.0.csv", "triplets_gen2.0.csv",
-                 "r_g1f0.csv", "2.0", "1.0", 103),
-                ("../stage0_simulate/triplets_gen2.0.csv", "triplets_gen2.0.csv",
-                 "r_g1f1.csv", "2.0", "2.0", 104),
+                self._job("r0_g0f0.csv", 0, "1.0", "1.0"),
+                self._job("r0_g0f1.csv", 0, "1.0", "2.0"),
+                self._job("r1_g0f0.csv", 1, "1.0", "1.0"),
+                self._job("r1_g0f1.csv", 1, "1.0", "2.0"),
             ]
-            self._make_job_output(stage1_dir, "r_g0f0.csv", "1.0", "1.0", 0.05)
-            self._make_job_output(stage1_dir, "r_g0f1.csv", "1.0", "2.0", 0.20)
-            self._make_job_output(stage1_dir, "r_g1f0.csv", "2.0", "1.0", 0.25)
-            self._make_job_output(stage1_dir, "r_g1f1.csv", "2.0", "2.0", 0.04)
+            self._make_job_output(stage1_dir, "r0_g0f0.csv", 0, "1.0", "1.0", 0.05)
+            self._make_job_output(stage1_dir, "r0_g0f1.csv", 0, "1.0", "2.0", 0.20)
+            self._make_job_output(stage1_dir, "r1_g0f0.csv", 1, "1.0", "1.0", 0.07)
+            self._make_job_output(stage1_dir, "r1_g0f1.csv", 1, "1.0", "2.0", 0.22)
 
-            long_path, matrix_path = rs.aggregate_results(work_dir, stage1_dir, jobs, alphas)
+            long_path, mean_path, sd_path = rs.aggregate_results(work_dir, stage1_dir, jobs, alphas)
 
             with open(long_path, newline="") as f:
                 long_rows = list(csv.DictReader(f))
             self.assertEqual(len(long_rows), 4)
+            self.assertEqual({r["replicate"] for r in long_rows}, {"0", "1"})
+            self.assertEqual(list(long_rows[0].keys()),
+                              ["replicate", "gen_alpha", "fit_alpha", "recovery_error", "loss", "epoch"])
 
-            with open(matrix_path, newline="") as f:
-                matrix_rows = list(csv.reader(f))
-            self.assertEqual(matrix_rows[0], ["", "fit_1.0", "fit_2.0"])
-            self.assertEqual(matrix_rows[1][0], "gen_1.0")
-            self.assertEqual(matrix_rows[1][1], "0.05")  # matched diagonal cell
-            self.assertEqual(matrix_rows[2][2], "0.04")  # matched diagonal cell
+    def test_aggregate_matrix_averages_across_replicates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            stage1_dir = work_dir / "stage1_fit"
+            stage1_dir.mkdir()
+
+            alphas = [1.0, 2.0]
+            jobs = [
+                self._job("r0_g0f0.csv", 0, "1.0", "1.0"),
+                self._job("r1_g0f0.csv", 1, "1.0", "1.0"),
+            ]
+            self._make_job_output(stage1_dir, "r0_g0f0.csv", 0, "1.0", "1.0", 0.10)
+            self._make_job_output(stage1_dir, "r1_g0f0.csv", 1, "1.0", "1.0", 0.20)
+
+            _long_path, mean_path, sd_path = rs.aggregate_results(work_dir, stage1_dir, jobs, alphas)
+
+            with open(mean_path, newline="") as f:
+                mean_rows = list(csv.reader(f))
+            self.assertEqual(mean_rows[0], ["", "fit_1.0", "fit_2.0"])
+            self.assertAlmostEqual(float(mean_rows[1][1]), 0.15)  # mean of 0.10, 0.20
+            self.assertEqual(mean_rows[1][2], "")  # no data for gen=1.0, fit=2.0
+
+            with open(sd_path, newline="") as f:
+                sd_rows = list(csv.reader(f))
+            expected_sd = math.sqrt(((0.10 - 0.15) ** 2 + (0.20 - 0.15) ** 2) / 1)
+            self.assertAlmostEqual(float(sd_rows[1][1]), expected_sd)
 
     def test_aggregate_exits_on_missing_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             work_dir = Path(tmp)
             stage1_dir = work_dir / "stage1_fit"
             stage1_dir.mkdir()
-            jobs = [("src.csv", "src.csv", "missing.csv", "1.0", "1.0", 1)]
+            jobs = [self._job("missing.csv", 0, "1.0", "1.0")]
             with self.assertRaises(SystemExit):
                 rs.aggregate_results(work_dir, stage1_dir, jobs, [1.0])
+
+
+class TestSimulateStageReplicates(unittest.TestCase):
+    def test_produces_one_ground_truth_and_triplet_set_per_replicate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            config = {
+                "d": 2, "alphas": [1.0, float("inf")], "n_triplets_per_gen": 10,
+                "seed": 1, "n_replicates": 3,
+                "synthetic_embedding": {"n_super": 2, "n_sub_per_super": 1, "n_items_per_sub": 3},
+            }
+            replicates = rs.simulate_stage(work_dir, config)
+            self.assertEqual(len(replicates), 3)
+            self.assertEqual([rep["rep"] for rep in replicates], [0, 1, 2])
+            for rep in replicates:
+                self.assertTrue(rep["gt_path"].exists())
+                self.assertEqual(set(rep["triplet_paths"].keys()), {"1.0", "Inf"})
+                for p in rep["triplet_paths"].values():
+                    self.assertTrue(p.exists())
+
+    def test_replicates_get_distinct_ground_truths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            config = {
+                "d": 2, "alphas": [1.0], "n_triplets_per_gen": 5, "seed": 1, "n_replicates": 2,
+                "synthetic_embedding": {"n_super": 2, "n_sub_per_super": 1, "n_items_per_sub": 3},
+            }
+            replicates = rs.simulate_stage(work_dir, config)
+            with open(replicates[0]["gt_path"], newline="") as f:
+                gt0 = f.read()
+            with open(replicates[1]["gt_path"], newline="") as f:
+                gt1 = f.read()
+            self.assertNotEqual(gt0, gt1)
+
+    def test_defaults_to_single_replicate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            config = {
+                "d": 2, "alphas": [1.0], "n_triplets_per_gen": 5, "seed": 1,
+                "synthetic_embedding": {"n_super": 2, "n_sub_per_super": 1, "n_items_per_sub": 3},
+            }
+            replicates = rs.simulate_stage(work_dir, config)
+            self.assertEqual(len(replicates), 1)
+
+
+class TestRunFitStageJobCount(unittest.TestCase):
+    def test_job_count_is_replicates_times_alphas_squared(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            config = {
+                "d": 2, "alphas": [1.0, 2.0, float("inf")], "n_triplets_per_gen": 5,
+                "seed": 1, "n_replicates": 4,
+                "synthetic_embedding": {"n_super": 2, "n_sub_per_super": 1, "n_items_per_sub": 3},
+            }
+            replicates = rs.simulate_stage(work_dir, config)
+
+            import unittest.mock as mock
+            with mock.patch.object(rs, "submit_and_wait"):
+                _stage_dir, jobs = rs.run_fit_stage(work_dir, replicates, config, {},
+                                                     "docker://example:latest")
+            self.assertEqual(len(jobs), 4 * 3 * 3)
+            reps_seen = {job[5] for job in jobs}
+            self.assertEqual(reps_seen, {0, 1, 2, 3})
 
 
 if __name__ == "__main__":

@@ -4,13 +4,14 @@ This describes how to run `condor_recovery_sweep_workflow.py` from a CHTC
 (or other HTCondor) submit node / access point. It answers a specific
 question: when the choice model used to **fit** an embedding differs from
 the choice model that actually **generated** the triplet judgments, how
-much does recovery error suffer -- and how does that cost scale with how
-far apart the two models are?
+much does recovery error suffer -- how does that cost scale with how far
+apart the two models are, and does that pattern hold up across repeated
+random draws, or is it just noise from a single simulation?
 
 Unlike the other three Condor workflows in this directory, this one needs
 **no input data file at all** -- it generates its own synthetic ground
-truth and simulated triplets, then fits and scores every (generating
-alpha, fitting alpha) pair.
+truth and simulated triplets, once per replicate, then fits and scores
+every (replicate, generating alpha, fitting alpha) combination.
 
 No R installation is needed on the submit node. Ground-truth/triplet
 simulation and result aggregation are plain Python (stdlib only, no
@@ -60,12 +61,17 @@ Open `my_params.yml` and set at minimum:
 
 - `alphas` — the continuum of choice-model shape parameters to cross with
   itself (both as the generating and the fitting model). Use YAML's `.inf`
-  literal for the exact Gaussian limit. The number of fits is
-  `len(alphas)^2`, so this is the main lever on total cost — the shipped
-  default (8 values, 64 fits) was chosen after calibrating a single fit at
-  ~46 minutes locally (CPU), i.e. ~49 hours of fitting work in total if
-  run serially, which is exactly why this is worth spreading across
-  Condor rather than running locally.
+  literal for the exact Gaussian limit.
+- `n_replicates` — number of independent replicate simulations (own ground
+  truth, own triplets) to run the whole `alphas` x `alphas` grid on. Total
+  fits = `n_replicates * len(alphas)^2` — with the shipped defaults (20
+  replicates, 8 alphas) that's 1280 fits, calibrated locally at ~46
+  minutes per fit (CPU), i.e. ~980 hours of total fitting work. This is
+  exactly why the workflow exists: with the CHTC pool running many fits
+  concurrently, wall-clock time is roughly however long the slowest single
+  fit takes, not the sum of all 1280. Lower `n_replicates` (e.g. back to 1)
+  for a quick single-draw look, or raise it further if you want tighter
+  error bars than 20 replicates give.
 - `d` — embedding dimensionality, for both the synthetic ground truth
   itself and every recovery fit (Procrustes scoring requires the two to
   match, so this one setting controls both).
@@ -88,15 +94,18 @@ Open `my_params.yml` and set at minimum:
 python3 condor_recovery_sweep_workflow.py my_params.yml
 ```
 
-This first generates the ground-truth embedding and every generating
-alpha's triplet set locally (fast — plain Python, no Condor job), then
-submits one Condor job per (generating alpha, fitting alpha) pair (all of
-them together, so HTCondor negotiates however many can run concurrently)
-and blocks on `condor_wait` until every one finishes, then aggregates
-every result locally. Since it only *orchestrates* the fit stage — all the
-actual fitting happens as Condor jobs, not in this process — it's safe to
-run directly on the access point inside a persistent session
-(`screen`/`tmux`/`nohup`) rather than as a Condor job itself.
+This first generates every replicate's ground-truth embedding and every
+generating alpha's triplet set locally (fast — plain Python, no Condor
+job), then submits one Condor job per (replicate, generating alpha,
+fitting alpha) combination (all of them together, so HTCondor negotiates
+however many can run concurrently) and blocks on `condor_wait` until
+every one finishes, then aggregates every result locally. Since it only
+*orchestrates* the fit stage — all the actual fitting happens as Condor
+jobs, not in this process — it's safe to run directly on the access point
+inside a persistent session (`screen`/`tmux`/`nohup`) rather than as a
+Condor job itself. With 1280 jobs queued at once, expect it to take a
+little longer than the other workflows here for HTCondor to fully
+negotiate and place everything, even before any fit itself finishes.
 
 ## Outputs
 
@@ -105,12 +114,12 @@ Written to `output_dir` (default `condor_recovery_sweep_output/`, set in
 
 | File | Contents |
 |---|---|
-| `stage0_simulate/ground_truth.csv` | The synthetic ground-truth embedding (`item`, `dim_0`, `dim_1`, `dim_2`) |
-| `stage0_simulate/triplets_gen<alpha>.csv` | Simulated triplets (`head`, `winner`, `loser`, 0-based) for each generating alpha |
-| `stage1_fit/result_genNfitM.csv` | One (generating, fitting) pair's recovery error, loss, and stopping epoch |
-| `results_long.csv` | Every pair's result, one row each (`gen_alpha`, `fit_alpha`, `recovery_error`, `loss`, `epoch`) |
-| `error_matrix.csv` | The same data pivoted into a generating-alpha x fitting-alpha matrix of recovery errors — the diagonal is "matched model" recovery; off-diagonal cells show the cost of mismatch |
-| `run_manifest.txt` | Config path, alphas, `d`, container image, for provenance |
+| `stage0_simulate/ground_truth_rep<r>.csv` | Replicate `r`'s synthetic ground-truth embedding (`item`, `dim_0`, `dim_1`, `dim_2`) |
+| `stage0_simulate/triplets_rep<r>_gen<alpha>.csv` | Replicate `r`'s simulated triplets (`head`, `winner`, `loser`, 0-based) for each generating alpha |
+| `stage1_fit/result_rep<r>_genNfitM.csv` | One (replicate, generating, fitting) combination's recovery error, loss, and stopping epoch |
+| `results_long.csv` | Every fit's result, one row each (`replicate`, `gen_alpha`, `fit_alpha`, `recovery_error`, `loss`, `epoch`) — the right input for any real statistical comparison (e.g. a paired test between two fitting alphas for the same generating alpha, across replicates) |
+| `error_matrix_mean.csv` / `error_matrix_sd.csv` | `results_long.csv` pivoted into a generating-alpha x fitting-alpha grid of the mean/SD recovery error across replicates — a quick first look, not a substitute for looking at `results_long.csv` directly for anything you intend to report |
+| `run_manifest.txt` | Config path, alphas, `n_replicates`, `d`, container image, for provenance |
 
 ## Troubleshooting
 

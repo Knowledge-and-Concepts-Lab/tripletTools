@@ -47,26 +47,31 @@ inst/condor/              # HTCondor workflows: pure-Python orchestrators (submi
                            #                                   individual_embeddings_params_template.yml,
                            #                                   README_individual_embeddings.md)
                            #   condor_recovery_sweep_workflow.py - choice-model recovery sweep:
-                           #                                   simulates a synthetic ground-truth
-                           #                                   embedding + triplets under each of
-                           #                                   N "generating" alphas (Student-t
-                           #                                   continuum; alpha=1 is exactly Crowd
-                           #                                   Kernel mu=1, alpha=Inf is the exact
-                           #                                   Gaussian/gamma=0.5 limit), fits a
-                           #                                   recovery embedding under every
-                           #                                   (generating, fitting) alpha pair (one
-                           #                                   Condor job each), and scores Procrustes
-                           #                                   recovery error into a gen x fit matrix.
-                           #                                   Takes no input data file -- ground
-                           #                                   truth/triplet simulation is done
-                           #                                   locally (stdlib Python, no numpy) by
-                           #                                   the orchestrator itself before any
-                           #                                   Condor job is queued. Only workflow
-                           #                                   here that bypasses train_embedding()'s
-                           #                                   CKL-only R wrapper, calling
-                           #                                   compute_embeddings.py's _fit_offline()
-                           #                                   directly via reticulate to select any
-                           #                                   noise model/alpha
+                           #                                   simulates n_replicates independent
+                           #                                   synthetic ground-truth embeddings +
+                           #                                   triplets under each of N "generating"
+                           #                                   alphas (Student-t continuum; alpha=1 is
+                           #                                   exactly Crowd Kernel mu=1, alpha=Inf is
+                           #                                   the exact Gaussian/gamma=0.5 limit),
+                           #                                   fits a recovery embedding under every
+                           #                                   (replicate, generating, fitting) alpha
+                           #                                   combination (one Condor job each -- e.g.
+                           #                                   20 replicates x 8x8 alphas = 1280 jobs),
+                           #                                   and scores Procrustes recovery error,
+                           #                                   aggregated into a long-format CSV plus a
+                           #                                   gen x fit mean/SD matrix. Replication is
+                           #                                   what makes claims about specific
+                           #                                   off-diagonal cells trustworthy rather
+                           #                                   than single-draw noise. Takes no input
+                           #                                   data file -- ground truth/triplet
+                           #                                   simulation is done locally (stdlib
+                           #                                   Python, no numpy) by the orchestrator
+                           #                                   itself before any Condor job is queued.
+                           #                                   Only workflow here that bypasses
+                           #                                   train_embedding()'s CKL-only R wrapper,
+                           #                                   calling compute_embeddings.py's
+                           #                                   _fit_offline() directly via reticulate
+                           #                                   to select any noise model/alpha
                            #                                   (condor_recovery_fit.R,
                            #                                   recovery_sweep_params_template.yml,
                            #                                   README_recovery_sweep.md)

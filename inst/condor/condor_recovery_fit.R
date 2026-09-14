@@ -17,19 +17,23 @@
 #
 # Usage (all arguments are --key=value, order doesn't matter):
 #   Rscript condor_recovery_fit.R \
-#     --triplets=triplets_gen1.csv --ground_truth=ground_truth.csv \
-#     --gen_alpha=1 --fit_alpha=2 --output=result_gen1_fit2.csv \
+#     --triplets=triplets_rep0_gen1.csv --ground_truth=ground_truth_rep0.csv \
+#     --replicate=0 --gen_alpha=1 --fit_alpha=2 --output=result_rep0_gen1fit2.csv \
 #     --d=3 --seed=2101 --test_frac=0.1 \
 #     --max_epochs=60000 --tolerance=1e-4 --tol_window=3000 --device=cpu
 #
 # --triplets: CSV with columns head,winner,loser (0-based item indices),
-#   already simulated under --gen_alpha by the orchestrator -- this script
-#   does no simulation itself, only fitting and scoring.
+#   already simulated under --gen_alpha (from this job's own replicate's
+#   ground truth) by the orchestrator -- this script does no simulation
+#   itself, only fitting and scoring.
 # --ground_truth: CSV with an "item" column plus one column per coordinate
-#   dimension (dim_0, dim_1, ...), also written by the orchestrator.
-# --gen_alpha is not used in the fit itself -- it is only echoed into the
-#   output row so the aggregation step can build the gen x fit error
-#   matrix without having to parse it back out of a filename.
+#   dimension (dim_0, dim_1, ...), also written by the orchestrator -- one
+#   per replicate, since each replicate has its own independently
+#   simulated ground truth.
+# --replicate and --gen_alpha are not used in the fit itself -- they are
+#   only echoed into the output row so the aggregation step can group
+#   results by replicate and build the gen x fit error matrix without
+#   having to parse them back out of a filename.
 
 parse_args <- function(raw) {
   bad <- !grepl("^--[^=]+=", raw)
@@ -44,8 +48,8 @@ parse_args <- function(raw) {
 
 opt <- parse_args(commandArgs(trailingOnly = TRUE))
 
-required <- c("triplets", "ground_truth", "gen_alpha", "fit_alpha", "output", "d", "seed",
-              "test_frac", "max_epochs", "tolerance", "tol_window", "device")
+required <- c("triplets", "ground_truth", "replicate", "gen_alpha", "fit_alpha", "output", "d",
+              "seed", "test_frac", "max_epochs", "tolerance", "tol_window", "device")
 missing <- setdiff(required, names(opt))
 if (length(missing)) {
   stop("Missing required arguments: ", paste0("--", missing, collapse = ", "), call. = FALSE)
@@ -107,6 +111,7 @@ rownames(recovered) <- gt_items
 recovery_error <- get.rep.dist(list(truth = gt, recovered = recovered), metric = "sqrt_ss")[1, 2]
 
 out <- data.frame(
+  replicate      = opt$replicate,
   gen_alpha      = opt$gen_alpha,
   fit_alpha      = opt$fit_alpha,
   recovery_error = recovery_error,
