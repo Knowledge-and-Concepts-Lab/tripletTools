@@ -25,7 +25,7 @@ inst/requirements.txt     # conda packages for the Python env
 inst/condor/              # HTCondor workflows: pure-Python orchestrators (submit node,
                            #   no R needed there) dispatching per-job R scripts that run
                            #   inside the tripletTools container (built by
-                           #   .github/workflows/docker-publish.yml). Three independent
+                           #   .github/workflows/docker-publish.yml). Four independent
                            #   workflows, each with its own orchestrator/per-job-script/
                            #   config-template/unittest set:
                            #   condor_workflow.py           - dimensionality search -> learning
@@ -46,6 +46,30 @@ inst/condor/              # HTCondor workflows: pure-Python orchestrators (submi
                            #                                   (condor_individual_fit.R,
                            #                                   individual_embeddings_params_template.yml,
                            #                                   README_individual_embeddings.md)
+                           #   condor_recovery_sweep_workflow.py - choice-model recovery sweep:
+                           #                                   simulates a synthetic ground-truth
+                           #                                   embedding + triplets under each of
+                           #                                   N "generating" alphas (Student-t
+                           #                                   continuum; alpha=1 is exactly Crowd
+                           #                                   Kernel mu=1, alpha=Inf is the exact
+                           #                                   Gaussian/gamma=0.5 limit), fits a
+                           #                                   recovery embedding under every
+                           #                                   (generating, fitting) alpha pair (one
+                           #                                   Condor job each), and scores Procrustes
+                           #                                   recovery error into a gen x fit matrix.
+                           #                                   Takes no input data file -- ground
+                           #                                   truth/triplet simulation is done
+                           #                                   locally (stdlib Python, no numpy) by
+                           #                                   the orchestrator itself before any
+                           #                                   Condor job is queued. Only workflow
+                           #                                   here that bypasses train_embedding()'s
+                           #                                   CKL-only R wrapper, calling
+                           #                                   compute_embeddings.py's _fit_offline()
+                           #                                   directly via reticulate to select any
+                           #                                   noise model/alpha
+                           #                                   (condor_recovery_fit.R,
+                           #                                   recovery_sweep_params_template.yml,
+                           #                                   README_recovery_sweep.md)
 vignettes/
   tripletTools.Rmd                  # "Get started" guide (name matches pkgname -- pkgdown auto-promotes it
                                      #   to a top-level navbar link instead of the Articles dropdown). Only

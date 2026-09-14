@@ -1,0 +1,101 @@
+# ---------------------------------------------------------------------------
+# tripletTools choice-model recovery-sweep Condor workflow configuration
+#
+# Copy this file, edit the fields below, and pass it as the single argument
+# to condor_recovery_sweep_workflow.py on the submit node:
+#
+#   python3 condor_recovery_sweep_workflow.py my_params.yml
+#
+# No R installation is needed on the submit node -- only Python 3 and
+# PyYAML (pip install --user pyyaml). Every embedding fit runs inside the
+# tripletTools container image via HTCondor's container universe.
+#
+# What this does: generates one synthetic ground-truth embedding, simulates
+# a triplet dataset from it under each of `alphas` (the "generating"
+# choice model), then fits a recovery embedding from EVERY (generating
+# alpha, fitting alpha) pair -- len(alphas)^2 completely independent fits
+# -- and scores each one's recovery error (Procrustes distance) against
+# the known ground truth. Answers whether recovery is always best when the
+# fitting choice model matches the one that generated the data, and how
+# fast it degrades off that diagonal.
+#
+# alpha is one continuum, not a set of unrelated methods: finite alpha is
+# a Student-t kernel (alpha=1 is exactly Crowd Kernel with mu=1); alpha=Inf
+# is the exact Gaussian/gamma=0.5 limit.
+# ---------------------------------------------------------------------------
+
+# Directory (on the submit node) where all outputs are written:
+# stage0_simulate/ (ground truth + per-generating-alpha triplet CSVs),
+# stage1_fit/ (per-pair fit outputs), plus results_long.csv,
+# error_matrix.csv, and run_manifest.txt at the top level. Created if it
+# doesn't exist.
+output_dir: condor_recovery_sweep_output
+
+# Embedding dimensionality. Used for BOTH the synthetic ground truth
+# itself and every recovery fit -- get.rep.dist()'s Procrustes comparison
+# requires the two to share a dimensionality, so changing this changes
+# the ground truth's geometry too, not just the fits.
+d: 3
+
+# The alpha continuum, used as BOTH the generating and fitting choice
+# model grid (every value is crossed with every other). Use `.inf` (not
+# `Inf`/`inf`) for YAML's infinity literal. Calibrated cost: at the
+# max_epochs/tol_window below, one fit took ~46 minutes locally, so 8
+# alphas (64 fits) is roughly 49 hours of fitting work in total -- this is
+# exactly why it's worth spreading across Condor rather than running
+# serially.
+alphas: [0.1, 0.5, 1, 2, 5, 10, 20, .inf]
+
+# Triplets simulated per generating alpha (shared across all fitting
+# alphas tested against that generating alpha's data).
+n_triplets_per_gen: 4000
+
+# Fraction of each generating alpha's triplets held out as a test set for
+# early stopping, identical across every fit.
+test_frac: 0.1
+
+# Base random seed. Ground truth generation uses this seed directly; each
+# generating alpha's triplet simulation uses 1000 + its position in
+# `alphas`; each fit's initialization/training uses
+# seed + 100*(generating position) + (fitting position), so every one of
+# the len(alphas)^2 fits gets a distinct, reproducible seed.
+seed: 1
+
+# --- Synthetic ground-truth embedding -----------------------------------
+# Hierarchical/multi-scale, at the dimensionality set by `d` above:
+# n_super widely separated superclusters, each with n_sub_per_super
+# moderately separated subclusters, each with n_items_per_sub tightly
+# packed items -- producing small, medium, and large true pairwise
+# distances so choice models with different tail behavior have the best
+# chance to diverge. Total items = n_super * n_sub_per_super *
+# n_items_per_sub (defaults below: 50).
+synthetic_embedding:
+  n_super: 5
+  n_sub_per_super: 2
+  n_items_per_sub: 5
+  super_radius: 12
+  sub_offset: 2.5
+  within_sd: 0.3
+
+# --- HTCondor settings -------------------------------------------------------
+condor:
+  # docker:// reference to the tripletTools container image, built and
+  # published by .github/workflows/docker-publish.yml at the repo root.
+  # Every fit job runs inside this image via universe = container -- no R,
+  # conda, or tripletTools installation is assumed on whatever execute node
+  # the job lands on.
+  container_image: docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest
+  resources:
+    request_cpus: 1
+    request_memory: 4GB
+    request_disk: 8GB   # covers the pulled/unpacked container image
+
+# --- Embedding-fit settings ---------------------------------------------------
+# Applied to every one of the len(alphas)^2 fits. Calibrated locally
+# (15000/1500 still hit the epoch ceiling with test accuracy still
+# improving; 60000/3000 plateaus, ~46 min/fit on CPU) -- adjust if your
+# own calibration run on the execute nodes' hardware suggests otherwise.
+max_epochs: 60000
+tolerance: 1e-4
+tol_window: 3000
+device: cpu           # execute nodes in the general CHTC pool have no GPU
