@@ -14,6 +14,18 @@
 #' which is especially important when computing within and between-participant
 #' consistency on validation trials.
 #'
+#' The two options (\code{Left}/\code{Right}) are ordered using
+#' \code{\link[stringr]{str_sort}(numeric = TRUE)} before being joined into the
+#' name, so embedded numbers are compared by numeric value rather than
+#' digit-by-digit (e.g. \code{"deg2"} sorts before \code{"deg10"}, not after).
+#' This ordering only needs to be consistent -- the same two options always
+#' producing the same name regardless of which was \code{Left} and which was
+#' \code{Right} on a given trial -- not "alphabetical" in any meaningful
+#' sense, which is why using an ordering that also happens to sort numbers
+#' sensibly is a strict improvement with no downside.
+#'
+#' @importFrom stringr str_sort
+#'
 #' @export
 #'
 #' @examples
@@ -46,8 +58,9 @@ make.tripnames <- function(tripdat){
   cent <- gsub(" ","",tripdat$Center) #Center item on each triplet, spaced removed
   nitems <- dim(opts)[1] #Total number of items
 
-  #Put two options in alphabetical order for all triplets:
-  for(i in c(1:nitems)) opts[i,] <- sort(opts[i,])
+  #Put two options in a consistent order for all triplets (numeric-aware,
+  #so e.g. "deg2"/"deg10" order by value rather than digit-by-digit):
+  for(i in c(1:nitems)) opts[i,] <- str_sort(opts[i,], numeric = TRUE)
 
   #Return vector
   paste(cent, opts[,1], opts[,2], sep="_")

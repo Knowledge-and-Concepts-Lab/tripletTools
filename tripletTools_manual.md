@@ -395,7 +395,7 @@ Given a list of embeddings, this function computes the procrustes distance betwe
 ### Usage
 
 ```r
-get.rep.dist(elist, rootflag = TRUE)
+get.rep.dist(elist, metric = c("sqrt_ss", "corr_dist", "ss"))
 ```
 
 ### Arguments
@@ -403,13 +403,13 @@ get.rep.dist(elist, rootflag = TRUE)
 | Argument | Description |
 |---|---|
 | `elist` | List of embeddings. |
-| `rootflag` | Compute square root of distance? Defaults to `TRUE`. |
+| `metric` | Which distance to compute from the Procrustes fit between each pair: `"sqrt_ss"` (default) is `sqrt(ss)`, the standard Procrustes distance from the shape-analysis literature -- an actual Euclidean distance between the two optimally aligned configurations, recommended for distance-based methods like clustering, k-medoids, or MDS. `"corr_dist"` is `1 - sqrt(1 - ss)`, i.e. one minus the Procrustes "correlation" (this was the function's only behavior before `metric` was added, previously selected via `rootflag = TRUE`); not guaranteed to satisfy the triangle inequality. `"ss"` is the raw normalized sum of squares (`sqrt_ss^2`), which behaves like a *squared* distance -- rank-based methods (single/complete linkage) are unaffected by using `"ss"` vs. `"sqrt_ss"`, but methods sensitive to the actual metric values (Ward's linkage, k-medoids, MDS) should use `"sqrt_ss"`. |
 
 ### Details
 
 Each element of the list should contain a matrix of embedding coordinates from one participant. Each embedding should contain the same items in the same order, and should be of the same dimension.
 
-By default the distance metric is the procrustes equivalent of Pearson's correlation, that is `1 - sqrt(1 - ss)` where `ss` is the normalized sum of squares from the aligned embeddings. If `rootflag=FALSE`, the normalized sum of squares is used as the distance metric.
+All three metrics are computed from `ss`, the normalized sum of squares from a symmetric Procrustes alignment (rotation, reflection, and scaling) between each pair, and are already bounded in [0,1] -- no further normalization is needed before using them for clustering.
 
 ### Value
 
@@ -432,6 +432,9 @@ s3 <- matrix(
 slist <- list(s1, s2, s3)
 sdist <- get.rep.dist(slist)
 head(sdist)
+
+# Cluster participants using the recommended default metric:
+hclust(as.dist(sdist), method = "ward.D")
 ```
 
 ---
@@ -1156,12 +1159,12 @@ strsplit1(x, split = ",")
 
 ### Description
 
-This function generates predicted responses on a set of triplet items given an embedding of the items, and appends the model prediction as an additional column named `ModPred` to the triplet data file.
+This function generates predicted responses on a set of triplet items given an embedding of the items, and appends the model prediction as an additional column to the triplet data file, named after the embedding argument itself by default (see `pred_name` below).
 
 ### Usage
 
 ```r
-test.model(m, vdat, isemb = TRUE)
+test.model(m, vdat, isemb = TRUE, pred_name = NULL)
 ```
 
 ### Arguments
@@ -1171,10 +1174,11 @@ test.model(m, vdat, isemb = TRUE)
 | `m` | An embedding of the stimuli or matrix of distances among stimuli. Rows must have names that correspond with the triplet data. |
 | `vdat` | Data frame containing triplet data. Must include columns named `Center`, `Left`, and `Right`, and names here must match row names of model. |
 | `isemb` | Is model an embedding? If `TRUE` (default), compute Euclidean distance matrix; otherwise treat model as the distance matrix. |
+| `pred_name` | Character or `NULL` (default). Name of the appended prediction column. When `NULL`, derived automatically from the expression passed as `m` -- e.g. `test.model(icon3d, valsum)` names the column `icon3d` -- sanitized with `make.names()`. Set this explicitly for a predictable name when `m` isn't a plain variable (e.g. `test.model(embeddings[[1]], valsum)`), or when calling `test.model` from inside another function. |
 
 ### Details
 
-The returned object will be a data frame with an added field `ModPred` that contains the predicted response for the triplet given the embedding. This response will be whichever of the two choice items (`Left` or `Right`) has the smallest Euclidean distance to the target item (`Center`) in the embedding space.
+The returned object will be a data frame with an added field (named per `pred_name` above) that contains the predicted response for the triplet given the embedding. This response will be whichever of the two choice items (`Left` or `Right`) has the smallest Euclidean distance to the target item (`Center`) in the embedding space.
 
 If the triplet dataframe also includes a field labelled `Answer` that contains the true, human-generated answer for the triplet, then the model predictions can be easily converted to a proportion correct score as follows:
 
@@ -1182,28 +1186,32 @@ If the triplet dataframe also includes a field labelled `Answer` that contains t
 mean(output$ModPred == output$Answer)
 ```
 
-where `output` is the dataframe returned by the function.
+where `output` is the dataframe returned by the function, and `ModPred` is replaced by whatever `pred_name` was used (see above).
 
 ### Value
 
-Returns the triplet dataframe with the column `ModPred` added, which contains the predicted triplet response given the embedding or distance matrix.
+Returns the triplet dataframe with the prediction column added, which contains the predicted triplet response given the embedding or distance matrix.
 
 ### Examples
 
 ```r
-m <- data.frame(
+toy_embedding <- data.frame(
   x = c(1, 1.1, 2, 2.1),
   y = c(1.25, 1.75, 1.25, 2.75))
 
-row.names(m) <- c("cat", "dog", "car", "boat")
-m <- as.matrix(m)
+row.names(toy_embedding) <- c("cat", "dog", "car", "boat")
+toy_embedding <- as.matrix(toy_embedding)
 
 tr <- data.frame(
    Center = c("cat", "car"),
    Left   = c("dog", "boat"),
    Right  = c("car", "dog"))
 
-test.model(m, tr, isemb = TRUE)
+# Appends a column named "toy_embedding"
+test.model(toy_embedding, tr, isemb = TRUE)
+
+# Appends a column named "ModPred" instead
+test.model(toy_embedding, tr, isemb = TRUE, pred_name = "ModPred")
 ```
 
 ---

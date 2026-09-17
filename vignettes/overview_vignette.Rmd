@@ -156,10 +156,10 @@ cat("Hold-out prediction accuracy (participant 1):", round(acc1, 3), "\n")
 
 Chance performance is 0.50. Values above approximately 0.60 are generally considered reasonable for a 2-D embedding.
 
-`test.model` returns trial-level predictions, making it easy to inspect specific errors or compute accuracy on any subset of trials:
+`test.model` returns trial-level predictions, making it easy to inspect specific errors or compute accuracy on any subset of trials. By default the prediction column is named after whatever expression is passed as the embedding argument (sanitized into a valid column name), so pass `pred_name` explicitly for a predictable name when calling it with something other than a plain variable, as here:
 
 ```{r test-model}
-result     <- test.model(icon_emb_ind[[1]], icon_triplets[[1]])
+result     <- test.model(icon_emb_ind[[1]], icon_triplets[[1]], pred_name = "ModPred")
 test_rows  <- result$sampleSet == "test"
 mean(result$ModPred[test_rows] == result$Answer[test_rows], na.rm=TRUE)
 ```
@@ -229,7 +229,7 @@ If z-scores are reliably positive across participants, this is evidence of meani
 
 ## Representational distances between participants
 
-`get.rep.dist` computes the pairwise *procrustes distance* between all pairs of embeddings. Two embeddings that can be brought into near-perfect alignment by rotation, scaling, and reflection have a low distance; embeddings that remain dissimilar after alignment have a high distance.
+`get.rep.dist` computes the pairwise *procrustes distance* between all pairs of embeddings. Two embeddings that can be brought into near-perfect alignment by rotation, scaling, and reflection have a low distance; embeddings that remain dissimilar after alignment have a high distance. Its default `metric = "sqrt_ss"` is the standard Procrustes distance used in the shape-analysis literature, and the recommended choice for exactly the kind of distance-based clustering below (see `?get.rep.dist` for the other available metrics, e.g. a correlation-style alternative).
 
 ```{r repdist}
 repdist <- get.rep.dist(icon_emb_ind)

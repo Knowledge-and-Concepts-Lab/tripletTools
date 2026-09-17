@@ -13,7 +13,9 @@ read_raw_data(
   max_prop_wrong = 1,
   test_prop = 0.1,
   seed = 42,
-  stimuli_extension = ".png"
+  train_with_validation = TRUE,
+  stimuli_extension = ".png",
+  worker_id_regex = NULL
 )
 }
 \arguments{
@@ -47,8 +49,24 @@ assigned to the test set in the train/test split. Passed to
 \item{seed}{Integer. Random seed for reproducible train/test splitting.
 Passed to \code{\link{assign_sample_sets}}. Default: \code{42}.}
 
+\item{train_with_validation}{Logical. Whether \code{sampleAlg ==
+"validation"} trials are assigned to \code{"train"} (\code{TRUE}, the
+default) or held out as \code{"test"} (\code{FALSE}) -- set this to
+\code{FALSE} when validation trials are instead being used to evaluate
+a fitted embedding. Passed to \code{\link{assign_sample_sets}}.}
+
 \item{stimuli_extension}{Character. File extension (including the leading
 dot) to strip from stimulus and choice names. Default: \code{".png"}.}
+
+\item{worker_id_regex}{Character or \code{NULL}. Only used when a file has
+no recognised participant-ID column (see \emph{Column-name flexibility}
+below). A regular expression with one capture group, applied to the
+file's base name (without directory or extension); the captured group
+becomes that file's \code{worker_id}. For example,
+\code{"motion_(\\\\d+)_part\\\\d+"} extracts \code{"87059"} from
+\code{"motion_87059_part1.csv"}. If \code{NULL} (default), or if the
+regex does not match, the full base file name is used as the
+\code{worker_id} instead.}
 }
 \value{
 A list returned invisibly with two elements:
@@ -66,3 +84,22 @@ Reads all CSV files exported from a jsPsych triplet experiment, filters to
 experiment trials, applies quality-control exclusions, and returns cleaned
 data ready for modelling. Optionally writes the results to disk.
 }
+\section{Column-name flexibility}{
+
+Different jsPsych triplet experiments (and different versions of the same
+experiment code) do not always export identical column names. Before
+combining files, each one is checked for a small set of known aliases:
+\describe{
+\item{Trial category}{Recognised input names: \code{trial_category},
+\code{sampleAlg}, \code{AlgSample}. If none is found in a file, the
+function stops with an error naming that file.}
+\item{Participant ID (\code{worker_id})}{Recognised input names:
+\code{worker_id}, \code{sessionID}, \code{session_ID}, \code{puid},
+\code{Participant.ID}, \code{sub_id}, \code{pid}. If none is found,
+an ID is derived from the file name instead (see
+\code{worker_id_regex}) rather than raising an error, since some
+jsPsych configurations never write a participant-ID column at all and
+rely on one file per participant instead.}
+}
+}
+

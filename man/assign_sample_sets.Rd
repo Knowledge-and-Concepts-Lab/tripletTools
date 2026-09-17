@@ -4,18 +4,29 @@
 \alias{assign_sample_sets}
 \title{Assign trials to train or test sets}
 \usage{
-assign_sample_sets(df, test_prop = 0.2, seed = 42)
+assign_sample_sets(
+  df,
+  test_prop = 0.2,
+  seed = 42,
+  train_with_validation = TRUE
+)
 }
 \arguments{
 \item{df}{Data frame with columns \code{worker_id} and \code{sampleAlg}.
 \code{sampleAlg} must contain the values \code{"check"},
 \code{"random"}, and/or \code{"validation"}.}
 
-\item{test_prop}{Numeric between 0 and 1. Proportion of non-check trials to
-assign to the test set. Default: \code{0.2}.}
+\item{test_prop}{Numeric between 0 and 1. Proportion of non-check,
+non-validation trials to assign to the test set. Default: \code{0.2}.}
 
 \item{seed}{Integer. Random seed passed to \code{\link[base]{set.seed}}
 for reproducibility. Default: \code{42}.}
+
+\item{train_with_validation}{Logical. Whether \code{sampleAlg ==
+"validation"} trials are assigned to \code{"train"} (\code{TRUE},
+the default) or \code{"test"} (\code{FALSE}) -- set this to
+\code{FALSE} when validation trials are instead being held out to
+evaluate a fitted embedding. See \emph{Validation trials} below.}
 }
 \value{
 The input data frame with an additional character column
@@ -33,13 +44,30 @@ The split is performed per participant so that each participant contributes
 approximately \code{test_prop} of their trials to the test set. Setting
 \code{seed} ensures the assignment is reproducible.
 }
+\section{Validation trials}{
+
+\code{sampleAlg == "validation"} trials are a separate category from the
+\code{"random"} trials that \code{test_prop} splits -- they're routed
+entirely by \code{train_with_validation} instead: all to \code{"train"}
+(the default) when they're not being used to evaluate an embedding, or
+all to \code{"test"} when they are. Re-running this function on the same
+\code{df} (which must still have \code{sampleAlg}, so this only works
+before it's dropped from a pipeline's output) with the same \code{seed}
+but a different \code{train_with_validation} reproduces an identical
+\code{"random"}-trial split and only changes validation trials, since
+validation rows never consume any of the random draws \code{test_prop}
+uses.
+}
+
 \examples{
 \dontrun{
 d <- data.frame(
   worker_id = rep("p1", 10),
-  sampleAlg = c(rep("random", 8), rep("check", 2))
+  sampleAlg = c(rep("random", 6), rep("check", 2), rep("validation", 2))
 )
 assign_sample_sets(d, test_prop = 0.2, seed = 1)
+# Hold validation trials out for evaluation instead:
+assign_sample_sets(d, test_prop = 0.2, seed = 1, train_with_validation = FALSE)
 }
 
 }

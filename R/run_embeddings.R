@@ -70,6 +70,8 @@
 #'     \code{\link{train_embedding}}.}
 #' }
 #'
+#' @importFrom stringr str_sort
+#'
 #' @export
 #'
 #' @examples
@@ -109,10 +111,12 @@ run_group_embedding_from_list <- function(triplet_list,
   geometry <- match.arg(geometry)
   set.seed(seed)
 
-  # Collect and sort all item names for consistent zero-based indexing
-  all_items <- sort(unique(unlist(lapply(triplet_list, function(df) {
+  # Collect and sort all item names for consistent zero-based indexing.
+  # numeric = TRUE compares embedded numbers by value (e.g. "deg2" before
+  # "deg10"), not digit-by-digit.
+  all_items <- stringr::str_sort(unique(unlist(lapply(triplet_list, function(df) {
     c(df$Center, df$Left, df$Right)
-  }))))
+  }))), numeric = TRUE)
 
   warm_start_mat <- NULL
   if (!is.null(warm_start)) {
@@ -369,6 +373,8 @@ run_embeddings <- function(input_file,
 #'     \code{n_train_triplets}, \code{n_test_triplets}.}
 #' }
 #'
+#' @importFrom stringr str_sort
+#'
 #' @export
 #'
 #' @examples
@@ -400,10 +406,12 @@ run_embeddings_from_list <- function(triplet_list,
                                      geometry   = c("euclidean", "sphere"),
                                      radius     = 1) {
   geometry <- match.arg(geometry)
-  # Collect all item names across all participants and sort alphabetically
-  all_items <- sort(unique(unlist(lapply(triplet_list, function(df) {
+  # Collect all item names across all participants and sort them.
+  # numeric = TRUE compares embedded numbers by value (e.g. "deg2" before
+  # "deg10"), not digit-by-digit.
+  all_items <- stringr::str_sort(unique(unlist(lapply(triplet_list, function(df) {
     c(df$Center, df$Left, df$Right)
-  }))))
+  }))), numeric = TRUE)
 
   # Combine all participants into one data frame, excluding check trials,
   # and convert item names to zero-based integer indices

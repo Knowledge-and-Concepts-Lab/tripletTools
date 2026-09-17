@@ -12,10 +12,13 @@ participant. Names should be participant identifiers, as returned by
 \code{get_combined}.}
 }
 \value{
-Names list with two elements. \code{majority} is a matrix with one row per
-validation triplet, reporting the winning choice and proportion of participants
-who selected ite. \code{bysbj} is a matrix indicating, for each participant (rows)
-and validation triplet (columns), the choice the participant made.
+Names list with two elements. \code{majority} is a data frame with one row
+per validation triplet, with columns \code{triplet} (the unique triplet code from
+\code{make.tripnames}), \code{majority} (the winning choice), \code{pmaj} (proportion of
+participants who selected it), and \code{Center}/\code{Left}/\code{Right} (the triplet's
+items, in the format \code{test.model} expects -- see Details). \code{bysbj} is a
+matrix indicating, for each participant (rows) and validation triplet
+(columns), the choice the participant made.
 }
 \description{
 This function uses the validation trials from triplet data to construct
@@ -23,8 +26,13 @@ a subject-by-trial matrix of judgments on these items.
 }
 \details{
 Each validation triplet is identified with a unique code of the kind generated
-by \code{make.tripnames} which indicates the target word and the two options, with
-the options ordered alphabetically.
+by \code{make.tripnames}, which indicates the target word and the two options in a
+consistent, numeric-aware order (see \verb{\link{make.tripnames}}).
+
+Because \code{majority} includes \code{Center}/\code{Left}/\code{Right} columns, it can be passed
+directly to \code{\link{test.model}} (together with a fitted embedding) to
+get each validation triplet's predicted response as an added \code{ModPred}
+column, and compare that to the human majority vote in \code{majority}.
 
 Where a participant judged a particular validation triplet the entries of \code{bysbj}
 will indicate the proportion of times the participant's decision agreed with
