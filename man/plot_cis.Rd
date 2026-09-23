@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_cis.R
 \name{plot_cis}
 \alias{plot_cis}
-\title{Plot column means and confidence intervals}
+\title{Plot column means and 95\% confidence intervals}
 \usage{
 plot_cis(
   d,
@@ -10,34 +10,98 @@ plot_cis(
   newflag = TRUE,
   xvals = NULL,
   rgbvec = c(0, 0, 1),
+  capfrac = 0.8,
   ...
 )
 }
 \arguments{
-\item{d}{A matrix of numerical data}
+\item{d}{A numeric matrix (or object coercible to one, e.g. a data frame of
+numeric columns) with more than one row. Each column is treated as one
+group/condition/item to summarize; each row is one observation (e.g. one
+participant). Column names, if present, are copied to the returned
+summary matrix.}
 
-\item{barflag}{Flag indicating whether a barplot is desired}
+\item{barflag}{Logical. If \code{TRUE}, plot a barplot with error bars via
+\code{\link[graphics]{barplot}}. If \code{FALSE} (default), plot a line
+for the column means with a transparent ribbon for the confidence
+interval.}
 
-\item{newflag}{Should new plot be generated, default T}
+\item{newflag}{Logical, default \code{TRUE}. Only used when
+\code{barflag = FALSE}: whether to start a new plot (\code{TRUE}) or add
+the line/ribbon to the current plot (\code{FALSE}), e.g. to overlay a
+second condition on an existing ribbon plot. \strong{Has no effect when
+\code{barflag = TRUE}} -- \code{\link[graphics]{barplot}} always starts a
+new plot.}
 
-\item{xvals}{Vector of x values equal in length to number of columns in d}
+\item{xvals}{Numeric vector of x-axis positions for each column, or
+\code{NULL} (default) to use \code{1:ncol(d)}. Must have length equal to
+\code{ncol(d)}. \strong{Only used when \code{barflag = FALSE}} -- bar
+positions in barplot mode come from \code{\link[graphics]{barplot}}
+itself and do not depend on \code{xvals}.}
 
-\item{rgbvec}{Vector of red, green, blue proportions}
+\item{rgbvec}{Numeric vector of length 3, the red/green/blue proportions
+(each in \code{[0, 1]}) used for the mean line and ribbon fill. Default
+\code{c(0, 0, 1)} (blue). \strong{Only used when \code{barflag = FALSE}}
+-- bar colors in barplot mode follow \code{\link[graphics]{barplot}}'s
+own defaults (or \code{col}, passed via \code{...}).}
 
-\item{...}{Other graphical parameters}
+\item{capfrac}{Numeric in \code{(0, 1]}, default \code{0.8}. Only used
+when \code{barflag = TRUE}: the width of each error bar's horizontal cap
+(the flat top/bottom of the "I"-beam drawn by
+\code{\link[graphics]{arrows}}), as a fraction of that bar's own width --
+so caps stay proportional to the bars regardless of how many bars there
+are or how wide the plot is. See \emph{Details} for why this replaced an
+earlier, unit-inconsistent computation.}
+
+\item{...}{Additional graphical parameters passed through to
+\code{\link[graphics]{barplot}} (when \code{barflag = TRUE}) or to
+\code{\link[graphics]{plot}} (when \code{barflag = FALSE} and
+\code{newflag = TRUE}) -- e.g. \code{col}, \code{ylim}, \code{main},
+\code{xlab}/\code{ylab}, or (for the barplot case) \code{width} to
+change the bars' own width from the default of 1.}
 }
 \value{
-Invisibly returns matrix of column means and 95\% confidence intervals
+Invisibly returns a 3-row numeric matrix with row names
+\code{"mean"}, \code{"upperci"}, \code{"lowerci"} and one column per
+column of \code{d} (column names copied from \code{d} if present).
 }
 \description{
-Plot column means and confidence intervals
+Computes the mean and a 95\% confidence interval (via \code{\link[stats]{t.test}})
+for each column of a numeric matrix, then plots them either as a line-and-ribbon
+plot (default) or as a barplot with error bars.
 }
 \details{
-This function computes the mean and 95\% confidence intervals of each column
-in \code{d} and plots these either as a line plot with a transparent ribbon
-(default) or as a barplot.
+For each column, missing values (\code{NA}) are dropped before computing
+the mean and confidence interval. A column with zero remaining values
+returns \code{NA} for all three summary rows. A column with exactly one
+remaining value, or zero variance, has no well-defined confidence interval
+-- \code{"upperci"}/\code{"lowerci"} are both set equal to \code{"mean"}
+in that case (a zero-width interval), rather than \code{NA}, so the point
+still plots even though there's nothing meaningful to say about its
+uncertainty. Treat a zero-width interval in the output as "not enough data
+to estimate a CI," not as genuine certainty.
+
+\strong{Why \code{capfrac} instead of a fixed \code{length} passed to
+\code{\link[graphics]{arrows}}:} an earlier version of this function
+computed the error-bar cap width as a fraction of the \emph{data} range
+(bar spacing relative to the total x-axis range) and passed that number
+directly as \code{arrows(..., length = )}, which \pkg{graphics} interprets
+in \strong{inches}, not as a fraction of anything data-related. Those two
+quantities are unrelated units, so the resulting cap width scaled
+incorrectly with the number of bars -- with only a few, widely-spaced
+bars, the old formula could produce caps several inches wide. This version
+instead computes the desired cap width in data coordinates directly (as
+\code{capfrac} of the actual bar width, using \code{width} from \code{...}
+if supplied, matching \code{\link[graphics]{barplot}}'s own default of 1
+otherwise) and converts \emph{that} to inches using the plot's actual
+data-to-device scale (\code{par("pin")}/\code{par("usr")}), so the cap
+stays a consistent, correctly-scaled fraction of each bar regardless of
+bar count or plot size.
 }
 \examples{
-x <- matrix(c(1:12),3,4)
+x <- matrix(1:12, 3, 4)
 plot_cis(x)
+
+# As a barplot, with narrower error-bar caps
+plot_cis(x, barflag = TRUE, capfrac = 0.5)
 }
