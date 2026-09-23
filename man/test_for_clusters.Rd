@@ -7,6 +7,7 @@
 test_for_clusters(
   dist_mat,
   max_clusters = 5,
+  k_use = NULL,
   m = NULL,
   seed = NULL,
   verbose = TRUE
@@ -20,6 +21,15 @@ test_for_clusters(
 the BIC comparison (the G = 1, "no clusters" baseline is always
 included in addition). Default 5. Must be less than the number of
 participants.}
+
+\item{k_use}{Integer or \code{NULL}. Number of classical-MDS dimensions
+to use for both the Hopkins statistic and the BIC comparison. Default
+\code{NULL} estimates it automatically via
+\code{\link{estimate_intrinsic_dimension}} -- see \emph{Dimensionality
+reduction} below for why this matters far more than it might seem.
+Pass an integer to bypass estimation and use a fixed number of
+dimensions directly (must be between 1 and the number of usable cMDS
+dimensions).}
 
 \item{m}{Integer or \code{NULL}. Number of points used for the Hopkins
 statistic (see \emph{Hopkins statistic} below). Default \code{NULL}
@@ -44,6 +54,10 @@ the BIC (lower is better) for \code{G = 1, ..., max_clusters}.}
 \item{\code{hopkins_p_value}}{Approximate one-sided p-value for
 \code{hopkins > 0.5} (see \emph{Hopkins statistic} above).}
 \item{\code{best_g}}{The number of clusters minimizing \code{bic}.}
+\item{\code{k_use}}{The number of cMDS dimensions actually used --
+either the supplied \code{k_use} or the value estimated by
+\code{\link{estimate_intrinsic_dimension}}, so results stay
+traceable without needing to rerun the estimation separately.}
 }
 }
 \description{
@@ -58,24 +72,46 @@ place.
 
 Both the Hopkins statistic and the BIC comparison need actual
 coordinates, not just a distance matrix, so \code{dist_mat} is first
-converted to coordinates via classical MDS
-(\code{\link[stats]{cmdscale}}), retaining every dimension with a
-positive eigenvalue (up to the maximum of \code{n - 2}), rather than a
-small, hand-picked number of dimensions. Since the goal here is a
-faithful coordinate representation of the same distances -- not a
-parsimonious summary for visualization -- there's no real "how many
-dimensions" choice to make the way there is for cluster count. If a
-nontrivial fraction of the total eigenvalue magnitude is negative (i.e.
-\code{dist_mat} isn't well approximated by any Euclidean configuration),
-a warning is issued; consider \code{cmdscale(dist_mat, add = TRUE)}'s
-Cailliez correction in that case.
+converted to coordinates via classical MDS (\code{\link[stats]{cmdscale}}).
+The number of dimensions retained for that coordinate representation
+turns out to matter a great deal -- far more than it might seem, since
+it isn't just a summary-for-visualization choice the way it looks at
+first. With realistic individual-level noise (i.e. essentially any real
+representational-distance matrix), every dimension's eigenvalue gets
+pushed measurably away from zero, so a purely numerical rank check
+retains nearly every available dimension (up to \code{n - 2}) almost
+regardless of how many dimensions actually carry real signal -- and the
+more of those noise-only dimensions get included, the harder it becomes
+for a nearest-neighbor statistic like Hopkins to detect real structure
+amid them (a real 2-cluster effect that was easily detectable at a
+correctly-chosen small \code{k} became statistically invisible once
+every positive-eigenvalue dimension was retained, verified empirically
+during development on real, not synthetic, data). \code{k_use} controls
+this directly: leave it \code{NULL} to estimate it via
+\code{\link{estimate_intrinsic_dimension}}'s permutation-based approach
+(distinguishing dimensions with real, reproducible structure from ones
+that only look nonzero because of ordinary noise), or supply it directly
+to bypass estimation. If a nontrivial fraction of the total eigenvalue
+magnitude is negative (i.e. \code{dist_mat} isn't well approximated by
+any Euclidean configuration), a warning is issued; consider
+\code{cmdscale(dist_mat, add = TRUE)}'s Cailliez correction in that case.
 }
 
 \section{Hopkins statistic}{
 
 Compares nearest-neighbor distances among the real (cMDS-derived)
 points to nearest-neighbor distances from synthetic points generated
-uniformly at random within the same coordinate ranges:
+uniformly at random within the same coordinate ranges, \strong{both
+measured within the same \code{k_use}-dimensional coordinate space} --
+an earlier version of this function computed the real-to-real distances
+from the original, untruncated \code{dist_mat} instead, which silently
+deflated the synthetic-to-real distances relative to the real-to-real
+ones whenever \code{k_use} was less than the full reconstructing
+dimensionality, dragging \code{H} toward "less clustered than random"
+as an artifact of truncation itself, regardless of whether the dropped
+dimensions were signal or noise (this is what made a naive fixed small
+\code{k_use} look harmful before the fix, when it was actually the
+truncation-vs-full-space mismatch that was harmful):
 \eqn{H = \sum w_i / (\sum u_i + \sum w_i)}, where \eqn{u_i} are
 real-to-real nearest-neighbor distances and \eqn{w_i} are
 synthetic-to-real nearest-neighbor distances (the simple, unweighted
