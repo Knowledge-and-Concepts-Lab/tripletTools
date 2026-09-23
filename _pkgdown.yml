@@ -2,3 +2,35 @@ url: https://knowledge-and-concepts-lab.github.io/tripletTools/
 template:
   bootstrap: 5
 
+# Controls both the articles/index.html ordering and (via the explicit
+# navbar override below) the navbar "Articles" dropdown ordering. A single
+# `articles:` section on its own collapses the navbar entry to one link to
+# articles/index.html rather than a dropdown of individual vignettes --
+# verified locally with pkgdown::build_site() -- hence the explicit navbar
+# menu, which is the reliable way to get individual dropdown links in a
+# specific order.
+articles:
+- title: Articles
+  contents:
+  - overview_vignette
+  - read_data_vignette
+  - embedding_vignette
+  - comparing_embeddings_vignette
+  - condor_workflows_vignette
+
+navbar:
+  components:
+    articles:
+      text: Articles
+      menu:
+      - text: tripletTools Overview
+        href: articles/overview_vignette.html
+      - text: Reading Triplet Data
+        href: articles/read_data_vignette.html
+      - text: Computing Triplet Embeddings
+        href: articles/embedding_vignette.html
+      - text: Comparing Triplet Embeddings to Alternative Representations
+        href: articles/comparing_embeddings_vignette.html
+      - text: Deploying tripletTools on HTCondor
+        href: articles/condor_workflows_vignette.html
+
