@@ -50,7 +50,7 @@ assigned to the test set in the train/test split. Passed to
 Passed to \code{\link{assign_sample_sets}}. Default: \code{42}.}
 
 \item{train_with_validation}{Logical. Whether \code{sampleAlg ==
-"validation"} trials are assigned to \code{"train"} (\code{TRUE}, the
+  "validation"} trials are assigned to \code{"train"} (\code{TRUE}, the
 default) or held out as \code{"test"} (\code{FALSE}) -- set this to
 \code{FALSE} when validation trials are instead being used to evaluate
 a fitted embedding. Passed to \code{\link{assign_sample_sets}}.}

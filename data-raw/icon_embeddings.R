@@ -25,7 +25,11 @@ usethis::use_data(icon_emb_ind, overwrite = TRUE)
 #For group embedding
 fp <- system.file("extdata", "icon_embeddings_group.csv", package="tripletTools")
 
-icon_emb_group <- read.csv(fp, header = TRUE)
+tmp <- read.csv(fp, header = TRUE)
+row.names(tmp) <- tmp$item      #Name rows, same treatment as icon_emb_ind above
+cnames <- grep("dim", names(tmp), value = T) #Pull out embedding columns
+icon_emb_group <- tmp[, cnames] #Discard columns other than embedding coordinates
+rm(tmp)
 
 usethis::use_data(icon_emb_group, overwrite = TRUE)
 

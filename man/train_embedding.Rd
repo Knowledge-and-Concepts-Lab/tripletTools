@@ -113,7 +113,7 @@ embedding so its centroid sits at the origin -- like \code{rotate}, this
 changes no pairwise distance, but unlike \code{rotate} it does
 \emph{not} preserve each item's own norm, so it only ever applies when
 \code{geometry = "euclidean"} (silently ignored for \code{geometry =
-"sphere"}, where translating would move items off the sphere).  Note
+  "sphere"}, where translating would move items off the sphere).  Note
 that \code{history}'s \code{max_norm}/\code{median_norm}/\code{norm_ratio}
 columns are computed during training, \emph{before} this final
 centering step, so they reflect the embedding's position at each

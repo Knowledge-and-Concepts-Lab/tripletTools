@@ -9,7 +9,7 @@ make.vmat(triplist)
 \arguments{
 \item{triplist}{Named list whose elements each contain triplet data from one
 participant. Names should be participant identifiers, as returned by
-\code{get_combined}.}
+\code{get.combined}.}
 }
 \value{
 Names list with two elements. \code{majority} is a data frame with one row

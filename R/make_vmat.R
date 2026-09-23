@@ -5,7 +5,7 @@
 #'
 #' @param triplist Named list whose elements each contain triplet data from one
 #'   participant. Names should be participant identifiers, as returned by
-#'   `get_combined`.
+#'   `get.combined`.
 #'
 #' @returns Names list with two elements. `majority` is a data frame with one row
 #'   per validation triplet, with columns `triplet` (the unique triplet code from

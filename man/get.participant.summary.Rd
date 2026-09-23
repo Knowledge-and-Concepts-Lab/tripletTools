@@ -28,7 +28,7 @@ Data frame containing information about each participant in the study.
 }
 \description{
 This function takes a list of triplet data of the kind returned by
-\code{get_combined} and from it generates a dataframe summarizing information about
+\code{get.combined} and from it generates a dataframe summarizing information about
 each participant in the study.
 }
 \details{

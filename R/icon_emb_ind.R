@@ -8,12 +8,10 @@
 #'
 #' @format ## `icon_emb_ind`
 #' A list with six elements, each containing an embedding from one person. The embedding is
-#' a data frame object with 32 rows (items) and six columns as follows:
+#' a data frame object with 32 rows (items, row names equal to the stimulus item code) and
+#' three columns as follows:
 #' \describe{
 #'   \item{dim_0, dim_1, dim_2}{First, second and third dimensions of the embedding.}
-#'   \item{worker_id}{Random code identifying each participant}
-#'   \item{item}{Name of the stimulus item at that embedding location.}
-#'   \item{path}{path to stimulus file}
 #' }
 #'
 #' @details

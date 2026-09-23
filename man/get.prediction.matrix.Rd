@@ -25,7 +25,7 @@ dataset, returning the mean accuracy as a matrix.
 }
 \details{
 Elements of the embedding and triplet lists should be named with the
-participant ID, as in the format returned by \code{get_combined}. Ideally
+participant ID, as in the format returned by \code{get.combined}. Ideally
 these lists will contain the same participants in the same order.
 The function expects files conform to naming conventions. It first
 extracts trials of the indicated type, then uses \code{get.hoacc} to compute the

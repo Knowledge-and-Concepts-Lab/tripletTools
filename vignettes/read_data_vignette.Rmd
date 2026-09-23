@@ -155,7 +155,7 @@ The data file can also contain any other fields. Often data will include an inte
 
 - _head_, _winner_, _loser_: Integer indices for each item appearing in the triplet
 
-Data in this format can be read into the current session using the function `get_combined(fname)` where `fname` is the path to the data file. This function returns a named list, where each element includes the triplet judgment data from a single subject, and elements are named by the subject identified. This package includes an example dataset in this format, `icon_triplets`:
+Data in this format can be read into the current session using the function `get.combined(fname)` where `fname` is the path to the data file. This function returns a named list, where each element includes the triplet judgment data from a single subject, and elements are named by the subject identified. This package includes an example dataset in this format, `icon_triplets`:
 
 ```{r}
 head(icon_triplets[[1]])

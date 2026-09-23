@@ -62,10 +62,7 @@ length(icon_pics)
 `icon_emb_group` is a precomputed 3D group embedding of the 32 icons. `plot_pics()` plots each item's image at its embedding coordinates instead of a plain point, so you can see directly what the space captures:
 
 ```{r plot-group, fig.alt = "Icon stimuli plotted at their group-embedding coordinates"}
-emb <- icon_emb_group
-rownames(emb) <- emb$item
-
-plot_pics(emb[, c("dim_0", "dim_1")], icon_pics,
+plot_pics(icon_emb_group[, c("dim_0", "dim_1")], icon_pics,
           psize = 0.04,
           xlab  = "Dimension 1",
           ylab  = "Dimension 2",
@@ -79,7 +76,7 @@ Items placed close together were frequently judged as similar across participant
 A natural question for any embedding is how well it predicts held-out judgments it wasn't fit on. `get.hoacc()` answers this directly:
 
 ```{r evaluate}
-acc <- get.hoacc(emb[, c("dim_0", "dim_1", "dim_2")], icon_triplets[[1]])
+acc <- get.hoacc(icon_emb_group, icon_triplets[[1]])
 cat("Hold-out accuracy (participant 1):", round(acc, 3), "\n")
 ```
 

@@ -20,7 +20,7 @@ knitr::opts_chunk$set(
 
 This package is designed to help analyze and visualize results from *triadic comparisons* (or *triplet tasks*), which are used to characterize the structure of mental representations. In a triplet task, a participant sees a *referent* item and two *option* items, and must decide which option is most similar to the referent. From many such judgments across many items and participants, one can compute a *similarity embedding*: a low-dimensional coordinate space in which items that are frequently judged as similar are placed nearby.
 
-`tripletTools` does not collect data or compute embeddings — those steps occur outside R. Instead it provides tools for:
+`tripletTools` also fits new embeddings directly from triplet judgments, via a bundled PyTorch backend — see the "Getting Started" and "Computing Triplet Embeddings" vignettes for that. This vignette instead focuses on the broader analysis toolkit, working from a precomputed example embedding, and covers:
 
 - Loading triplet and embedding data files
 - Assessing participant data quality
@@ -109,8 +109,8 @@ abline(v = 0.5, lty = 2, col = "red")
 
 The `bysbj` element is a participant × triplet matrix recording whether each participant agreed with the majority vote (1), disagreed (0), or did not see the triplet (NA). The mean across triplets gives each participant's overall agreement rate:
 
-```{r vmat-mean}
-barplot(rowMeans(vmat$bysbj, na.rm = TRUE), 
+```{r vmat-mean, fig.cap="Mean agreement with the majority vote for each participant on validation trials."}
+barplot(rowMeans(vmat$bysbj, na.rm = TRUE),
         beside = T, 
         ylim = c(0, 1.0),
         xlab = "Participant",
@@ -320,7 +320,7 @@ A higher mean for "same cluster" than "other cluster" indicates that cluster mem
 For a richer view of the similarity structure in one participant's embedding, a hierarchical cluster tree with face images at the leaves can be more informative than a 2-D scatterplot — especially for higher-dimensional embeddings. `get.tip.coords` retrieves the tip coordinates of a phylogram plot, allowing `plot_pics` to place images at the correct positions. In this case we will visualize the hierarchical cluster plot of the single embedding computed from the full group of participants (icon_emb_group).
 
 ```{r tree-plot, fig.width = 8, fig.height = 8, fig.cap="Similarity tree for participant 1, with icon images at the leaves."}
-hc_emb <- hclust(dist(icon_emb_group[,1:3]), method = "ward.D2")
+hc_emb <- hclust(dist(icon_emb_group), method = "ward.D2")
 pt     <- ape::as.phylo(hc_emb)
 
 plot(pt, type = "fan", show.tip.label = FALSE,

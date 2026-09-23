@@ -7,12 +7,10 @@
 \format{
 \subsection{\code{icon_emb_group}}{
 
-A data frame with 32 rows (items) and columns as follows:
+A data frame with 32 rows (items, row names equal to the stimulus item code) and three
+columns as follows:
 \describe{
 \item{dim_0, dim_1, dim_2}{First, second and third dimensions of the embedding.}
-\item{worker_id}{Set to group since this is a group embedding}
-\item{item}{Name of the stimulus item at that embedding location.}
-\item{path}{path to stimulus file}
 }
 }
 }
@@ -27,7 +25,7 @@ This dataset contains embedding coordinates from a triplet study using 32 icon i
 showing faces and buildings. All stimuli vary in age (old/young) and time (day/night).
 Faces also vary in gender and race; places vary in size and kind (house/church).
 Six participants were asked to judge which option was more similar to the referent without
-further instruction. The object is a single data frame containing 3d embedding coordinatwes
+further instruction. The object is a single data frame containing 3d embedding coordinates
 computed from the training trials for all participants.
 }
 \details{

@@ -23,7 +23,7 @@ non-validation trials to assign to the test set. Default: \code{0.2}.}
 for reproducibility. Default: \code{42}.}
 
 \item{train_with_validation}{Logical. Whether \code{sampleAlg ==
-"validation"} trials are assigned to \code{"train"} (\code{TRUE},
+  "validation"} trials are assigned to \code{"train"} (\code{TRUE},
 the default) or \code{"test"} (\code{FALSE}) -- set this to
 \code{FALSE} when validation trials are instead being held out to
 evaluate a fitted embedding. See \emph{Validation trials} below.}

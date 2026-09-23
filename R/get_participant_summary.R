@@ -1,7 +1,7 @@
 #' Get participant summary
 #'
 #' This function takes a list of triplet data of the kind returned by
-#' `get_combined` and from it generates a dataframe summarizing information about
+#' `get.combined` and from it generates a dataframe summarizing information about
 #' each participant in the study.
 #'
 #' @param d List of triplet data. Each element is data from one participant.
