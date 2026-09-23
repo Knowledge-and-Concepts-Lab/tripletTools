@@ -115,8 +115,15 @@ def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print
                 print(f"{epoch:>8}  {train_loss:>10.4f}  {test_loss:>10.4f}  {train_acc:>10.4f}  "
                       f"{test_acc:>10.4f}  {norm_ratio:>10.4f}")
 
+            # `tolerance` gates what counts as a "real" improvement: only a
+            # drop of more than `tolerance` resets the patience counter (and
+            # updates the best checkpoint). A bare `<` here would let any
+            # nonzero improvement -- including float32 noise -- reset the
+            # counter indefinitely, defeating tol_window-based early
+            # stopping entirely (this was previously the case: `tolerance`
+            # was accepted as an argument but never compared against).
             penalized_loss = test_loss + norm_penalty * (norm_ratio - 1)
-            if penalized_loss < current_lowest_penalized_loss:
+            if penalized_loss < current_lowest_penalized_loss - tolerance:
                 current_lowest_penalized_loss = penalized_loss
                 current_lowest_loss = test_loss
                 current_best_embedding = model.embedding_

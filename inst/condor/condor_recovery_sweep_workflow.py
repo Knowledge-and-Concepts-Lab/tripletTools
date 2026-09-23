@@ -305,11 +305,67 @@ def queue_from_block(varnames, rows):
     return "\n".join(lines)
 
 
+def submit_jobs_with_retry(stage_dir, jobs, output_col, build_and_submit, label,
+                            batch_size=None, max_retries=5):
+    """Submit `jobs`, verify every job's expected output file actually came
+    back, and resubmit just the ones that didn't -- up to `max_retries`
+    additional attempts -- before failing with a clear error naming exactly
+    which ones never produced valid output.
+
+    Ported from condor_group_diff_workflow.py (see that module's docstring
+    for the production incident this guards against: jobs reporting a clean
+    exit yet an empty/missing output file when ~100 finished within the same
+    narrow window, consistent with the file-transfer path getting
+    overloaded rather than a script bug). This workflow was added after
+    that fix and didn't originally carry it, despite submitting many
+    same-shaped jobs the same way and sharing the identical exposure.
+
+    `jobs` is a list of tuples as built by run_fit_stage; `output_col` is
+    the index within each tuple of the bare output filename (resolved
+    relative to `stage_dir`). `build_and_submit(jobs_subset)` must write a
+    submit file for exactly those jobs and block until they finish (i.e. an
+    ordinary write_submit_file() + submit_and_wait() call).
+
+    `batch_size`, if set, splits `jobs` into sequential chunks submitted (and
+    retried) one at a time instead of all at once -- capping how many jobs
+    can possibly finish in the same narrow window in the first place.
+    Default `None` preserves the original single-submission behavior.
+    """
+    def output_path(job):
+        return stage_dir / job[output_col]
+
+    batches = [jobs] if not batch_size else [
+        jobs[i:i + batch_size] for i in range(0, len(jobs), batch_size)
+    ]
+
+    for batch_num, batch in enumerate(batches, start=1):
+        remaining = batch
+        for attempt in range(1, max_retries + 2):
+            build_and_submit(remaining)
+            missing = [j for j in remaining
+                       if not output_path(j).exists() or output_path(j).stat().st_size == 0]
+            if not missing:
+                break
+            batch_note = f" (batch {batch_num}/{len(batches)})" if batch_size else ""
+            print(f"[condor_recovery_sweep] {label}{batch_note}: {len(missing)} of "
+                  f"{len(remaining)} output(s) missing/empty after attempt "
+                  f"{attempt} -- retrying ({[j[output_col] for j in missing]})")
+            remaining = missing
+        else:
+            sys.exit(
+                f"{label}: {len(remaining)} output(s) still missing/empty after "
+                f"{max_retries} retries: {[j[output_col] for j in remaining]}. "
+                f"Check their .err files in {stage_dir}/ for what actually happened -- "
+                "a clean, non-empty .out with an empty .err points to the file-transfer "
+                "issue described above rather than a script error."
+            )
+
+
 # ---------------------------------------------------------------------------
 # Stage 1: fit
 # ---------------------------------------------------------------------------
 
-def run_fit_stage(work_dir, replicates, config, resources, container_image):
+def run_fit_stage(work_dir, replicates, config, resources, container_image, batch_size=None):
     stage_dir = work_dir / "stage1_fit"
     stage_dir.mkdir(parents=True, exist_ok=True)
 
@@ -364,27 +420,32 @@ def run_fit_stage(work_dir, replicates, config, resources, container_image):
         f"--device={device}"
     )
 
-    submit_path = stage_dir / "fit.sub"
-    write_submit_file(
-        submit_path,
-        container_image=container_image,
-        arguments=fixed_args,
-        transfer_input_files=f"{CONDOR_RECOVERY_FIT_R}, $(gt_src), $(triplets_src)",
-        log=str(stage_dir / "fit.log"),
-        output=str(stage_dir / "fit_$(Process).out"),
-        error=str(stage_dir / "fit_$(Process).err"),
-        resources=resources,
-        initialdir=str(stage_dir),
-        queue_statement=queue_from_block(
-            ["triplets_src", "triplets_name", "gt_src", "gt_name", "output_name",
-             "rep", "gen_label", "fit_label", "fit_seed"],
-            jobs,
-        ),
-    )
+    def build_and_submit(jobs_subset):
+        submit_path = stage_dir / "fit.sub"
+        write_submit_file(
+            submit_path,
+            container_image=container_image,
+            arguments=fixed_args,
+            transfer_input_files=f"{CONDOR_RECOVERY_FIT_R}, $(gt_src), $(triplets_src)",
+            log=str(stage_dir / "fit.log"),
+            output=str(stage_dir / "fit_$(Process).out"),
+            error=str(stage_dir / "fit_$(Process).err"),
+            resources=resources,
+            initialdir=str(stage_dir),
+            queue_statement=queue_from_block(
+                ["triplets_src", "triplets_name", "gt_src", "gt_name", "output_name",
+                 "rep", "gen_label", "fit_label", "fit_seed"],
+                jobs_subset,
+            ),
+        )
+        submit_and_wait(submit_path, stage_dir / "fit.log", "Stage 1 (recovery fits)")
 
     print(f"[condor_recovery_sweep] Queuing {len(jobs)} fit jobs "
           f"({len(replicates)} replicates x {len(alphas)}x{len(alphas)} alpha pairs)")
-    submit_and_wait(submit_path, stage_dir / "fit.log", "Stage 1 (recovery fits)")
+    submit_jobs_with_retry(stage_dir, jobs, output_col=4,
+                            build_and_submit=build_and_submit,
+                            label="Stage 1 (recovery fits)",
+                            batch_size=batch_size)
     return stage_dir, jobs
 
 
@@ -480,6 +541,7 @@ def main():
         "docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest",
     )
     resources = condor_cfg.get("resources") or {}
+    batch_size = condor_cfg.get("batch_size")
 
     n_replicates = int(get_config(config, "n_replicates", 1))
     n_pairs = len(config["alphas"]) ** 2
@@ -488,7 +550,8 @@ def main():
           f"-> {n_total} total fits, d={config['d']}")
 
     replicates = simulate_stage(work_dir, config)
-    stage1_dir, jobs = run_fit_stage(work_dir, replicates, config, resources, container_image)
+    stage1_dir, jobs = run_fit_stage(work_dir, replicates, config, resources, container_image,
+                                      batch_size=batch_size)
     long_path, mean_path, sd_path = aggregate_results(work_dir, stage1_dir, jobs, config["alphas"])
 
     manifest = [

@@ -109,6 +109,21 @@ condor:
     request_memory: 4GB
     request_disk: 8GB   # covers the pulled/unpacked container image
 
+  # Optional: cap how many jobs run/finish concurrently, by submitting them
+  # in sequential chunks of this size instead of all at once. Unset
+  # (default) submits everything together. A real deployment (627
+  # participants, 100 permutations, different workflow) saw jobs complete
+  # with a clean exit code but an empty output file when ~100 jobs finished
+  # within the same narrow window -- consistent with the file-transfer path
+  # getting overloaded, not a script bug (every fit is automatically
+  # retried regardless, up to 5 times, whether or not this is set -- see
+  # vignette("condor_workflows_vignette")'s troubleshooting section).
+  # Setting batch_size reduces how often that retry is even needed by
+  # capping the size of any single completion burst; it costs some
+  # wall-clock time if the pool has free slots to spare, since batches run
+  # sequentially rather than all in parallel.
+  # batch_size: 25
+
 # --- Embedding-fit settings ---------------------------------------------------
 # Applied to every one of the n_replicates * len(alphas)^2 fits. Calibrated
 # locally (15000/1500 still hit the epoch ceiling with test accuracy still

@@ -6,7 +6,9 @@
 # Student-t continuum: finite alpha = Student-t kernel, alpha=1 exactly
 # Crowd Kernel with mu=1; alpha=Inf = the exact Gaussian/gamma=0.5 limit),
 # scores recovery against the known ground-truth embedding via Procrustes
-# distance, and writes a single-row result CSV.
+# distance, and writes a single-row result CSV plus a companion
+# "*_history.csv" holding the per-score_every-epoch training trace (test
+# loss, accuracy, norm ratio) for diagnosing early-stopping behavior.
 #
 # Bypasses train_embedding()'s CKL-only R wrapper and calls
 # compute_embeddings.py's lower-level _fit_offline() directly (via
@@ -119,3 +121,12 @@ out <- data.frame(
   epoch          = res[[3]]
 )
 write.csv(out, opt$output, row.names = FALSE)
+
+# Per-score_every-epoch training trace (epoch, train/test loss, train/test
+# acc, max/median norm, norm_ratio) -- computed internally by _fit_offline
+# regardless, but previously discarded here. Written alongside the main
+# single-row result so the loss trajectory (not just its final value) is
+# available for diagnosing early-stopping behavior without having to rerun
+# anything.
+history <- as.data.frame(res[[5]])
+write.csv(history, sub("\\.csv$", "_history.csv", opt$output), row.names = FALSE)
