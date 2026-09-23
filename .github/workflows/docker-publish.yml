@@ -61,3 +61,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             TRIPLETTOOLS_REF=${{ github.sha }}
+          secrets: |
+            github_pat=${{ secrets.GITHUB_TOKEN }}

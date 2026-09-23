@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # tripletTools runtime image: R + the `triplet-embeddings` conda/Python
 # environment + tripletTools itself, all pre-installed so it can be shipped
 # to HTCondor execute nodes via Apptainer (which runs Docker images
@@ -76,8 +77,22 @@ RUN Rscript -e '\
 # Installs from GitHub so the image always reflects a real, pushed commit.
 # Override with --build-arg TRIPLETTOOLS_REF=<branch/tag/sha> to pin a
 # specific version instead of always tracking main.
+#
+# remotes::install_github() calls the GitHub API (to resolve the ref and
+# download the tarball); unauthenticated calls share a 60-requests/hour
+# limit across every GitHub Actions runner using the same IP pool, which is
+# easy to exhaust and fails the whole build with a misleading "cannot open
+# URL ... /contents/DESCRIPTION" error that looks like a network problem
+# rather than a rate limit (real incident: build failed 0.7s after
+# starting, too fast to be an actual network timeout). --mount=type=secret
+# passes the workflow's own GITHUB_TOKEN in for just this layer (never
+# written to an image layer or `docker history`) to authenticate those
+# calls at a much higher rate limit; a local `docker build` with no
+# `--secret` falls back to the previous unauthenticated behavior.
 ARG TRIPLETTOOLS_REF=main
-RUN Rscript -e "remotes::install_github('Knowledge-and-Concepts-Lab/tripletTools', ref = '${TRIPLETTOOLS_REF}', upgrade = 'never')"
+RUN --mount=type=secret,id=github_pat \
+    GITHUB_PAT="$(cat /run/secrets/github_pat 2>/dev/null || true)" \
+    Rscript -e "remotes::install_github('Knowledge-and-Concepts-Lab/tripletTools', ref = '${TRIPLETTOOLS_REF}', upgrade = 'never')"
 
 # ---- The triplet-embeddings conda environment -------------------------------
 # Reuses the package's own setup_python_env() rather than re-deriving the
