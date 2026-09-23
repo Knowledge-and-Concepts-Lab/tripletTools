@@ -24,24 +24,78 @@ get.participant.summary(
 \item{rtthresh}{Threshold of log RT to pass quality check}
 }
 \value{
-Data frame containing information about each participant in the study.
+Data frame containing information about each participant in the
+study, with one row per participant and columns:
+\describe{
+\item{\code{tripfile}}{Name of the list element (usually a file/participant
+identifier), from \code{names(d)}.}
+\item{\code{worker_id}}{Participant identifier, from the \code{worker_id}
+column.}
+\item{\code{ndat}}{Number of trials (rows) for this participant.}
+\item{\code{lrt}}{Mean log response time, in seconds, across all trials.}
+\item{\code{cacc}}{Proportion correct on check trials (\code{sampleAlg ==
+    "check"}); \code{1.0} if the participant has no (or only one) check
+trial, since accuracy can't meaningfully be assessed from that little
+data -- this is an automatic pass, not evidence of good performance.}
+\item{\code{ncheck}, \code{nvalidation}}{Number of trials with
+\code{sampleAlg} equal to \code{"check"} / \code{"validation"}
+respectively. \code{0} (not an error) if \code{sampleAlg} isn't a
+column in this participant's data at all -- some studies never use
+check/validation trials.}
+\item{\code{ntrain}, \code{ntest}}{Number of trials with \code{sampleSet}
+equal to \code{"train"} / \code{"test"} respectively. Also \code{0},
+not an error, if \code{sampleSet} is missing.}
+\item{\code{keep}}{Logical flag: \code{FALSE} if this participant fails
+any of the \code{accthresh}/\code{rtthresh}/\code{mintrial} criteria
+below.}
+\item{Any other constant-per-participant column}{See \emph{Extra
+participant-level fields} below -- present only if at least one
+participant's data actually has such a column, so this may add zero
+or several columns depending on \code{d}.}
+}
 }
 \description{
 This function takes a list of triplet data of the kind returned by
-\code{get.combined} and from it generates a dataframe summarizing information about
-each participant in the study.
+\code{get.combined} and from it generates a dataframe summarizing information
+about each participant in the study.
 }
 \details{
-The summary will include participant ID, number of completed trials, mean
-accuracy on check trials, and mean log(RT) across all trials. The arguments
-\code{accthresh} and \code{rtthresh} set criteria for assessing the participant's data
-quality. A mean log RT of 0 or less means participant was responding in under
-one second on average, usually too fast for data to be real. Chance responding
-will yield an accuracy of 0.5 on check trials, so a threshold of 0.8 means
-participant was likely guessing on at least 40 percent of trials.
+The summary always includes participant ID, number of completed trials,
+mean accuracy on check trials, mean log(RT) across all trials, and a
+breakdown of trial counts by \code{sampleAlg}/\code{sampleSet} (see
+\emph{Return}). The arguments \code{accthresh} and \code{rtthresh} set
+criteria for assessing the participant's data quality. A mean log RT of 0
+or less means participant was responding in under one second on average,
+usually too fast for data to be real. Chance responding will yield an
+accuracy of 0.5 on check trials, so a threshold of 0.8 means participant
+was likely guessing on at least 40 percent of trials.
 
-This function assumes standard triplet data naming conventions for column names.
+This function assumes standard triplet data naming conventions for column
+names.
 }
+\section{Extra participant-level fields}{
+
+Real triplet data files sometimes carry additional columns beyond the
+standard ones -- e.g. which of several task variants a participant
+performed, or other per-session metadata recorded alongside every trial.
+Any column (other than \code{worker_id}, which is already the dedicated
+identifier column above) that takes exactly one distinct non-\code{NA}
+value across a given participant's rows is assumed to be participant-level
+metadata rather than per-trial data, and is carried through to the summary
+automatically under its own original column name -- no need to list such
+columns in advance, since which ones qualify depends entirely on \code{d}.
+A column that varies within a participant's own rows (as \code{Center},
+\code{rt}, etc. always will) is correctly left out for that participant,
+with no special-casing needed to exclude the standard trial-level columns
+by name. If a qualifying column is constant for at least one participant
+but not for another (or missing from another's data entirely), that
+participant gets \code{NA} in the corresponding column rather than the
+whole column being dropped. These extra columns are always returned as
+character, regardless of the original column's type, since a single
+output column may need to hold values collected from participants whose
+data had that column stored as different types.
+}
+
 \examples{
 
 #Path to example triplet data
