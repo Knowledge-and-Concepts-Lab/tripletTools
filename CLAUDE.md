@@ -612,3 +612,42 @@ back to the returned matrices.
   manual resubmission (a new job ID, with unclear interaction with
   `condor_wait`’s handling of a removed rather than terminated job) as
   the first move for a job that really is stuck.
+- **Real production bug found live during the CHTC group-difference run
+  described above, distinct from the “job looks stalled” issue**:
+  `condor_group_diff_workflow.py`‘s Stage 2 came back with roughly half
+  of 101 comparison jobs reporting `Normal termination (return value 0)`
+  and an empty `.err`, yet an empty or missing `compare_N.csv` output. A
+  clean exit + empty stderr rules out a script bug (`Rscript` exits 1 by
+  default on any uncaught R error), pointing instead at HTCondor’s
+  output-transfer path getting overloaded when ~100 jobs finish within
+  the same narrow window. Fixed with a new shared
+  `submit_jobs_with_retry()` helper — duplicated (by the established
+  self-contained-per-workflow convention) into all **three**
+  orchestrators, not just the one that broke, since all three submit
+  many same-shaped jobs the same way and share the identical exposure:
+  verifies every job’s expected output file after `condor_wait` returns
+  and automatically resubmits just the missing/empty ones (up to 5
+  attempts) before failing with a clear error naming exactly which jobs
+  never produced valid output, replacing what used to be a bare,
+  unhelpful `StopIteration` traceback. Also added an optional
+  `condor.batch_size` config field (all three `*_params_template.yml`)
+  that submits jobs in sequential chunks instead of all at once,
+  directly capping how large a simultaneous-completion burst can be
+  rather than just cleaning up after one. `condor_workflow.py`’s two
+  multi-job stages needed one additional fix to support retrying a
+  subset safely: their result files were named by Condor’s own
+  `$(Process)` number, which is reassigned from 0 on every new
+  submission — resubmitting only the missing jobs would have overwritten
+  already-good low-numbered results with different jobs’ output. Fixed
+  by giving every job a stable `job_index` field (assigned once, up
+  front, independent of Condor’s own per-submission numbering) and
+  naming outputs by that instead. Live-verified the diagnosis is correct
+  (not a data/logic bug) by writing a same-session local-R recovery
+  script that recomputes Stage 2 entirely outside Condor, straight from
+  the already-good Stage 1 embeddings — confirms these comparisons are
+  cheap enough that distributing them via Condor was never necessary for
+  the wall-clock savings, only convenient, which is why it’s now
+  documented as the recommended fallback (in
+  [`vignette("condor_workflows_vignette")`](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/condor_workflows_vignette.md))
+  when retries are exhausted rather than something to keep fighting the
+  transfer path over.
