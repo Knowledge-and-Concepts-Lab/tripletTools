@@ -141,6 +141,24 @@ plot_pics(emb1[,1:2], icon_pics,
 
 Icons that appear close together were frequently judged as similar to one another by this participant.
 
+### Checking true nearest neighbors beyond 2 dimensions
+
+The plot above only shows the first two of this embedding's three dimensions — visual proximity there doesn't necessarily reflect true proximity in the full embedding, especially for an item placed close to others mainly along the dimension left out of the picture. `get.nearest.k` sidesteps that by reading neighbors off a distance matrix computed in however many dimensions the embedding actually has, rather than off a necessarily-partial 2-D plot. It takes a distance matrix, not the raw embedding coordinates directly:
+
+```{r nearest-k}
+dmat <- as.matrix(dist(emb1))   # distances in the full 3-D embedding
+get.nearest.k(dmat, item = "pdcns", k = 5)
+```
+
+Compare that to what the 2-D plot above alone would suggest. Computing the same lookup from only the first two dimensions gives a visibly different answer, with `pncos` appearing as the apparent nearest neighbor even though it isn't among the true top 5 at all once the third dimension is included:
+
+```{r nearest-k-2d}
+dmat_2d <- as.matrix(dist(emb1[, 1:2]))
+get.nearest.k(dmat_2d, item = "pdcns", k = 5)
+```
+
+This is exactly the situation `get.nearest.k` is for: once an embedding has more dimensions than you can plot at once, a scatterplot can only ever show *some* of what determines true proximity — useful for a first visual impression, but not a substitute for checking actual distances when the answer matters, particularly for embeddings fit at a higher `d` than this 3-dimensional example (see `vignette("embedding_vignette")` for choosing `d`).
+
 ---
 
 ## Evaluating embedding quality: hold-out prediction accuracy
@@ -355,6 +373,7 @@ The table below maps common analysis questions to the corresponding `tripletTool
 | Did participants engage with the task? | `get.participant.summary` |
 | How consistent are judgments across participants? | `make.vmat` |
 | What does a participant's embedding look like? | `plot_pics` |
+| What are an item's true nearest neighbors, beyond what a 2-D plot shows? | `get.nearest.k` |
 | How well does the embedding predict held-out judgments? | `get.hoacc`, `test.model` |
 | Does the embedding correctly rank triplet difficulty? | `model.strength` |
 | Are individual differences in representation reliable? | `get.prediction.matrix`, `z.pred.mat` |

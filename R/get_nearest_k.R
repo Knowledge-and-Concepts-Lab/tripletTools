@@ -3,7 +3,9 @@
 #' This function takes a distance matrix and an item name and returns
 #' the `k` nearest neighbors to the specified item.
 #'
-#' @param dmat Data matrix; rows must be named.
+#' @param dmat A symmetric distance matrix (e.g. from \code{dist()} or
+#'   \code{\link{get.rep.dist}}), not raw embedding coordinates -- rows and
+#'   columns must be named.
 #' @param item String indicating the item for which nearest neighbors will be returned
 #' @param k How many neighbors to return.
 #'

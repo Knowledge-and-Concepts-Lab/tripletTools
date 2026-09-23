@@ -7,7 +7,9 @@
 get.nearest.k(dmat, item, k = 5)
 }
 \arguments{
-\item{dmat}{Data matrix; rows must be named.}
+\item{dmat}{A symmetric distance matrix (e.g. from \code{dist()} or
+\code{\link{get.rep.dist}}), not raw embedding coordinates -- rows and
+columns must be named.}
 
 \item{item}{String indicating the item for which nearest neighbors will be returned}
 
