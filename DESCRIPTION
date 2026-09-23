@@ -24,6 +24,7 @@ Suggests:
     mclust,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+Config/Needs/website: mclust
 Roxygen: list(markdown = TRUE)
 Depends: 
     R (>= 3.5)

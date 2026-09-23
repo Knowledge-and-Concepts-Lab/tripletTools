@@ -235,7 +235,19 @@ If z-scores are reliably positive across participants, this is evidence of meani
 repdist <- get.rep.dist(icon_emb_ind)
 ```
 
-We can cluster participants by their representational distances using standard hierarchical clustering:
+### Is there real cluster structure?
+
+Before cutting the tree below into groups, it's worth asking a more basic question first: is there any real cluster structure here at all, or would *any* forced cut into `k` groups look about equally convincing? `cutree()` will always produce however many groups you ask it for, whether or not the data actually supports splitting into groups in the first place. `test_for_clusters` addresses this directly, combining a Hopkins-statistic test for clustering tendency with a BIC comparison across candidate numbers of clusters:
+
+```{r tfc, eval = requireNamespace("mclust", quietly = TRUE)}
+test_for_clusters(repdist, max_clusters = 3, seed = 3)
+```
+
+A significant Hopkins statistic (small `hopkins_p_value`, `hopkins` well above 0.5) is evidence that participants really do form non-random groups, not just an artifact of forcing a cut. Notice that `best_g` doesn't necessarily agree with what the Hopkins test itself supports here -- with only 6 participants, the BIC comparison across candidate cluster counts is considerably less reliable than the Hopkins statistic (see `?test_for_clusters` for why), so prefer the Hopkins-based conclusion when the two disagree.
+
+One honest caveat: with only 6 participants, the exact p-value is somewhat sensitive to the random draw the Hopkins test's synthetic comparison points happen to take (set via `seed`) -- some seeds land comfortably below 0.05, others closer to or above it, even though the underlying `hopkins` statistic itself stays consistently above 0.5 regardless. That's not a bug, it's genuine small-sample variability, and it's a good reminder to treat a single run's p-value on a small dataset as suggestive rather than definitive -- exactly the kind of judgment call `test_for_clusters` is meant to inform, not replace.
+
+With that established, we can cluster participants by their representational distances using standard hierarchical clustering:
 
 ```{r hclust, fig.cap="Participants clustered by pairwise representational distance."}
 #Compute hierarchical cluster tree:
@@ -347,6 +359,7 @@ The table below maps common analysis questions to the corresponding `tripletTool
 | Does the embedding correctly rank triplet difficulty? | `model.strength` |
 | Are individual differences in representation reliable? | `get.prediction.matrix`, `z.pred.mat` |
 | How similar are two participants' representations? | `get.rep.dist` |
+| Is there real cluster structure, before forcing a cut into groups? | `test_for_clusters` |
 | Are there subgroups with similar representations? | `get.rep.dist`, `get.group.list.mean` |
 | Do cluster-mates predict each other's data better? | `pacc.by.cluster`, `plot_cis` |
 | How to show a full similarity tree with images? | `get.tip.coords`, `plot_pics` |
