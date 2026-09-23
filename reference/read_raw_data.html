@@ -23,11 +23,11 @@ data ready for modelling. Optionally writes the results to disk."></head><body>
 <li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
-    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
-    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
-    <li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
     <li><a class="dropdown-item" href="../articles/read_data_vignette.html">Reading Triplet Data</a></li>
+    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
+    <li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
+    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
   </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -119,7 +119,7 @@ Passed to <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>.
 
 <dt id="arg-train-with-validation">train_with_validation<a class="anchor" aria-label="anchor" href="#arg-train-with-validation"></a></dt>
 <dd><p>Logical. Whether <code>sampleAlg ==
-"validation"</code> trials are assigned to <code>"train"</code> (<code>TRUE</code>, the
+  "validation"</code> trials are assigned to <code>"train"</code> (<code>TRUE</code>, the
 default) or held out as <code>"test"</code> (<code>FALSE</code>) – set this to
 <code>FALSE</code> when validation trials are instead being used to evaluate
 a fitted embedding. Passed to <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>.</p></dd>

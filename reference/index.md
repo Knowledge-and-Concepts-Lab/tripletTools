@@ -20,6 +20,9 @@
   : Triplet-based embedding of 213 emotion words
 - [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
   : Estimate the latent dimensionality of a triplet dataset
+- [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
+  : Estimate how many dimensions of a distance matrix reflect real
+  structure
 - [`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)
   : Estimate a learning curve for a triplet embedding
 - [`filter_failed_catch()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_failed_catch.md)
@@ -76,7 +79,7 @@
 - [`pacc.by.cluster()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/pacc.by.cluster.md)
   : Prediction accuracy by cluster
 - [`plot_cis()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_cis.md)
-  : Plot column means and confidence intervals
+  : Plot column means and 95% confidence intervals
 - [`plot_directions()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_directions.md)
   : Scatterplot with directional arrows
 - [`plot_pics()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.md)

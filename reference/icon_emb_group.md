@@ -6,7 +6,7 @@ This dataset contains embedding coordinates from a triplet study using
 places vary in size and kind (house/church). Six participants were asked
 to judge which option was more similar to the referent without further
 instruction. The object is a single data frame containing 3d embedding
-coordinatwes computed from the training trials for all participants.
+coordinates computed from the training trials for all participants.
 
 ## Usage
 
@@ -18,23 +18,12 @@ icon_emb_group
 
 ### `icon_emb_group`
 
-A data frame with 32 rows (items) and columns as follows:
+A data frame with 32 rows (items, row names equal to the stimulus item
+code) and three columns as follows:
 
 - dim_0, dim_1, dim_2:
 
   First, second and third dimensions of the embedding.
-
-- worker_id:
-
-  Set to group since this is a group embedding
-
-- item:
-
-  Name of the stimulus item at that embedding location.
-
-- path:
-
-  path to stimulus file
 
 ## Source
 

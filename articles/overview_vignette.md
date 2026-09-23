@@ -11,8 +11,11 @@ judgments across many items and participants, one can compute a
 *similarity embedding*: a low-dimensional coordinate space in which
 items that are frequently judged as similar are placed nearby.
 
-`tripletTools` does not collect data or compute embeddings — those steps
-occur outside R. Instead it provides tools for:
+`tripletTools` also fits new embeddings directly from triplet judgments,
+via a bundled PyTorch backend — see the “Getting Started” and “Computing
+Triplet Embeddings” vignettes for that. This vignette instead focuses on
+the broader analysis toolkit, working from a precomputed example
+embedding, and covers:
 
 - Loading triplet and embedding data files
 - Assessing participant data quality
@@ -107,13 +110,13 @@ an attention check), and mean log response time.
 
 psummary <- get.participant.summary(icon_triplets, mintrial = 230)
 head(psummary)
-#>   tripfile worker_id ndat       lrt cacc keep
-#> 1 3n7ggxph  3n7ggxph  230 0.4961625    1 TRUE
-#> 2 b5wma4no  b5wma4no  230 0.9026607    1 TRUE
-#> 3 d8mmm1qn  d8mmm1qn  230 0.5051381    1 TRUE
-#> 4 jn7bbjc0  jn7bbjc0  230 0.6958144    1 TRUE
-#> 5 pbby694o  pbby694o  230 0.6679493    1 TRUE
-#> 6 sc2xbd6w  sc2xbd6w  230 0.6507582    1 TRUE
+#>   tripfile worker_id ndat       lrt cacc ncheck nvalidation ntrain ntest keep
+#> 1 3n7ggxph  3n7ggxph  230 0.4961625    1     10          20    204    16 TRUE
+#> 2 b5wma4no  b5wma4no  230 0.9026607    1     10          20    195    25 TRUE
+#> 3 d8mmm1qn  d8mmm1qn  230 0.5051381    1     10          20    207    13 TRUE
+#> 4 jn7bbjc0  jn7bbjc0  230 0.6958144    1     10          20    197    23 TRUE
+#> 5 pbby694o  pbby694o  230 0.6679493    1     10          20    187    33 TRUE
+#> 6 sc2xbd6w  sc2xbd6w  230 0.6507582    1     10          20    199    21 TRUE
 ```
 
 The output includes a `keep` column flagging participants who fall below
@@ -176,7 +179,7 @@ participant’s overall agreement rate:
 
 ``` r
 
-barplot(rowMeans(vmat$bysbj, na.rm = TRUE), 
+barplot(rowMeans(vmat$bysbj, na.rm = TRUE),
         beside = T, 
         ylim = c(0, 1.0),
         xlab = "Participant",
@@ -187,7 +190,11 @@ box()
 abline(h = 0.5, lty = 2)
 ```
 
-![](overview_vignette_files/figure-html/vmat-mean-1.png)
+![Mean agreement with the majority vote for each participant on
+validation trials.](overview_vignette_files/figure-html/vmat-mean-1.png)
+
+Mean agreement with the majority vote for each participant on validation
+trials.
 
 Participants can vary quite a bit as to how well they agree with the
 majority vote, indicating potential individual differences in how people
@@ -220,6 +227,46 @@ dimensions shown).
 
 Icons that appear close together were frequently judged as similar to
 one another by this participant.
+
+### Checking true nearest neighbors beyond 2 dimensions
+
+The plot above only shows the first two of this embedding’s three
+dimensions — visual proximity there doesn’t necessarily reflect true
+proximity in the full embedding, especially for an item placed close to
+others mainly along the dimension left out of the picture.
+`get.nearest.k` sidesteps that by reading neighbors off a distance
+matrix computed in however many dimensions the embedding actually has,
+rather than off a necessarily-partial 2-D plot. It takes a distance
+matrix, not the raw embedding coordinates directly:
+
+``` r
+
+dmat <- as.matrix(dist(emb1))   # distances in the full 3-D embedding
+get.nearest.k(dmat, item = "pdcns", k = 5)
+#> [1] "pdcnb" "pncns" "pdhns" "pncnb" "pnhnb"
+```
+
+Compare that to what the 2-D plot above alone would suggest. Computing
+the same lookup from only the first two dimensions gives a visibly
+different answer, with `pncos` appearing as the apparent nearest
+neighbor even though it isn’t among the true top 5 at all once the third
+dimension is included:
+
+``` r
+
+dmat_2d <- as.matrix(dist(emb1[, 1:2]))
+get.nearest.k(dmat_2d, item = "pdcns", k = 5)
+#> [1] "pncos" "pdcnb" "pncns" "pdhnb" "pdcos"
+```
+
+This is exactly the situation `get.nearest.k` is for: once an embedding
+has more dimensions than you can plot at once, a scatterplot can only
+ever show *some* of what determines true proximity — useful for a first
+visual impression, but not a substitute for checking actual distances
+when the answer matters, particularly for embeddings fit at a higher `d`
+than this 3-dimensional example (see
+[`vignette("embedding_vignette")`](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/embedding_vignette.md)
+for choosing `d`).
 
 ------------------------------------------------------------------------
 
@@ -378,8 +425,52 @@ for the other available metrics, e.g. a correlation-style alternative).
 repdist <- get.rep.dist(icon_emb_ind)
 ```
 
-We can cluster participants by their representational distances using
-standard hierarchical clustering:
+### Is there real cluster structure?
+
+Before cutting the tree below into groups, it’s worth asking a more
+basic question first: is there any real cluster structure here at all,
+or would *any* forced cut into `k` groups look about equally convincing?
+[`cutree()`](https://rdrr.io/r/stats/cutree.html) will always produce
+however many groups you ask it for, whether or not the data actually
+supports splitting into groups in the first place. `test_for_clusters`
+addresses this directly, combining a Hopkins-statistic test for
+clustering tendency with a BIC comparison across candidate numbers of
+clusters:
+
+``` r
+
+test_for_clusters(repdist, max_clusters = 3, seed = 3)
+#> Dimensions used (k_use): 1
+#> Hopkins statistic: 0.828 (p = 0.005436 for H0: no clustering)
+#>   -> evidence of cluster structure (more than one cluster likely)
+#> BIC by number of clusters (lower is better):
+#>   G=1   G=2   G=3 
+#>  9.88 -5.08 -9.67 
+#>   -> best supported number of clusters: 3
+```
+
+A significant Hopkins statistic (small `hopkins_p_value`, `hopkins` well
+above 0.5) is evidence that participants really do form non-random
+groups, not just an artifact of forcing a cut. Notice that `best_g`
+doesn’t necessarily agree with what the Hopkins test itself supports
+here – with only 6 participants, the BIC comparison across candidate
+cluster counts is considerably less reliable than the Hopkins statistic
+(see
+[`?test_for_clusters`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)
+for why), so prefer the Hopkins-based conclusion when the two disagree.
+
+One honest caveat: with only 6 participants, the exact p-value is
+somewhat sensitive to the random draw the Hopkins test’s synthetic
+comparison points happen to take (set via `seed`) – some seeds land
+comfortably below 0.05, others closer to or above it, even though the
+underlying `hopkins` statistic itself stays consistently above 0.5
+regardless. That’s not a bug, it’s genuine small-sample variability, and
+it’s a good reminder to treat a single run’s p-value on a small dataset
+as suggestive rather than definitive – exactly the kind of judgment call
+`test_for_clusters` is meant to inform, not replace.
+
+With that established, we can cluster participants by their
+representational distances using standard hierarchical clustering:
 
 ``` r
 
@@ -519,7 +610,7 @@ participants (icon_emb_group).
 
 ``` r
 
-hc_emb <- hclust(dist(icon_emb_group[,1:3]), method = "ward.D2")
+hc_emb <- hclust(dist(icon_emb_group), method = "ward.D2")
 pt     <- ape::as.phylo(hc_emb)
 
 plot(pt, type = "fan", show.tip.label = FALSE,
@@ -548,10 +639,12 @@ The table below maps common analysis questions to the corresponding
 | Did participants engage with the task? | `get.participant.summary` |
 | How consistent are judgments across participants? | `make.vmat` |
 | What does a participant’s embedding look like? | `plot_pics` |
+| What are an item’s true nearest neighbors, beyond what a 2-D plot shows? | `get.nearest.k` |
 | How well does the embedding predict held-out judgments? | `get.hoacc`, `test.model` |
 | Does the embedding correctly rank triplet difficulty? | `model.strength` |
 | Are individual differences in representation reliable? | `get.prediction.matrix`, `z.pred.mat` |
 | How similar are two participants’ representations? | `get.rep.dist` |
+| Is there real cluster structure, before forcing a cut into groups? | `test_for_clusters` |
 | Are there subgroups with similar representations? | `get.rep.dist`, `get.group.list.mean` |
 | Do cluster-mates predict each other’s data better? | `pacc.by.cluster`, `plot_cis` |
 | How to show a full similarity tree with images? | `get.tip.coords`, `plot_pics` |

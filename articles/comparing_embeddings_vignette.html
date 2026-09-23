@@ -34,11 +34,11 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
-    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
-    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
-    <li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
+<li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
     <li><a class="dropdown-item" href="../articles/read_data_vignette.html">Reading Triplet Data</a></li>
+    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
+    <li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
+    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
   </ul>
 </li>
       </ul>
@@ -108,6 +108,15 @@ much higher-dimensional) alternative?</td>
 </td>
 </tr>
 <tr class="even">
+<td>Finding where two embeddings disagree</td>
+<td>Which specific items, and which specific triplets, would best
+distinguish two embeddings’ accounts?</td>
+<td>
+<code><a href="../reference/find_discrepant_items.html">find_discrepant_items()</a></code>,
+<code><a href="../reference/find_discriminating_triplets.html">find_discriminating_triplets()</a></code>
+</td>
+</tr>
+<tr class="odd">
 <td>Classifier performance</td>
 <td>Does this embedding encode a known categorical label?</td>
 <td>
@@ -115,7 +124,7 @@ much higher-dimensional) alternative?</td>
 <code><a href="../reference/repeated_stratified_multinomial_cv.html">repeated_stratified_multinomial_cv()</a></code>
 </td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Successor representations from verbal fluency</td>
 <td>How does similarity estimated from a completely different task (free
 naming) compare to triplet-based similarity?</td>
@@ -238,6 +247,115 @@ not by the triplet embedding capturing fundamentally different
 structure. Without the ceiling, 0.313 alone doesn’t tell you that — it
 could just as easily have reflected a triplet embedding that captures
 almost none of the achievable structure.</p>
+<p>That still leaves roughly a quarter of the achievable structure
+genuinely uncaptured, though — which raises a natural next question:
+<em>which</em> words, specifically, is the triplet embedding placing
+differently than the language model does?</p>
+<hr>
+</div>
+</div>
+<div class="section level2">
+<h2 id="finding-where-two-embeddings-disagree">Finding where two embeddings disagree<a class="anchor" aria-label="anchor" href="#finding-where-two-embeddings-disagree"></a>
+</h2>
+<div class="section level3">
+<h3 id="which-items-are-placed-most-differently">Which items are placed most differently?<a class="anchor" aria-label="anchor" href="#which-items-are-placed-most-differently"></a>
+</h3>
+<p><code><a href="../reference/find_discrepant_items.html">find_discrepant_items()</a></code> ranks items by how much their
+distance-to-everything-else profile differs between two embeddings.
+Unlike the Procrustes comparison above, <strong>it needs no
+dimensionality-matching step at all</strong> — no cMDS reduction, no
+zero-padding, nothing to align first. Distances are computed within each
+embedding’s own native space (4D for the triplet embedding,
+effectively-212D for the language model), so the two can be handed in
+exactly as they are:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/find_discrepant_items.html">find_discrepant_items</a></span><span class="op">(</span><span class="va">emotion_triplet_embedding</span>, <span class="va">emotion_bge_embedding</span>, k <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></code></pre></div>
+<pre><code><span><span class="co">#&gt;           item correlation</span></span>
+<span><span class="co">#&gt; 1          ire     -0.0167</span></span>
+<span><span class="co">#&gt; 2         lust     -0.0073</span></span>
+<span><span class="co">#&gt; 3      arousal      0.0067</span></span>
+<span><span class="co">#&gt; 4      startle      0.0187</span></span>
+<span><span class="co">#&gt; 5    alertness      0.0438</span></span>
+<span><span class="co">#&gt; 6  titillation      0.0675</span></span>
+<span><span class="co">#&gt; 7    lividness      0.0733</span></span>
+<span><span class="co">#&gt; 8       gaiety      0.0799</span></span>
+<span><span class="co">#&gt; 9        mirth      0.0828</span></span>
+<span><span class="co">#&gt; 10   nostalgia      0.0876</span></span></code></pre>
+<p>A correlation near zero (or negative, as for <code>ire</code> and
+<code>lust</code>) means that item’s position <em>relative to every
+other word</em> is essentially unrelated between the two spaces — not
+just shifted, but genuinely reorganized. Several of the words here
+(<code>arousal</code>, <code>startle</code>, <code>alertness</code>,
+<code>titillation</code>, <code>lividness</code>) describe high-arousal
+or blended affective states rather than clean, single-category emotions
+— a plausible hypothesis for <em>why</em> they’d be hard to place
+consistently (arousal-related nuance may be exactly the kind of thing a
+4-dimensional triplet embedding compresses away, or that a language
+model represents through lexical association rather than felt
+similarity), but confirming that is exactly the kind of question the
+next tool is for, not something this ranking alone establishes.</p>
+</div>
+<div class="section level3">
+<h3 id="designing-a-follow-up-study-which-triplets-would-settle-it">Designing a follow-up study: which triplets would settle it?<a class="anchor" aria-label="anchor" href="#designing-a-follow-up-study-which-triplets-would-settle-it"></a>
+</h3>
+<p>Knowing an item is discrepant doesn’t say <em>how</em> two embeddings
+disagree about it, or give you anything to actually show a participant.
+<code><a href="../reference/find_discriminating_triplets.html">find_discriminating_triplets()</a></code> goes further: it searches
+for specific (head, option1, option2) triplets where the two embeddings
+imply different answers about which option is closer to the head, scored
+by the symmetric KL divergence between each embedding’s CKL
+win-probability (the same choice-probability model this package’s own
+embedding-fitting backend uses) — the bigger that divergence, the more a
+real participant’s answer on that exact triplet would favor one
+embedding’s account over the other’s.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/find_discriminating_triplets.html">find_discriminating_triplets</a></span><span class="op">(</span><span class="va">emotion_triplet_embedding</span>, <span class="va">emotion_bge_embedding</span>, k <span class="op">=</span> <span class="fl">10</span>, seed <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
+<pre><code><span><span class="co">#&gt;             head     option1    option2 embedding1_predicts embedding2_predicts discrepancy</span></span>
+<span><span class="co">#&gt; 1      happiness frustration       glee                glee         frustration       1.209</span></span>
+<span><span class="co">#&gt; 2           glee    euphoria      gloom            euphoria               gloom       1.199</span></span>
+<span><span class="co">#&gt; 3        dislike      liking  suffering           suffering              liking       1.166</span></span>
+<span><span class="co">#&gt; 4           glee       gloom   fondness            fondness               gloom       1.120</span></span>
+<span><span class="co">#&gt; 5      jolliness        glee   jealousy                glee            jealousy       1.100</span></span>
+<span><span class="co">#&gt; 6          pride       shame       glee                glee               shame       1.075</span></span>
+<span><span class="co">#&gt; 7      sulkiness persecution  jolliness         persecution           jolliness       1.074</span></span>
+<span><span class="co">#&gt; 8        dislike      liking bitterness          bitterness              liking       1.066</span></span>
+<span><span class="co">#&gt; 9       pleasure        glee      shame                glee               shame       1.062</span></span>
+<span><span class="co">#&gt; 10 encouragement        glee     insult                glee              insult       1.042</span></span></code></pre>
+<p>The top row is a genuinely interpretable, testable disagreement: for
+the referent <code>happiness</code>, the triplet embedding says
+<code>glee</code> is the closer match, while the language-model
+embedding says <code>frustration</code> is — a real participant judgment
+on exactly this triplet would speak directly to which account is more
+veridical, for this item at least.</p>
+<p><code>glee</code> alone accounts for 5 of these 10 triplets — one
+item dominating the results isn’t unusual, since the search is finding
+whichever triplets show the <em>largest</em> disagreement, not a diverse
+sample of them. Cap it with <code>max_per_item</code>:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/find_discriminating_triplets.html">find_discriminating_triplets</a></span><span class="op">(</span><span class="va">emotion_triplet_embedding</span>, <span class="va">emotion_bge_embedding</span>, k <span class="op">=</span> <span class="fl">10</span>, seed <span class="op">=</span> <span class="fl">1</span>, max_per_item <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
+<pre><code><span><span class="co">#&gt;             head     option1      option2 embedding1_predicts embedding2_predicts discrepancy</span></span>
+<span><span class="co">#&gt; 1      happiness frustration         glee                glee         frustration       1.209</span></span>
+<span><span class="co">#&gt; 2           glee    euphoria        gloom            euphoria               gloom       1.199</span></span>
+<span><span class="co">#&gt; 3        dislike      liking    suffering           suffering              liking       1.166</span></span>
+<span><span class="co">#&gt; 4      sulkiness persecution    jolliness         persecution           jolliness       1.074</span></span>
+<span><span class="co">#&gt; 5        dislike      liking   bitterness          bitterness              liking       1.066</span></span>
+<span><span class="co">#&gt; 6    frustration   happiness   grumpiness          grumpiness            happiness       1.000</span></span>
+<span><span class="co">#&gt; 7        arousal unhappiness         zeal                zeal         unhappiness       0.991</span></span>
+<span><span class="co">#&gt; 8    jitteriness      fervor  carefulness              fervor         carefulness       0.979</span></span>
+<span><span class="co">#&gt; 9   homesickness       doubt cheerfulness               doubt        cheerfulness       0.969</span></span>
+<span><span class="co">#&gt; 10     jolliness    jealousy     approval            approval            jealousy       0.968</span></span></code></pre>
+<p>With no item appearing more than twice, a wider spread of the
+vocabulary shows up — including <code>arousal</code>, one of the items
+<code><a href="../reference/find_discrepant_items.html">find_discrepant_items()</a></code> flagged above, now paired with a
+concrete triplet (<code>unhappiness</code> vs. <code>zeal</code>) a
+follow-up study could actually run. The two functions share their
+underlying signal deliberately:
+<code><a href="../reference/find_discriminating_triplets.html">find_discriminating_triplets()</a></code>’s candidate search is partly
+weighted by the same distance-profile correlation
+<code><a href="../reference/find_discrepant_items.html">find_discrepant_items()</a></code> ranks on (see
+<code><a href="../reference/find_discriminating_triplets.html">?find_discriminating_triplets</a></code>’s <em>Details</em>), so items
+flagged discrepant by one are more likely to surface in the other’s
+search, without either depending on the other’s output directly.</p>
 <hr>
 </div>
 </div>
@@ -266,7 +384,7 @@ Rather than asking whether the <em>group</em> embedding encodes these
 features, it’s more interesting to ask whether <em>individual</em>
 participants’ embeddings do — different people may attend to different
 stimulus properties when judging similarity.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">items</span> <span class="op">&lt;-</span> <span class="va">icon_items</span><span class="op">$</span><span class="va">item</span></span>
 <span><span class="va">faceplace</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="va">items</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span> <span class="op">==</span> <span class="st">"f"</span>, <span class="st">"face"</span>, <span class="st">"place"</span><span class="op">)</span></span>
 <span><span class="va">daynight</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/substr.html" class="external-link">substr</a></span><span class="op">(</span><span class="va">items</span>, <span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span> <span class="op">==</span> <span class="st">"d"</span>, <span class="st">"day"</span>, <span class="st">"night"</span><span class="op">)</span></span>
@@ -322,7 +440,7 @@ Anger, Sadness, Fear), plus <code>"Absent"</code> for words Shaver et
 al. didn’t end up assigning to a category. Before classifying, drop
 <code>"Absent"</code> — and also <code>"Surprise"</code>, which only has
 3 words, too few for any fold to give a stable estimate:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">keep</span> <span class="op">&lt;-</span> <span class="op">!</span><span class="op">(</span><span class="va">emotion_categories</span><span class="op">$</span><span class="va">category</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Absent"</span>, <span class="st">"Surprise"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">words</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">emotion_categories</span><span class="op">)</span><span class="op">[</span><span class="va">keep</span><span class="op">]</span></span>
 <span></span>
@@ -331,7 +449,7 @@ al. didn’t end up assigning to a category. Before classifying, drop
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   Anger    Fear     Joy    Love Sadness</span></span>
 <span><span class="co">#&gt;      29      17      33      16      37</span></span></code></pre></div>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cv</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/repeated_stratified_multinomial_cv.html">repeated_stratified_multinomial_cv</a></span><span class="op">(</span><span class="va">X</span>, <span class="va">y</span>, repetitions <span class="op">=</span> <span class="fl">20</span>, folds <span class="op">=</span> <span class="fl">3</span>, seed <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">cv</span><span class="op">$</span><span class="va">summary</span></span></code></pre></div>
 <pre><code><span><span class="co">#&gt;              metric   mean     sd</span></span>
@@ -343,7 +461,7 @@ al. didn’t end up assigning to a category. Before classifying, drop
 <p>An overall AUC of 0.924 looks strong, but the macro-averaged metrics
 above collapse across all 5 classes — <code>per_class_summary</code>
 shows they don’t all fare the same:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cv</span><span class="op">$</span><span class="va">per_class_summary</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"class"</span>, <span class="st">"n"</span>, <span class="st">"mean_sensitivity"</span>, <span class="st">"mean_precision"</span>, <span class="st">"mean_f1"</span><span class="op">)</span><span class="op">]</span></span></code></pre></div>
 <pre><code><span><span class="co">#&gt;     class  n mean_sensitivity mean_precision mean_f1</span></span>
 <span><span class="co">#&gt; 1   Anger 29            0.741          0.675   0.706</span></span>
@@ -363,7 +481,7 @@ entirely.</p>
 <p>Before trusting the fit above, it’s worth checking
 <code>cv$diagnostics</code> for signs of instability — and here, the
 default threshold turns out to need recalibrating for this problem:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">cv</span><span class="op">$</span><span class="va">diagnostics</span><span class="op">$</span><span class="va">maximum_absolute_coefficient</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.</span></span>
 <span><span class="co">#&gt;   11.57   18.11   25.50  131.68   35.18 2291.16</span></span>
@@ -384,7 +502,7 @@ pick a threshold that separates the typical range from real
 outliers.</p>
 <p>The distribution above has a clear typical band (roughly 10–50) and a
 small outlier tail (6 fits above 100, one at 2291). Recalibrating:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cv2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/repeated_stratified_multinomial_cv.html">repeated_stratified_multinomial_cv</a></span><span class="op">(</span><span class="va">X</span>, <span class="va">y</span>, repetitions <span class="op">=</span> <span class="fl">20</span>, folds <span class="op">=</span> <span class="fl">3</span>, seed <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>                                           coefficient_warning <span class="op">=</span> <span class="fl">50</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">cv2</span><span class="op">$</span><span class="va">diagnostics</span><span class="op">$</span><span class="va">unstable_fit</span><span class="op">)</span></span>
@@ -419,7 +537,7 @@ turns that graph into a <strong>Successor Representation</strong>: for
 each pair of items, the discounted expected number of times a random
 walk from one would visit the other, summed over an infinite
 horizon.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sr</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/successor_matrix.html">successor_matrix</a></span><span class="op">(</span><span class="va">animal_adjacency_matrix</span>, gamma <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">sr</span><span class="op">$</span><span class="va">successor</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 295 295</span></span></code></pre></div>
@@ -442,7 +560,7 @@ part of the triplet study.</p>
 <p><strong>Compute <code><a href="../reference/successor_matrix.html">successor_matrix()</a></code> on the full 295-word
 graph, and only restrict to the 213 matching items
 afterward:</strong></p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">target_items</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">animal_triplet_embedding</span><span class="op">)</span></span>
 <span><span class="va">S</span> <span class="op">&lt;-</span> <span class="va">sr</span><span class="op">$</span><span class="va">successor</span><span class="op">[</span><span class="va">target_items</span>, <span class="va">target_items</span><span class="op">]</span>   <span class="co"># subset AFTER computing, not before</span></span></code></pre></div>
 <p>Restricting the <em>adjacency matrix</em> to 213 words before
@@ -463,7 +581,7 @@ over 213 other items, not embedding coordinates in the usual sense.
 <code><a href="../reference/hellinger_dist.html">hellinger_dist()</a></code> treats each row as a probability profile
 (renormalizing it to sum to 1) and returns the pairwise Hellinger
 distance between rows:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">D_successor</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/hellinger_dist.html">hellinger_dist</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span></span></code></pre></div>
 <p>Here’s a fact worth knowing before reaching for classical MDS on
 <code>D_successor</code> to get something Procrustes-comparable:
@@ -477,7 +595,7 @@ approximation risk here the way there might be for an arbitrary
 dissimilarity matrix — classical MDS on <code>D_successor</code> would
 recover <code>sqrt(row-normalized S)</code> (up to rotation) with zero
 distortion, so it’s simpler to just compute that directly:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">P</span> <span class="op">&lt;-</span> <span class="va">S</span></span>
 <span><span class="va">P</span><span class="op">[</span><span class="va">P</span> <span class="op">&lt;</span> <span class="fl">0</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fl">0</span></span>
 <span><span class="va">P</span> <span class="op">&lt;-</span> <span class="va">P</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">P</span><span class="op">)</span></span>
@@ -490,7 +608,7 @@ Procrustes/ceiling tools from the first section of this vignette.</p>
 <div class="section level3">
 <h3 id="comparing-to-the-triplet-embedding">Comparing to the triplet embedding<a class="anchor" aria-label="anchor" href="#comparing-to-the-triplet-embedding"></a>
 </h3>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sdist</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>triplet <span class="op">=</span> <span class="va">animal_triplet_embedding</span>, successor <span class="op">=</span> <span class="va">Q</span><span class="op">)</span>,</span>
 <span>                      metric <span class="op">=</span> <span class="st">"corr_dist"</span><span class="op">)</span></span>
 <span><span class="va">observed_corr</span> <span class="op">&lt;-</span> <span class="fl">1</span> <span class="op">-</span> <span class="va">sdist</span><span class="op">[</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">]</span></span>
@@ -520,7 +638,7 @@ comparison.</p>
 <p>Because there’s no principled default for <code>gamma</code>, it’s
 worth checking whether conclusions are sensitive to it before reporting
 a result at a single value:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">gammas</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.3</span>, <span class="fl">0.5</span>, <span class="fl">0.7</span>, <span class="fl">0.9</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">sweep</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">gammas</span>, <span class="kw">function</span><span class="op">(</span><span class="va">g</span><span class="op">)</span> <span class="op">{</span></span>
@@ -579,6 +697,15 @@ accounting for a dimensionality mismatch?</td>
 </td>
 </tr>
 <tr class="even">
+<td>Which items are placed most differently between two embeddings?</td>
+<td><code><a href="../reference/find_discrepant_items.html">find_discrepant_items()</a></code></td>
+</tr>
+<tr class="odd">
+<td>Which specific triplets would best distinguish two embeddings’
+accounts, for designing a follow-up study?</td>
+<td><code><a href="../reference/find_discriminating_triplets.html">find_discriminating_triplets()</a></code></td>
+</tr>
+<tr class="even">
 <td>Does this embedding encode a known 2-level label?</td>
 <td><code><a href="../reference/repeated_stratified_logistic_cv.html">repeated_stratified_logistic_cv()</a></code></td>
 </tr>
@@ -595,11 +722,13 @@ then the Procrustes tools above</td>
 </tr>
 </tbody>
 </table>
-<p>All three tools share a common thread: a raw number in isolation (a
-correlation, an AUC, a distance) is hard to interpret without something
-to compare it to — a ceiling, a chance level, a per-class breakdown, a
-sensitivity check across a hyperparameter. Each section above pairs the
-raw computation with that context.</p>
+<p>All of these tools share a common thread: a raw number in isolation
+(a correlation, an AUC, a distance, a discrepancy score) is hard to
+interpret without something to compare it to — a ceiling, a chance
+level, a per-class breakdown, a sensitivity check across a
+hyperparameter, a concrete triplet a real participant could actually
+answer. Each section above pairs the raw computation with that
+context.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

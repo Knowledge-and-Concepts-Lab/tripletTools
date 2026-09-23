@@ -412,6 +412,98 @@ for the full statistical rationale behind `internal_test_frac` and why
 the final embedding is a dedicated fit rather than a reused
 learning-curve restart.
 
+### Recomputing a summary yourself, without refitting anything
+
+`condor_workflow.py` already writes the `_summary.csv` files above as
+part of a normal run, so you don’t usually need to do this. Two
+situations where you do: the workflow’s own aggregation step didn’t
+complete (the same output-transfer failure described in [“A job finishes
+cleanly but its output file is
+empty”](#a-job-finishes-cleanly-but-its-output-file-is-empty) above can
+in principle hit *any* stage’s many-small-jobs pattern, including the
+local aggregation reading them back), or you want to try a different
+`best_d_norm_penalty` after the fact without re-fitting a single
+embedding.
+[`summarize_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.md)
+and
+[`summarize_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_learning_curve.md)
+are exactly the aggregation logic
+[`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)/[`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)
+use internally (see their own `$summary` return element), exported so
+you can apply the identical logic directly to a
+`dimensionality_results.csv`/`learning_curve_results.csv` you already
+have on disk — or, as below, any data frame in that same shape, however
+you collected it.
+
+`dimensionality_results.csv` is just the row-bound output of every
+`condor_fit.R --stage=dimensionality` job in that stage: one row per
+`(d, restart)` with columns `d`, `restart`, `loss`, `accuracy`, `epoch`,
+`norm_ratio` (plus a couple of bookkeeping columns
+[`summarize_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.md)
+doesn’t need). A small stand-in with the same shape, in place of
+`read.csv("dimensionality_results.csv")`:
+
+``` r
+
+set.seed(2)
+n_restarts <- 5
+# A loss that drops sharply through d = 2, then plateaus -- the same
+# shape as the worked example in vignette("embedding_vignette").
+true_loss_by_d <- c(`1` = 0.60, `2` = 0.51, `3` = 0.447, `4` = 0.447, `5` = 0.447)
+
+dimensionality_results <- do.call(rbind, lapply(1:5, function(d) {
+  data.frame(
+    d          = d,
+    restart    = seq_len(n_restarts),
+    loss       = true_loss_by_d[[as.character(d)]] + rnorm(n_restarts, sd = 0.006),
+    accuracy   = 0.75 + 0.01 * d + rnorm(n_restarts, sd = 0.01),
+    epoch      = sample(2000:5000, n_restarts),
+    norm_ratio = 1 + abs(rnorm(n_restarts, sd = 0.05))
+  )
+}))
+
+summarize_dimensionality(dimensionality_results, n_restarts = n_restarts)
+```
+
+`n_restarts` must be passed explicitly here (unlike
+[`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md),
+which already knows it) since it’s needed for the standard-error term
+behind `best_d`’s one-SE rule – see
+[`?estimate_dimensionality`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)’s
+“How `best_d` is determined” for what that rule is actually doing. It’s
+assumed constant across every `d`, matching every Condor workflow’s own
+one-restart-count-for-the-whole-stage design.
+
+`learning_curve_results.csv` follows the same idea, one row per
+`(fraction, restart)`:
+
+``` r
+
+fractions <- c(0.25, 0.5, 0.75, 1.0)
+
+learning_curve_results <- do.call(rbind, lapply(fractions, function(f) {
+  data.frame(
+    fraction   = f,
+    n_train    = round(f * 1000),
+    restart    = seq_len(n_restarts),
+    loss       = 0.60 - 0.10 * f + rnorm(n_restarts, sd = 0.008),
+    accuracy   = 0.65 + 0.10 * f + rnorm(n_restarts, sd = 0.01),
+    epoch      = sample(2000:5000, n_restarts),
+    norm_ratio = 1 + abs(rnorm(n_restarts, sd = 0.05))
+  )
+}))
+
+summarize_learning_curve(learning_curve_results)
+```
+
+A rising `mean_accuracy`/falling `mean_loss` that’s still climbing
+steeply at `fraction = 1.0` is the signal to collect more data before
+trusting the final embedding; one that’s already flattened out by
+`fraction = 0.75` or so means the fit has enough triplets and more
+participants would mostly buy diminishing returns — see
+[`?estimate_learning_curve`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)
+for the full interpretation.
+
 ------------------------------------------------------------------------
 
 ## Workflow 2: Group-difference permutation test

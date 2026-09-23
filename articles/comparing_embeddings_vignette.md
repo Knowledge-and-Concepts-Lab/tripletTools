@@ -21,6 +21,7 @@ each of these:
 | Approach | Question it answers | Key functions |
 |----|----|----|
 | Procrustes alignment + dimensionality ceilings | How well does this embedding’s *shape* align with a (possibly much higher-dimensional) alternative? | [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md), [`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md), [`procrustes_spectral_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_spectral_ceiling.md) |
+| Finding where two embeddings disagree | Which specific items, and which specific triplets, would best distinguish two embeddings’ accounts? | [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md), [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md) |
 | Classifier performance | Does this embedding encode a known categorical label? | [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md), [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md) |
 | Successor representations from verbal fluency | How does similarity estimated from a completely different task (free naming) compare to triplet-based similarity? | [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md), [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md) |
 
@@ -147,6 +148,130 @@ by the triplet embedding capturing fundamentally different structure.
 Without the ceiling, 0.313 alone doesn’t tell you that — it could just
 as easily have reflected a triplet embedding that captures almost none
 of the achievable structure.
+
+That still leaves roughly a quarter of the achievable structure
+genuinely uncaptured, though — which raises a natural next question:
+*which* words, specifically, is the triplet embedding placing
+differently than the language model does?
+
+------------------------------------------------------------------------
+
+## Finding where two embeddings disagree
+
+### Which items are placed most differently?
+
+[`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md)
+ranks items by how much their distance-to-everything-else profile
+differs between two embeddings. Unlike the Procrustes comparison above,
+**it needs no dimensionality-matching step at all** — no cMDS reduction,
+no zero-padding, nothing to align first. Distances are computed within
+each embedding’s own native space (4D for the triplet embedding,
+effectively-212D for the language model), so the two can be handed in
+exactly as they are:
+
+``` r
+
+find_discrepant_items(emotion_triplet_embedding, emotion_bge_embedding, k = 10)
+```
+
+    #>           item correlation
+    #> 1          ire     -0.0167
+    #> 2         lust     -0.0073
+    #> 3      arousal      0.0067
+    #> 4      startle      0.0187
+    #> 5    alertness      0.0438
+    #> 6  titillation      0.0675
+    #> 7    lividness      0.0733
+    #> 8       gaiety      0.0799
+    #> 9        mirth      0.0828
+    #> 10   nostalgia      0.0876
+
+A correlation near zero (or negative, as for `ire` and `lust`) means
+that item’s position *relative to every other word* is essentially
+unrelated between the two spaces — not just shifted, but genuinely
+reorganized. Several of the words here (`arousal`, `startle`,
+`alertness`, `titillation`, `lividness`) describe high-arousal or
+blended affective states rather than clean, single-category emotions — a
+plausible hypothesis for *why* they’d be hard to place consistently
+(arousal-related nuance may be exactly the kind of thing a 4-dimensional
+triplet embedding compresses away, or that a language model represents
+through lexical association rather than felt similarity), but confirming
+that is exactly the kind of question the next tool is for, not something
+this ranking alone establishes.
+
+### Designing a follow-up study: which triplets would settle it?
+
+Knowing an item is discrepant doesn’t say *how* two embeddings disagree
+about it, or give you anything to actually show a participant.
+[`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md)
+goes further: it searches for specific (head, option1, option2) triplets
+where the two embeddings imply different answers about which option is
+closer to the head, scored by the symmetric KL divergence between each
+embedding’s CKL win-probability (the same choice-probability model this
+package’s own embedding-fitting backend uses) — the bigger that
+divergence, the more a real participant’s answer on that exact triplet
+would favor one embedding’s account over the other’s.
+
+``` r
+
+find_discriminating_triplets(emotion_triplet_embedding, emotion_bge_embedding, k = 10, seed = 1)
+```
+
+    #>             head     option1    option2 embedding1_predicts embedding2_predicts discrepancy
+    #> 1      happiness frustration       glee                glee         frustration       1.209
+    #> 2           glee    euphoria      gloom            euphoria               gloom       1.199
+    #> 3        dislike      liking  suffering           suffering              liking       1.166
+    #> 4           glee       gloom   fondness            fondness               gloom       1.120
+    #> 5      jolliness        glee   jealousy                glee            jealousy       1.100
+    #> 6          pride       shame       glee                glee               shame       1.075
+    #> 7      sulkiness persecution  jolliness         persecution           jolliness       1.074
+    #> 8        dislike      liking bitterness          bitterness              liking       1.066
+    #> 9       pleasure        glee      shame                glee               shame       1.062
+    #> 10 encouragement        glee     insult                glee              insult       1.042
+
+The top row is a genuinely interpretable, testable disagreement: for the
+referent `happiness`, the triplet embedding says `glee` is the closer
+match, while the language-model embedding says `frustration` is — a real
+participant judgment on exactly this triplet would speak directly to
+which account is more veridical, for this item at least.
+
+`glee` alone accounts for 5 of these 10 triplets — one item dominating
+the results isn’t unusual, since the search is finding whichever
+triplets show the *largest* disagreement, not a diverse sample of them.
+Cap it with `max_per_item`:
+
+``` r
+
+find_discriminating_triplets(emotion_triplet_embedding, emotion_bge_embedding, k = 10, seed = 1, max_per_item = 2)
+```
+
+    #>             head     option1      option2 embedding1_predicts embedding2_predicts discrepancy
+    #> 1      happiness frustration         glee                glee         frustration       1.209
+    #> 2           glee    euphoria        gloom            euphoria               gloom       1.199
+    #> 3        dislike      liking    suffering           suffering              liking       1.166
+    #> 4      sulkiness persecution    jolliness         persecution           jolliness       1.074
+    #> 5        dislike      liking   bitterness          bitterness              liking       1.066
+    #> 6    frustration   happiness   grumpiness          grumpiness            happiness       1.000
+    #> 7        arousal unhappiness         zeal                zeal         unhappiness       0.991
+    #> 8    jitteriness      fervor  carefulness              fervor         carefulness       0.979
+    #> 9   homesickness       doubt cheerfulness               doubt        cheerfulness       0.969
+    #> 10     jolliness    jealousy     approval            approval            jealousy       0.968
+
+With no item appearing more than twice, a wider spread of the vocabulary
+shows up — including `arousal`, one of the items
+[`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md)
+flagged above, now paired with a concrete triplet (`unhappiness`
+vs. `zeal`) a follow-up study could actually run. The two functions
+share their underlying signal deliberately:
+[`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md)’s
+candidate search is partly weighted by the same distance-profile
+correlation
+[`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md)
+ranks on (see
+[`?find_discriminating_triplets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md)’s
+*Details*), so items flagged discrepant by one are more likely to
+surface in the other’s search, without either depending on the other’s
+output directly.
 
 ------------------------------------------------------------------------
 
@@ -505,12 +630,15 @@ fixed at a conventional default without checking.
 | Question | Tool |
 |----|----|
 | Does this embedding’s overall shape align with an alternative, accounting for a dimensionality mismatch? | [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md) + [`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md)/[`procrustes_spectral_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_spectral_ceiling.md) |
+| Which items are placed most differently between two embeddings? | [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md) |
+| Which specific triplets would best distinguish two embeddings’ accounts, for designing a follow-up study? | [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md) |
 | Does this embedding encode a known 2-level label? | [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md) |
 | Does this embedding encode a known \>2-level label? | [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md) |
 | How does verbal-fluency-based similarity compare to this embedding? | [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md) + [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md), then the Procrustes tools above |
 
-All three tools share a common thread: a raw number in isolation (a
-correlation, an AUC, a distance) is hard to interpret without something
-to compare it to — a ceiling, a chance level, a per-class breakdown, a
-sensitivity check across a hyperparameter. Each section above pairs the
-raw computation with that context.
+All of these tools share a common thread: a raw number in isolation (a
+correlation, an AUC, a distance, a discrepancy score) is hard to
+interpret without something to compare it to — a ceiling, a chance
+level, a per-class breakdown, a sensitivity check across a
+hyperparameter, a concrete triplet a real participant could actually
+answer. Each section above pairs the raw computation with that context.

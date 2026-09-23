@@ -34,11 +34,11 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
-    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
-    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
-    <li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
+<li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
     <li><a class="dropdown-item" href="../articles/read_data_vignette.html">Reading Triplet Data</a></li>
+    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
+    <li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
+    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
   </ul>
 </li>
       </ul>
@@ -307,6 +307,18 @@ side-effect:</p>
 </tr>
 </tbody>
 </table>
+<p><code><a href="../reference/run_embeddings_from_list.html">run_embeddings_from_list()</a></code> is itself a convenience
+wrapper: internally it converts <code>triplet_list</code> to a
+pre-indexed CSV and calls <code><a href="../reference/run_embeddings.html">run_embeddings()</a></code>, the lower-level
+function underneath. If your data is already on disk in that pre-indexed
+<code>head</code>/<code>winner</code>/<code>loser</code>/<code>sampleSet</code>
+format – e.g. from a large dataset or an external pipeline – calling
+<code><a href="../reference/run_embeddings.html">run_embeddings()</a></code> directly skips loading everything into an
+R list first, just to have it written back out to a temp file. Most
+users won’t need this; <code><a href="../reference/run_embeddings_from_list.html">run_embeddings_from_list()</a></code> is the
+right entry point when your data is already loaded, in the standard
+<code>Center</code>/<code>Left</code>/<code>Right</code>/<code>Answer</code>
+format <code><a href="../reference/get.combined.html">get.combined()</a></code> returns.</p>
 <div class="section level3">
 <h3 id="what-is-returned-1">What is returned<a class="anchor" aria-label="anchor" href="#what-is-returned-1"></a>
 </h3>

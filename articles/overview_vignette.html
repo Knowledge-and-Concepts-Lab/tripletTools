@@ -34,11 +34,11 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
-    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
-    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
-    <li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
+<li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
     <li><a class="dropdown-item" href="../articles/read_data_vignette.html">Reading Triplet Data</a></li>
+    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
+    <li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
+    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
   </ul>
 </li>
       </ul>
@@ -80,8 +80,11 @@ the referent. From many such judgments across many items and
 participants, one can compute a <em>similarity embedding</em>: a
 low-dimensional coordinate space in which items that are frequently
 judged as similar are placed nearby.</p>
-<p><code>tripletTools</code> does not collect data or compute embeddings
-— those steps occur outside R. Instead it provides tools for:</p>
+<p><code>tripletTools</code> also fits new embeddings directly from
+triplet judgments, via a bundled PyTorch backend — see the “Getting
+Started” and “Computing Triplet Embeddings” vignettes for that. This
+vignette instead focuses on the broader analysis toolkit, working from a
+precomputed example embedding, and covers:</p>
 <ul>
 <li>Loading triplet and embedding data files</li>
 <li>Assessing participant data quality</li>
@@ -193,13 +196,13 @@ time.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">psummary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.participant.summary.html">get.participant.summary</a></span><span class="op">(</span><span class="va">icon_triplets</span>, mintrial <span class="op">=</span> <span class="fl">230</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">psummary</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   tripfile worker_id ndat       lrt cacc keep</span></span>
-<span><span class="co">#&gt; 1 3n7ggxph  3n7ggxph  230 0.4961625    1 TRUE</span></span>
-<span><span class="co">#&gt; 2 b5wma4no  b5wma4no  230 0.9026607    1 TRUE</span></span>
-<span><span class="co">#&gt; 3 d8mmm1qn  d8mmm1qn  230 0.5051381    1 TRUE</span></span>
-<span><span class="co">#&gt; 4 jn7bbjc0  jn7bbjc0  230 0.6958144    1 TRUE</span></span>
-<span><span class="co">#&gt; 5 pbby694o  pbby694o  230 0.6679493    1 TRUE</span></span>
-<span><span class="co">#&gt; 6 sc2xbd6w  sc2xbd6w  230 0.6507582    1 TRUE</span></span></code></pre></div>
+<span><span class="co">#&gt;   tripfile worker_id ndat       lrt cacc ncheck nvalidation ntrain ntest keep</span></span>
+<span><span class="co">#&gt; 1 3n7ggxph  3n7ggxph  230 0.4961625    1     10          20    204    16 TRUE</span></span>
+<span><span class="co">#&gt; 2 b5wma4no  b5wma4no  230 0.9026607    1     10          20    195    25 TRUE</span></span>
+<span><span class="co">#&gt; 3 d8mmm1qn  d8mmm1qn  230 0.5051381    1     10          20    207    13 TRUE</span></span>
+<span><span class="co">#&gt; 4 jn7bbjc0  jn7bbjc0  230 0.6958144    1     10          20    197    23 TRUE</span></span>
+<span><span class="co">#&gt; 5 pbby694o  pbby694o  230 0.6679493    1     10          20    187    33 TRUE</span></span>
+<span><span class="co">#&gt; 6 sc2xbd6w  sc2xbd6w  230 0.6507582    1     10          20    199    21 TRUE</span></span></code></pre></div>
 <p>The output includes a <code>keep</code> column flagging participants
 who fall below the specified thresholds (the specified minimum number of
 trials, check-trial accuracy ≥ 0.80, mean log RT &gt; 0). Participants
@@ -250,7 +253,7 @@ recording whether each participant agreed with the majority vote (1),
 disagreed (0), or did not see the triplet (NA). The mean across triplets
 gives each participant’s overall agreement rate:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/barplot.html" class="external-link">barplot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">vmat</span><span class="op">$</span><span class="va">bysbj</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, </span>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/barplot.html" class="external-link">barplot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">vmat</span><span class="op">$</span><span class="va">bysbj</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
 <span>        beside <span class="op">=</span> <span class="cn">T</span>, </span>
 <span>        ylim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1.0</span><span class="op">)</span>,</span>
 <span>        xlab <span class="op">=</span> <span class="st">"Participant"</span>,</span>
@@ -259,7 +262,12 @@ gives each participant’s overall agreement rate:</p>
 <span>        las<span class="op">=</span><span class="fl">2</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/box.html" class="external-link">box</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span>h <span class="op">=</span> <span class="fl">0.5</span>, lty <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
-<p><img src="overview_vignette_files/figure-html/vmat-mean-1.png" class="r-plt" alt="" width="576"></p>
+<div class="figure">
+<img src="overview_vignette_files/figure-html/vmat-mean-1.png" class="r-plt" alt="Mean agreement with the majority vote for each participant on validation trials." width="576"><p class="caption">
+Mean agreement with the majority vote for each participant on validation
+trials.
+</p>
+</div>
 <p>Participants can vary quite a bit as to how well they agree with the
 majority vote, indicating potential individual differences in how people
 view these stimuli.</p>
@@ -288,7 +296,40 @@ dimensions shown).
 </div>
 <p>Icons that appear close together were frequently judged as similar to
 one another by this participant.</p>
+<div class="section level3">
+<h3 id="checking-true-nearest-neighbors-beyond-2-dimensions">Checking true nearest neighbors beyond 2 dimensions<a class="anchor" aria-label="anchor" href="#checking-true-nearest-neighbors-beyond-2-dimensions"></a>
+</h3>
+<p>The plot above only shows the first two of this embedding’s three
+dimensions — visual proximity there doesn’t necessarily reflect true
+proximity in the full embedding, especially for an item placed close to
+others mainly along the dimension left out of the picture.
+<code>get.nearest.k</code> sidesteps that by reading neighbors off a
+distance matrix computed in however many dimensions the embedding
+actually has, rather than off a necessarily-partial 2-D plot. It takes a
+distance matrix, not the raw embedding coordinates directly:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dmat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/dist.html" class="external-link">dist</a></span><span class="op">(</span><span class="va">emb1</span><span class="op">)</span><span class="op">)</span>   <span class="co"># distances in the full 3-D embedding</span></span>
+<span><span class="fu"><a href="../reference/get.nearest.k.html">get.nearest.k</a></span><span class="op">(</span><span class="va">dmat</span>, item <span class="op">=</span> <span class="st">"pdcns"</span>, k <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "pdcnb" "pncns" "pdhns" "pncnb" "pnhnb"</span></span></code></pre></div>
+<p>Compare that to what the 2-D plot above alone would suggest.
+Computing the same lookup from only the first two dimensions gives a
+visibly different answer, with <code>pncos</code> appearing as the
+apparent nearest neighbor even though it isn’t among the true top 5 at
+all once the third dimension is included:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dmat_2d</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">as.matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/dist.html" class="external-link">dist</a></span><span class="op">(</span><span class="va">emb1</span><span class="op">[</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/get.nearest.k.html">get.nearest.k</a></span><span class="op">(</span><span class="va">dmat_2d</span>, item <span class="op">=</span> <span class="st">"pdcns"</span>, k <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "pncos" "pdcnb" "pncns" "pdhnb" "pdcos"</span></span></code></pre></div>
+<p>This is exactly the situation <code>get.nearest.k</code> is for: once
+an embedding has more dimensions than you can plot at once, a
+scatterplot can only ever show <em>some</em> of what determines true
+proximity — useful for a first visual impression, but not a substitute
+for checking actual distances when the answer matters, particularly for
+embeddings fit at a higher <code>d</code> than this 3-dimensional
+example (see <code><a href="../articles/embedding_vignette.html">vignette("embedding_vignette")</a></code> for choosing
+<code>d</code>).</p>
 <hr>
+</div>
 </div>
 <div class="section level2">
 <h2 id="evaluating-embedding-quality-hold-out-prediction-accuracy">Evaluating embedding quality: hold-out prediction accuracy<a class="anchor" aria-label="anchor" href="#evaluating-embedding-quality-hold-out-prediction-accuracy"></a>
@@ -300,7 +341,7 @@ the participant chose? The predicted choice is whichever option is
 closer to the referent in the embedding space.</p>
 <p><code>get.hoacc</code> returns the proportion of held-out trials for
 which the embedding’s prediction matches the participant’s answer:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">acc1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.hoacc.html">get.hoacc</a></span><span class="op">(</span><span class="va">icon_emb_ind</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="va">icon_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Hold-out prediction accuracy (participant 1):"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">acc1</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Hold-out prediction accuracy (participant 1): 0.688</span></span></code></pre></div>
@@ -313,7 +354,7 @@ expression is passed as the embedding argument (sanitized into a valid
 column name), so pass <code>pred_name</code> explicitly for a
 predictable name when calling it with something other than a plain
 variable, as here:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span>     <span class="op">&lt;-</span> <span class="fu"><a href="../reference/test.model.html">test.model</a></span><span class="op">(</span><span class="va">icon_emb_ind</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="va">icon_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, pred_name <span class="op">=</span> <span class="st">"ModPred"</span><span class="op">)</span></span>
 <span><span class="va">test_rows</span>  <span class="op">&lt;-</span> <span class="va">result</span><span class="op">$</span><span class="va">sampleSet</span> <span class="op">==</span> <span class="st">"test"</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">result</span><span class="op">$</span><span class="va">ModPred</span><span class="op">[</span><span class="va">test_rows</span><span class="op">]</span> <span class="op">==</span> <span class="va">result</span><span class="op">$</span><span class="va">Answer</span><span class="op">[</span><span class="va">test_rows</span><span class="op">]</span>, na.rm<span class="op">=</span><span class="cn">TRUE</span><span class="op">)</span></span>
@@ -335,7 +376,7 @@ would evaluate this for a group embedding, since validation statistics
 are computed across the whole group. Here we illustrate using the
 individual embedding from Participant 1; see <code>icon_emb_group</code>
 for the group embedding of these stimuli:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Validation trials for participant 1</span></span>
 <span><span class="va">vtrips</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">icon_triplets</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>, <span class="va">sampleAlg</span> <span class="op">==</span> <span class="st">"validation"</span><span class="op">)</span></span>
 <span></span>
@@ -378,13 +419,13 @@ are real and systematic, a participant’s <em>own</em> embedding should
 predict their judgments better than another participant’s embedding
 does.</p>
 <p><code>get.prediction.matrix</code> computes this for all pairs:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pmat</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.prediction.matrix.html">get.prediction.matrix</a></span><span class="op">(</span><span class="va">icon_emb_ind</span>, <span class="va">icon_triplets</span><span class="op">)</span></span></code></pre></div>
 <p>The result is a 6 × 6 matrix. Entry [i, j] is the accuracy with which
 participant i’s embedding predicts participant j’s held-out judgments.
 The diagonal contains each participant’s <em>self-prediction</em>
 accuracy.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Mean self-prediction accuracy:  "</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">)</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Mean self-prediction accuracy:   0.782</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Mean other-prediction accuracy: "</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/row.html" class="external-link">row</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">)</span> <span class="op">!=</span> <span class="fu"><a href="https://rdrr.io/r/base/col.html" class="external-link">col</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">)</span><span class="op">]</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
@@ -393,7 +434,7 @@ accuracy.</p>
 relative to the other entries in its row, expressing how much better (or
 worse) a participant’s own embedding predicts their data compared to
 other participants’ embeddings:</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">zscores</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/z.pred.mat.html">z.pred.mat</a></span><span class="op">(</span><span class="va">pmat</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Mean z-score of self-prediction:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">zscores</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
@@ -418,11 +459,50 @@ in the shape-analysis literature, and the recommended choice for exactly
 the kind of distance-based clustering below (see
 <code><a href="../reference/get.rep.dist.html">?get.rep.dist</a></code> for the other available metrics, e.g. a
 correlation-style alternative).</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">repdist</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="va">icon_emb_ind</span><span class="op">)</span></span></code></pre></div>
-<p>We can cluster participants by their representational distances using
-standard hierarchical clustering:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="section level3">
+<h3 id="is-there-real-cluster-structure">Is there real cluster structure?<a class="anchor" aria-label="anchor" href="#is-there-real-cluster-structure"></a>
+</h3>
+<p>Before cutting the tree below into groups, it’s worth asking a more
+basic question first: is there any real cluster structure here at all,
+or would <em>any</em> forced cut into <code>k</code> groups look about
+equally convincing? <code><a href="https://rdrr.io/r/stats/cutree.html" class="external-link">cutree()</a></code> will always produce however
+many groups you ask it for, whether or not the data actually supports
+splitting into groups in the first place. <code>test_for_clusters</code>
+addresses this directly, combining a Hopkins-statistic test for
+clustering tendency with a BIC comparison across candidate numbers of
+clusters:</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/test_for_clusters.html">test_for_clusters</a></span><span class="op">(</span><span class="va">repdist</span>, max_clusters <span class="op">=</span> <span class="fl">3</span>, seed <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Dimensions used (k_use): 1</span></span>
+<span><span class="co">#&gt; Hopkins statistic: 0.828 (p = 0.005436 for H0: no clustering)</span></span>
+<span><span class="co">#&gt;   -&gt; evidence of cluster structure (more than one cluster likely)</span></span>
+<span><span class="co">#&gt; BIC by number of clusters (lower is better):</span></span>
+<span><span class="co">#&gt;   G=1   G=2   G=3 </span></span>
+<span><span class="co">#&gt;  9.88 -5.08 -9.67 </span></span>
+<span><span class="co">#&gt;   -&gt; best supported number of clusters: 3</span></span></code></pre></div>
+<p>A significant Hopkins statistic (small <code>hopkins_p_value</code>,
+<code>hopkins</code> well above 0.5) is evidence that participants
+really do form non-random groups, not just an artifact of forcing a cut.
+Notice that <code>best_g</code> doesn’t necessarily agree with what the
+Hopkins test itself supports here – with only 6 participants, the BIC
+comparison across candidate cluster counts is considerably less reliable
+than the Hopkins statistic (see <code><a href="../reference/test_for_clusters.html">?test_for_clusters</a></code> for
+why), so prefer the Hopkins-based conclusion when the two disagree.</p>
+<p>One honest caveat: with only 6 participants, the exact p-value is
+somewhat sensitive to the random draw the Hopkins test’s synthetic
+comparison points happen to take (set via <code>seed</code>) – some
+seeds land comfortably below 0.05, others closer to or above it, even
+though the underlying <code>hopkins</code> statistic itself stays
+consistently above 0.5 regardless. That’s not a bug, it’s genuine
+small-sample variability, and it’s a good reminder to treat a single
+run’s p-value on a small dataset as suggestive rather than definitive –
+exactly the kind of judgment call <code>test_for_clusters</code> is
+meant to inform, not replace.</p>
+<p>With that established, we can cluster participants by their
+representational distances using standard hierarchical clustering:</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co">#Compute hierarchical cluster tree:</span></span>
 <span><span class="va">hc</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/hclust.html" class="external-link">hclust</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/dist.html" class="external-link">as.dist</a></span><span class="op">(</span><span class="va">repdist</span><span class="op">)</span>, method <span class="op">=</span> <span class="st">"ward.D"</span><span class="op">)</span> </span>
 <span></span>
@@ -440,16 +520,17 @@ standard hierarchical clustering:</p>
 Participants clustered by pairwise representational distance.
 </p>
 </div>
+</div>
 <div class="section level3">
 <h3 id="mean-embedding-per-cluster">Mean embedding per cluster<a class="anchor" aria-label="anchor" href="#mean-embedding-per-cluster"></a>
 </h3>
 <p><code>get.group.list.mean</code> aligns all embeddings within each
 cluster and returns a mean embedding for each group:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">mn_by_clust</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.group.list.mean.html">get.group.list.mean</a></span><span class="op">(</span><span class="va">icon_emb_ind</span>, <span class="va">clusts</span><span class="op">)</span></span></code></pre></div>
 <p>Plotting each cluster’s mean embedding shows whether different groups
 of participants organized the icons in qualitatively different ways:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">dmat</span> <span class="op">&lt;-</span> <span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span> <span class="co">#Copy data matrix</span></span>
 <span><span class="va">dmat</span> <span class="op">&lt;-</span> <span class="va">dmat</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">dmat</span><span class="op">)</span><span class="op">)</span> <span class="co">#Max scaling</span></span>
@@ -462,7 +543,7 @@ of participants organized the icons in qualitatively different ways:</p>
 Mean embedding for cluster 1 (first two dimensions).
 </p>
 </div>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dmat</span> <span class="op">&lt;-</span> <span class="va">mn_by_clust</span><span class="op">[[</span><span class="fl">2</span><span class="op">]</span><span class="op">]</span> <span class="co">#Copy data matrix</span></span>
 <span><span class="va">dmat</span> <span class="op">&lt;-</span> <span class="va">dmat</span> <span class="op">/</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">dmat</span><span class="op">)</span><span class="op">)</span> <span class="co">#Max scaling</span></span>
 <span></span>
@@ -485,7 +566,7 @@ participant’s held-out judgments should be better predicted by
 embeddings from within their cluster than by embeddings from other
 clusters. <code>pacc.by.cluster</code> tests this directly using the
 prediction matrix:</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pbc</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/pacc.by.cluster.html">pacc.by.cluster</a></span><span class="op">(</span><span class="va">pmat</span>, <span class="va">clusts</span>, samediff <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">pbc</span><span class="op">)</span></span>
 <span><span class="co">#&gt;               self      same     other</span></span>
@@ -499,13 +580,13 @@ prediction matrix:</p>
 accuracy from (1) their own embedding, (2) the mean of their
 cluster-mates’ embeddings, and (3) the mean of participants outside
 their cluster.</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">colMeans</a></span><span class="op">(</span><span class="va">pbc</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  self  same other </span></span>
 <span><span class="co">#&gt; 0.782 0.776 0.596</span></span></code></pre></div>
 <p>We can show the mean and 95% confidence interval of these values
 across participants as a ribbon plot:</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_cis.html">plot_cis</a></span><span class="op">(</span><span class="va">pbc</span>,</span>
 <span>         xvals  <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>,</span>
 <span>         main   <span class="op">=</span> <span class="st">"Prediction accuracy by cluster membership"</span>,</span>
@@ -535,8 +616,8 @@ tip coordinates of a phylogram plot, allowing <code>plot_pics</code> to
 place images at the correct positions. In this case we will visualize
 the hierarchical cluster plot of the single embedding computed from the
 full group of participants (icon_emb_group).</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">hc_emb</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/hclust.html" class="external-link">hclust</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/dist.html" class="external-link">dist</a></span><span class="op">(</span><span class="va">icon_emb_group</span><span class="op">[</span>,<span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">]</span><span class="op">)</span>, method <span class="op">=</span> <span class="st">"ward.D2"</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">hc_emb</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/hclust.html" class="external-link">hclust</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/dist.html" class="external-link">dist</a></span><span class="op">(</span><span class="va">icon_emb_group</span><span class="op">)</span>, method <span class="op">=</span> <span class="st">"ward.D2"</span><span class="op">)</span></span>
 <span><span class="va">pt</span>     <span class="op">&lt;-</span> <span class="fu">ape</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/ape/man/as.phylo.html" class="external-link">as.phylo</a></span><span class="op">(</span><span class="va">hc_emb</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">pt</span>, type <span class="op">=</span> <span class="st">"fan"</span>, show.tip.label <span class="op">=</span> <span class="cn">FALSE</span>,</span>
@@ -581,24 +662,34 @@ group.</p>
 <td><code>plot_pics</code></td>
 </tr>
 <tr class="even">
+<td>What are an item’s true nearest neighbors, beyond what a 2-D plot
+shows?</td>
+<td><code>get.nearest.k</code></td>
+</tr>
+<tr class="odd">
 <td>How well does the embedding predict held-out judgments?</td>
 <td>
 <code>get.hoacc</code>, <code>test.model</code>
 </td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Does the embedding correctly rank triplet difficulty?</td>
 <td><code>model.strength</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Are individual differences in representation reliable?</td>
 <td>
 <code>get.prediction.matrix</code>, <code>z.pred.mat</code>
 </td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>How similar are two participants’ representations?</td>
 <td><code>get.rep.dist</code></td>
+</tr>
+<tr class="odd">
+<td>Is there real cluster structure, before forcing a cut into
+groups?</td>
+<td><code>test_for_clusters</code></td>
 </tr>
 <tr class="even">
 <td>Are there subgroups with similar representations?</td>

@@ -33,7 +33,7 @@ for the trial type indicated.
 ## Details
 
 Elements of the embedding and triplet lists should be named with the
-participant ID, as in the format returned by `get_combined`. Ideally
+participant ID, as in the format returned by `get.combined`. Ideally
 these lists will contain the same participants in the same order. The
 function expects files conform to naming conventions. It first extracts
 trials of the indicated type, then uses `get.hoacc` to compute the

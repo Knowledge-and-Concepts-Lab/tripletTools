@@ -90,10 +90,7 @@ point, so you can see directly what the space captures:
 
 ``` r
 
-emb <- icon_emb_group
-rownames(emb) <- emb$item
-
-plot_pics(emb[, c("dim_0", "dim_1")], icon_pics,
+plot_pics(icon_emb_group[, c("dim_0", "dim_1")], icon_pics,
           psize = 0.04,
           xlab  = "Dimension 1",
           ylab  = "Dimension 2",
@@ -115,9 +112,9 @@ answers this directly:
 
 ``` r
 
-acc <- get.hoacc(emb[, c("dim_0", "dim_1", "dim_2")], icon_triplets[[1]])
+acc <- get.hoacc(icon_emb_group, icon_triplets[[1]])
 cat("Hold-out accuracy (participant 1):", round(acc, 3), "\n")
-#> Hold-out accuracy (participant 1): 0.688
+#> Hold-out accuracy (participant 1): 0.75
 ```
 
 ## Fit your first embedding

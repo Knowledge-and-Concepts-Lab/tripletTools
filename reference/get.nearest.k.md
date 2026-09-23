@@ -13,7 +13,10 @@ get.nearest.k(dmat, item, k = 5)
 
 - dmat:
 
-  Data matrix; rows must be named.
+  A symmetric distance matrix (e.g. from
+  [`dist()`](https://rdrr.io/r/stats/dist.html) or
+  [`get.rep.dist`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)),
+  not raw embedding coordinates – rows and columns must be named.
 
 - item:
 

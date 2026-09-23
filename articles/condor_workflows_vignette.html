@@ -34,11 +34,11 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
-    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
-    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
-    <li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
+<li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
     <li><a class="dropdown-item" href="../articles/read_data_vignette.html">Reading Triplet Data</a></li>
+    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
+    <li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
+    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
   </ul>
 </li>
       </ul>
@@ -535,7 +535,88 @@ one coherent embedding space throughout;
 rationale behind <code>internal_test_frac</code> and why the final
 embedding is a dedicated fit rather than a reused learning-curve
 restart.</p>
+<div class="section level3">
+<h3 id="recomputing-a-summary-yourself-without-refitting-anything">Recomputing a summary yourself, without refitting anything<a class="anchor" aria-label="anchor" href="#recomputing-a-summary-yourself-without-refitting-anything"></a>
+</h3>
+<p><code>condor_workflow.py</code> already writes the
+<code>_summary.csv</code> files above as part of a normal run, so you
+don’t usually need to do this. Two situations where you do: the
+workflow’s own aggregation step didn’t complete (the same
+output-transfer failure described in <a href="#a-job-finishes-cleanly-but-its-output-file-is-empty">“A job
+finishes cleanly but its output file is empty”</a> above can in
+principle hit <em>any</em> stage’s many-small-jobs pattern, including
+the local aggregation reading them back), or you want to try a different
+<code>best_d_norm_penalty</code> after the fact without re-fitting a
+single embedding. <code><a href="../reference/summarize_dimensionality.html">summarize_dimensionality()</a></code> and
+<code><a href="../reference/summarize_learning_curve.html">summarize_learning_curve()</a></code> are exactly the aggregation
+logic
+<code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code>/<code><a href="../reference/estimate_learning_curve.html">estimate_learning_curve()</a></code>
+use internally (see their own <code>$summary</code> return element),
+exported so you can apply the identical logic directly to a
+<code>dimensionality_results.csv</code>/<code>learning_curve_results.csv</code>
+you already have on disk — or, as below, any data frame in that same
+shape, however you collected it.</p>
+<p><code>dimensionality_results.csv</code> is just the row-bound output
+of every <code>condor_fit.R --stage=dimensionality</code> job in that
+stage: one row per <code>(d, restart)</code> with columns
+<code>d</code>, <code>restart</code>, <code>loss</code>,
+<code>accuracy</code>, <code>epoch</code>, <code>norm_ratio</code> (plus
+a couple of bookkeeping columns <code><a href="../reference/summarize_dimensionality.html">summarize_dimensionality()</a></code>
+doesn’t need). A small stand-in with the same shape, in place of
+<code>read.csv("dimensionality_results.csv")</code>:</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">2</span><span class="op">)</span></span>
+<span><span class="va">n_restarts</span> <span class="op">&lt;-</span> <span class="fl">5</span></span>
+<span><span class="co"># A loss that drops sharply through d = 2, then plateaus -- the same</span></span>
+<span><span class="co"># shape as the worked example in vignette("embedding_vignette").</span></span>
+<span><span class="va">true_loss_by_d</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>`1` <span class="op">=</span> <span class="fl">0.60</span>, `2` <span class="op">=</span> <span class="fl">0.51</span>, `3` <span class="op">=</span> <span class="fl">0.447</span>, `4` <span class="op">=</span> <span class="fl">0.447</span>, `5` <span class="op">=</span> <span class="fl">0.447</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">dimensionality_results</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>, <span class="kw">function</span><span class="op">(</span><span class="va">d</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>    d          <span class="op">=</span> <span class="va">d</span>,</span>
+<span>    restart    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_restarts</span><span class="op">)</span>,</span>
+<span>    loss       <span class="op">=</span> <span class="va">true_loss_by_d</span><span class="op">[[</span><span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">d</span><span class="op">)</span><span class="op">]</span><span class="op">]</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_restarts</span>, sd <span class="op">=</span> <span class="fl">0.006</span><span class="op">)</span>,</span>
+<span>    accuracy   <span class="op">=</span> <span class="fl">0.75</span> <span class="op">+</span> <span class="fl">0.01</span> <span class="op">*</span> <span class="va">d</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_restarts</span>, sd <span class="op">=</span> <span class="fl">0.01</span><span class="op">)</span>,</span>
+<span>    epoch      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">2000</span><span class="op">:</span><span class="fl">5000</span>, <span class="va">n_restarts</span><span class="op">)</span>,</span>
+<span>    norm_ratio <span class="op">=</span> <span class="fl">1</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_restarts</span>, sd <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">}</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/summarize_dimensionality.html">summarize_dimensionality</a></span><span class="op">(</span><span class="va">dimensionality_results</span>, n_restarts <span class="op">=</span> <span class="va">n_restarts</span><span class="op">)</span></span></code></pre></div>
+<p><code>n_restarts</code> must be passed explicitly here (unlike
+<code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code>, which already knows it) since
+it’s needed for the standard-error term behind <code>best_d</code>’s
+one-SE rule – see <code><a href="../reference/estimate_dimensionality.html">?estimate_dimensionality</a></code>’s “How
+<code>best_d</code> is determined” for what that rule is actually doing.
+It’s assumed constant across every <code>d</code>, matching every Condor
+workflow’s own one-restart-count-for-the-whole-stage design.</p>
+<p><code>learning_curve_results.csv</code> follows the same idea, one
+row per <code>(fraction, restart)</code>:</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fractions</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.25</span>, <span class="fl">0.5</span>, <span class="fl">0.75</span>, <span class="fl">1.0</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">learning_curve_results</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">fractions</span>, <span class="kw">function</span><span class="op">(</span><span class="va">f</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>    fraction   <span class="op">=</span> <span class="va">f</span>,</span>
+<span>    n_train    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">f</span> <span class="op">*</span> <span class="fl">1000</span><span class="op">)</span>,</span>
+<span>    restart    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n_restarts</span><span class="op">)</span>,</span>
+<span>    loss       <span class="op">=</span> <span class="fl">0.60</span> <span class="op">-</span> <span class="fl">0.10</span> <span class="op">*</span> <span class="va">f</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_restarts</span>, sd <span class="op">=</span> <span class="fl">0.008</span><span class="op">)</span>,</span>
+<span>    accuracy   <span class="op">=</span> <span class="fl">0.65</span> <span class="op">+</span> <span class="fl">0.10</span> <span class="op">*</span> <span class="va">f</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_restarts</span>, sd <span class="op">=</span> <span class="fl">0.01</span><span class="op">)</span>,</span>
+<span>    epoch      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">2000</span><span class="op">:</span><span class="fl">5000</span>, <span class="va">n_restarts</span><span class="op">)</span>,</span>
+<span>    norm_ratio <span class="op">=</span> <span class="fl">1</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_restarts</span>, sd <span class="op">=</span> <span class="fl">0.05</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">}</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/summarize_learning_curve.html">summarize_learning_curve</a></span><span class="op">(</span><span class="va">learning_curve_results</span><span class="op">)</span></span></code></pre></div>
+<p>A rising <code>mean_accuracy</code>/falling <code>mean_loss</code>
+that’s still climbing steeply at <code>fraction = 1.0</code> is the
+signal to collect more data before trusting the final embedding; one
+that’s already flattened out by <code>fraction = 0.75</code> or so means
+the fit has enough triplets and more participants would mostly buy
+diminishing returns — see <code><a href="../reference/estimate_learning_curve.html">?estimate_learning_curve</a></code> for the
+full interpretation.</p>
 <hr>
+</div>
 </div>
 <div class="section level2">
 <h2 id="workflow-2-group-difference-permutation-test">Workflow 2: Group-difference permutation test<a class="anchor" aria-label="anchor" href="#workflow-2-group-difference-permutation-test"></a>
@@ -581,7 +662,7 @@ true split and every null permutation, never re-selected per replicate,
 since that would be both prohibitively slow (hundreds of permutations ×
 a full dimensionality search each) and would entangle dimensionality
 selection with the group-difference test itself.</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="ex">python3</span> condor_group_diff_workflow.py triplet_data.csv group_labels.csv my_params.yml</span></code></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a><span class="ex">python3</span> condor_group_diff_workflow.py triplet_data.csv group_labels.csv my_params.yml</span></code></pre></div>
 <p>This runs in two Condor stages — Stage 1 fits one embedding per
 (replicate, side) pair (the true split contributes 2, each of
 <code>n_permutations</code> null replicates contributes 2 more), waits
@@ -641,7 +722,7 @@ output, for when fitting every participant locally (even multicore, via
 triplet-judgment CSV (see the general procedure above); every distinct
 <code>worker_id</code> found in it gets its own fit. Unlike Workflow 2,
 no separate labels file is required.</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="ex">python3</span> condor_individual_embeddings_workflow.py triplet_data.csv my_params.yml</span></code></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a><span class="ex">python3</span> condor_individual_embeddings_workflow.py triplet_data.csv my_params.yml</span></code></pre></div>
 <p>This is a single Condor stage (one job per participant) plus a local,
 non-Condor concatenation step — there’s no comparison stage, unlike
 Workflow 2, since there’s nothing to compare across participants here.
@@ -684,7 +765,7 @@ generously high <code>d</code> (with headroom above what you’d expect
 any single participant to need), then reduce each participant’s own
 embedding back down locally after pulling <code>embeddings.csv</code>
 down from the cluster:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/">tripletTools</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">individual</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.combined.html">get.combined</a></span><span class="op">(</span><span class="st">"embeddings.csv"</span>, eflag <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>   <span class="co"># split back out per worker_id</span></span>

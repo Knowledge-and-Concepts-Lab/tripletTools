@@ -87,6 +87,10 @@ Current version: **0.2.0**. Package URL:
                                          #   (setup_python_env(), embedding fitting) stay eval=FALSE since the
                                          #   pkgdown CI workflow has no conda/Python step.
       overview_vignette.Rmd
+      read_data_vignette.Rmd            # Reading raw jsPsych exports and legacy CSVs into the package's
+                                         #   standard triplet/embedding format (read_raw_data(), read_legacy(),
+                                         #   get.combined()) -- not yet cross-referenced in this file's own
+                                         #   "Recently added" history, found missing 2026-09-23 during a doc audit.
       embedding_vignette.Rmd            # Documents the full embedding pipeline (local: serial + future/plan
                                          #   multicore). HTCondor deployment itself now lives in
                                          #   condor_workflows_vignette.Rmd -- this vignette just points to it.
@@ -124,7 +128,7 @@ Current version: **0.2.0**. Package URL:
 | [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) | R/train_embedding.R | Low-level: fit one embedding from matrices |
 | [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) | R/run_embeddings.R | Group embedding from triplet list |
 | [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) | R/run_embeddings.R | Per-participant + group embeddings |
-| [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md) | R/run_embeddings.R | CSV-based pipeline (called by the above) |
+| [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md) | R/run_embeddings.R | Lower-level CSV-based pipeline; [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) calls this internally (writes a temp pre-indexed CSV, then calls it) – [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) does *not*, it calls [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) directly instead |
 | [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) | R/estimate_dimensionality.R | Grid search over d with random restarts |
 | [`matrix_rank()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/matrix_rank.md) | R/matrix_rank.R | Numerical rank of a (centered) matrix via SVD |
 | [`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md) | R/procrustes_rank_ceiling.R | Variance fraction captured by top-k dims of a target matrix |
@@ -137,6 +141,7 @@ Current version: **0.2.0**. Package URL:
 | [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md) | R/group_difference_test.R | Permutation test for whether two participant groups’ embeddings differ reliably; local (small-scale) companion to `inst/condor/condor_group_diff_workflow.py` |
 | [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md) | R/find_discrepant_items.R | Ranks items by how much their distance-to-others profile differs between two embeddings; alignment-free alternative to per-item Procrustes residuals |
 | [`reduce_embedding_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/reduce_embedding_dimension.md) | R/reduce_embedding_dimension.R | Reduces an embedding fit at a generously high `d` to the lowest dimension (via PCA) that preserves most of its variance, and reports triplet-prediction accuracy before/after |
+| [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md) | R/estimate_intrinsic_dimension.R | Horn’s parallel analysis on the cMDS decomposition of a distance matrix (e.g. from [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)) — estimates how many dimensions carry real, permutation-irreducible structure vs. noise. Used by [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)’s `k_use` when not supplied directly |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`,
 `.get_compute_py()`. Internal helpers in
@@ -207,6 +212,15 @@ back to the returned matrices.
   black/white (faces) or big/small (places) — e.g. gender for
   classifier-evaluation examples is position 3 (`f`/`m`) of face (`f*`)
   items only.
+- `icon_emb_ind` — named list of 6 per-participant 3D embeddings of the
+  32 icon stimuli (each a 32 x 3 data frame, `dim_0`/`dim_1`/`dim_2`
+  columns, rownames = item codes).
+- `icon_emb_group` — single 32 x 3 data frame: 3D group embedding of the
+  icon stimuli, same shape/convention as `icon_emb_ind` (item-code
+  rownames, `dim_0`/`dim_1`/`dim_2` only). Regenerated 2026-09-23 (see
+  “Recently added” below) — previously carried the raw CSV’s
+  `worker_id`/`item`/`path` columns and generic integer rownames,
+  inconsistent with every other embedding object in the package.
 - `emotion_triplet_embedding` — 4D triplet-based embedding of 213 Shaver
   et al. (1987) emotion words (213 x 4 data frame, rownames = words)
 - `emotion_bge_embedding` — BAAI/bge-m3 language-model embedding of the
@@ -247,8 +261,19 @@ back to the returned matrices.
   rebuilds `docs/`; GitHub Actions auto-deploys `docs/` to GitHub Pages
   on push to main
 - Never edit `man/*.Rd` files directly
-- Vignette chunks all have `eval = FALSE` globally — examples are
-  illustrative
+- `embedding_vignette.Rmd`, `comparing_embeddings_vignette.Rmd`, and
+  `condor_workflows_vignette.Rmd` set `eval = FALSE` globally
+  (Python/Condor-dependent, no such step in pkgdown CI) — examples there
+  are illustrative only. `overview_vignette.Rmd`,
+  `read_data_vignette.Rmd`, and `tripletTools.Rmd` do **not** set a
+  global `eval = FALSE` — their non-Python-dependent chunks actually
+  execute during
+  [`pkgdown::build_site()`](https://pkgdown.r-lib.org/reference/build_site.html)/`R CMD build`,
+  working entirely from bundled example data; only genuinely Python- or
+  external-file-dependent chunks are individually marked `eval = FALSE`
+  within those three. (A prior version of this doc claimed
+  `tripletTools.Rmd` was the *only* exception — wrong; corrected
+  2026-09-23.)
 - `sampleAlg == "check"` rows are attention-check trials; functions
   exclude them by checking `is.na(sampleSet)`
 
@@ -651,3 +676,228 @@ back to the returned matrices.
   [`vignette("condor_workflows_vignette")`](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/condor_workflows_vignette.md))
   when retries are exhausted rather than something to keep fighting the
   transfer path over.
+- **Documentation audit (2026-09-23)**, prompted by the user noticing
+  `overview_vignette.Rmd` claiming the package “does not… compute
+  embeddings” (stale since the v0.2.0 embedding pipeline shipped) and
+  the Getting Started guide treating `icon_emb_group` as if item labels
+  were a column rather than row names. Systematic pass found and fixed
+  five discrepancies: (1) that stale capability claim; (2)
+  `icon_emb_ind`’s roxygen `@format` describing the raw 6-column CSV
+  shape rather than the actual shipped 3-column object; (3)
+  `icon_emb_group` itself — not just its docs — inconsistent with every
+  other embedding object’s rownames convention (see “Data objects”
+  above; fixed by cleaning `data-raw/icon_embeddings.R` the same way as
+  `icon_emb_ind` and regenerating, which let three separate
+  `rownames(emb) <- emb$item`/`[,1:3]` workarounds in
+  `tripletTools.Rmd`, README, and `overview_vignette.Rmd` be simplified
+  away); (4) `get_combined()` vs. the actual
+  [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
+  (dot, not underscore) — a real typo in `read_data_vignette.Rmd` prose
+  and three roxygen files, inconsistent with the correctly-dotted
+  working `\link{}` cross-references elsewhere; (5) a missing `fig.cap`
+  (accessibility) on one `overview_vignette.Rmd` chunk, already known
+  but never fixed. Also surfaced, while auditing: 52 exported functions
+  cross-referenced against all vignette prose turned up several with
+  real functionality and zero narrative coverage
+  ([`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md),
+  [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md)/[`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md)
+  as a pair,
+  [`summarize_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.md)/[`summarize_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_learning_curve.md),
+  [`plot_directions()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_directions.md),
+  [`get.nearest.k()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.nearest.k.md),
+  [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md))
+  —
+  [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)
+  and
+  [`summarize_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.md)/[`summarize_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_learning_curve.md)
+  now addressed (see the two bullets below); the rest still open.
+  [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)
+  never propagates `names(elist)` into its output matrix’s dimnames
+  (confirmed while writing a follow-up simulation script), a minor
+  usability gap not yet fixed.
+- **[`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)
+  had a real, undiscovered statistical bug, found while investigating
+  why it failed to detect known real clustering.** The user had built a
+  12-participant dataset (their own icon-triplet judgments, replicated
+  with 5% of trial answers flipped per twin) with *verified*
+  ground-truth 2-group structure (confirmed via
+  [`cutree()`](https://rdrr.io/r/stats/cutree.html) recovering the exact
+  expected split and each twin pairing with its own parent) — yet
+  `hopkins_p_value` stayed solidly non-significant (~0.3-0.9) regardless
+  of sample size. A calibrated synthetic power simulation (noisy
+  replicates of two real archetype embeddings, matched to the observed
+  real effect size) showed **Hopkins power was exactly 0 at n=12/24/48
+  and only jumped to 1.0 at n=96** — the smoking gun, since real power
+  should improve smoothly with n, not stay at exactly zero across a 4x
+  range. Root cause: the function’s dimensionality-reduction step
+  retained every numerically-positive-eigenvalue cMDS dimension (via the
+  same tolerance convention as
+  [`matrix_rank()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/matrix_rank.md)),
+  and with realistic continuous per-participant noise this retains
+  essentially `n - 2` dimensions almost regardless of how many
+  dimensions carry real signal — confirmed directly (`k_use` tracked
+  `n-2` almost exactly at every simulated n) — which is close to the
+  most adversarial possible condition for a nearest-neighbor statistic
+  like Hopkins. Forcing a small `k` manually made things *worse* at
+  first, which exposed a **second, independent bug**: `u` (real-to-real
+  nearest-neighbor distance) was computed from the original, untruncated
+  distance matrix, while `w` (synthetic-to-real) was computed from
+  Euclidean distance in the truncated coordinate space — any truncation
+  silently deflated `w` relative to `u` as a pure artifact, regardless
+  of whether the dropped dimensions were signal or noise. Fixed both:
+  added
+  [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
+  (Horn’s parallel analysis on the cMDS decomposition —
+  permutation-testing each dimension’s eigenvalue against
+  column-permuted null data, not a numerical-precision tolerance) as
+  [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)’s
+  new `k_use` default when not supplied directly, and recomputed `u`
+  within the same `k_use`-dimensional space as `w`. The decision rule
+  for how many leading dimensions to keep needed two iterations: “stop
+  at the first threshold failure” is vulnerable to Horn’s
+  well-documented rank-1 conservatism (the top eigenvalue’s null
+  threshold is itself an inflated order statistic, confirmed stable
+  across n_permutations 100-2000, so more permutations alone didn’t fix
+  it); “keep every dimension that ever passes” over-corrected into a
+  multiple-comparisons problem (a single chance false positive at any
+  high rank inflated `k` to the full candidate pool on pure-noise test
+  data). Settled on “stop after two *consecutive* failures,” verified
+  against a purpose-built synthetic test suite
+  (`tests/testthat/test-estimate_intrinsic_dimension.R`) including two
+  informative test-writing mistakes worth remembering: a single
+  unstructured Gaussian cloud has geometric rank 2 but *no* real
+  cross-dimensional structure (correctly estimates k=1, not 2 — parallel
+  analysis measures structure beyond noise, not
+  [`matrix_rank()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/matrix_rank.md)-style
+  numerical rank), and a clean 2-cluster split needs only 1 real
+  discriminant dimension even though the data lives in 2D (a general
+  discriminant-analysis fact: G groups need at most G-1 dimensions to
+  separate). After the fix: the original *un-augmented* 6-participant
+  real dataset newly detects its real clustering too (p=0.025,
+  previously never significant), the 12-participant dataset’s Hopkins
+  p-value dropped to 1e-6-1e-9 across seeds with `best_g=2` every time,
+  and the recalibrated power simulation went from (0.00, 0.00, 0.00,
+  1.00) to (1.00, 1.00, 1.00, 1.00) at n=(12,24,48,96) — full power
+  restored at every tested sample size, not just the one specific
+  dataset used for diagnosis.
+- **[`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)
+  illustrated in `overview_vignette.Rmd`**, new “Is there real cluster
+  structure?” subsection slotted right before the existing `cutree(k=2)`
+  step it’s meant to inform. Deliberately uses the bundled 6-participant
+  `icon_emb_ind` data rather than bundling the 12-participant augmented
+  dataset from the bug-hunt above – checked Hopkins p-value stability
+  across 20 seeds first (ranges 0.005-0.34, ~75% below 0.05, `hopkins`
+  statistic itself consistently \>0.5 even on the non-significant draws)
+  and picked `seed = 3` (p = 0.0054) for a comfortably significant,
+  reproducible example, while the prose is explicit that small-n results
+  are naturally noisier run to run rather than hiding it. Left
+  `best_g = 3` (doesn’t match the true 2 groups) in rather than
+  cherry-picking around it, since it’s a live demonstration of the
+  function’s own documented “trust Hopkins over BIC at small n”
+  guidance. Needed `Config/Needs/website: mclust` added to `DESCRIPTION`
+  plus a defensive `eval = requireNamespace("mclust", quietly = TRUE)`
+  on the chunk, since `overview_vignette.Rmd`’s chunks actually execute
+  during the real pkgdown build (see the `eval = FALSE` correction
+  above) and `mclust` is Suggests-only.
+- **[`summarize_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.md)/[`summarize_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_learning_curve.md)
+  illustrated in `condor_workflows_vignette.Rmd`**, new “Recomputing a
+  summary yourself, without refitting anything” subsection in
+  Workflow 1. The real gap wasn’t “how do you get from Condor output to
+  a decision” – `condor_workflow.py`’s orchestrator already
+  auto-aggregates into
+  `dimensionality_summary.csv`/`learning_curve_summary.csv` during a
+  normal run – it’s “how do you redo that aggregation yourself” (the
+  orchestrator’s own aggregation step hitting the exact output-transfer
+  failure mode documented two sections earlier in the same vignette, or
+  wanting to try a different `best_d_norm_penalty` post-hoc without
+  re-fitting). Confirmed both functions are exactly
+  [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)/[`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)’s
+  own internal aggregation logic, factored out (traced the call sites
+  directly in
+  `R/estimate_dimensionality.R`/`R/estimate_learning_curve.R`), and that
+  both operate on a plain data frame matching `condor_fit.R`’s real
+  per-job CSV columns – so the example needed no bundled data at all,
+  just a small constructed `results` data frame built to the same shape.
+  Took a bit of tuning to get a clean illustrative `best_d`: an initial
+  version’s plateau (d=3/4/5 losses close but not equal) let `best_d`
+  land on 5 rather than the intended 3, since the one-SE band was
+  narrower than the gap; flattening d=3/4/5 to genuinely equal true loss
+  and sweeping seeds for a clean result fixed it (`seed = 2`). Verified
+  by actually rendering both vignettes end-to-end via
+  [`rmarkdown::render()`](https://pkgs.rstudio.com/rmarkdown/reference/render.html)
+  (this vignette’s chunks are `eval = FALSE`, so this was the only way
+  to confirm the code is actually correct, not just plausible-looking)
+  and confirming the new internal anchor link resolves in the rendered
+  HTML.
+- **[`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md)/[`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md)
+  illustrated in `comparing_embeddings_vignette.Rmd`**, new “Finding
+  where two embeddings disagree” section slotted right after the
+  Procrustes-ceiling section, using the already-bundled
+  `emotion_triplet_embedding` (4D) and `emotion_bge_embedding`
+  (effectively-212D) — no new data needed. The user’s original plan was
+  to cMDS-reduce the BGE embedding to 4D first to match dimensionality;
+  checking the actual R source (not just the CLAUDE.md summary of it)
+  confirmed this is unnecessary and would have undercut the point: both
+  functions are explicitly alignment-free by construction (distances
+  computed within each embedding’s own native space, no shared
+  fit/padding step), so mismatched dimensionality was never a problem to
+  begin with – that’s one of their headline properties, not an obstacle.
+  The section leans into this directly, contrasting it with the
+  Procrustes section just above (which *does* need to handle the
+  dimensionality mismatch explicitly). Real results on the bundled data
+  are genuinely interpretable: most-discrepant items include several
+  high-arousal/blended-affect words (`arousal`, `startle`, `alertness`,
+  `titillation`), and the top discriminating triplet (`happiness`:
+  `glee` vs. `frustration`) is concrete enough a reader can see exactly
+  what a follow-up participant judgment would settle. All printed
+  numbers verified against real function output (one manual rounding
+  slip caught and fixed: `mirth`’s correlation is 0.0828, not 0.0829).
+  Also updated this vignette’s Overview and closing Summary tables to
+  list the new section alongside the existing three.
+- **[`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)
+  decided not to need its own vignette section.** Confirmed via source
+  (not just this doc’s own prior, imprecise summary) that
+  [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)
+  really does call it internally, but they’re not just “same thing,
+  different input”:
+  [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)’s
+  `input_file` must already be pre-indexed integer CSV
+  (`head`/`winner`/`loser`), not the standard
+  `Center`/`Left`/`Right`/`Answer` string format everything else in the
+  package uses, and it returns a flat data frame rather than the
+  `individual`/`group` named-list shape. Real use case is narrow (large
+  datasets or an external pipeline already producing pre-indexed CSVs,
+  avoiding a pointless load-into-R-then-write-back-out round trip) –
+  added a one-paragraph pointer in `embedding_vignette.Rmd`’s
+  individual-embeddings section rather than a dedicated example. Also
+  fixed this file’s own function-inventory table, which said
+  [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)
+  was “called by the above” (plural) – only true for
+  [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md);
+  [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
+  calls
+  [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
+  directly and never touches it.
+- **[`get.nearest.k()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.nearest.k.md)
+  illustrated in `overview_vignette.Rmd`**, new “Checking true nearest
+  neighbors beyond 2 dimensions” subsection right after the existing 2-D
+  [`plot_pics()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.md)
+  scatter of `icon_emb_ind[[1]]` (which only shows 2 of that embedding’s
+  3 dimensions). Checked empirically first: nearly every one of the 32
+  icon items’ 2-D-vs-3-D nearest-neighbor sets differ; picked `pdcns` as
+  the example since the effect is especially clean there – the apparent
+  2-D nearest neighbor (`pncos`) isn’t even in the true top-5 once the
+  third dimension is included. Also tightened
+  [`get.nearest.k()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.nearest.k.md)’s
+  own `@param dmat` roxygen, which said “Data matrix” (readable as raw
+  embedding coordinates) when it actually requires a precomputed
+  symmetric *distance* matrix – confirmed from the function’s own
+  example, which computes [`dist()`](https://rdrr.io/r/stats/dist.html)
+  first. **Caught and fixed a real mistake while writing this**: unlike
+  the vignettes with global `eval = FALSE` (where a hand-typed `#> ...`
+  block after a chunk is the correct pattern, since nothing actually
+  runs), `overview_vignette.Rmd`’s chunks execute for real, so an
+  initial hand-typed output block duplicated the chunk’s own real,
+  auto-printed output in the rendered page – caught by actually
+  rendering and reading the HTML, not just checking the source looked
+  right, and removed.

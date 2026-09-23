@@ -15,7 +15,7 @@ make.vmat(triplist)
 
   Named list whose elements each contain triplet data from one
   participant. Names should be participant identifiers, as returned by
-  `get_combined`.
+  `get.combined`.
 
 ## Value
 

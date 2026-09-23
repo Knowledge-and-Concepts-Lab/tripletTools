@@ -24,9 +24,7 @@ remotes::install_github("Knowledge-and-Concepts-Lab/tripletTools", build_vignett
 library(tripletTools)
 
 # Visualize a precomputed embedding of the bundled icon stimuli
-emb <- icon_emb_group
-rownames(emb) <- emb$item
-plot_pics(emb[, c("dim_0", "dim_1")], icon_pics, psize = 0.04)
+plot_pics(icon_emb_group[, c("dim_0", "dim_1")], icon_pics, psize = 0.04)
 ```
 
 ## Learn more

@@ -231,6 +231,22 @@ Output CSV files are written to `output_dir` as a side-effect:
 | `embeddings_group.csv` | Group embedding only |
 | `model_history.csv` | Training diagnostics for each participant and the group |
 
+[`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)
+is itself a convenience wrapper: internally it converts `triplet_list`
+to a pre-indexed CSV and calls
+[`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md),
+the lower-level function underneath. If your data is already on disk in
+that pre-indexed `head`/`winner`/`loser`/`sampleSet` format – e.g. from
+a large dataset or an external pipeline – calling
+[`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)
+directly skips loading everything into an R list first, just to have it
+written back out to a temp file. Most users won’t need this;
+[`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)
+is the right entry point when your data is already loaded, in the
+standard `Center`/`Left`/`Right`/`Answer` format
+[`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
+returns.
+
 ### What is returned
 
 [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)

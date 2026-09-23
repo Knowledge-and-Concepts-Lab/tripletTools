@@ -29,11 +29,11 @@ place.'></head><body>
 <li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
-    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
-    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
-    <li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/overview_vignette.html">tripletTools Overview</a></li>
     <li><a class="dropdown-item" href="../articles/read_data_vignette.html">Reading Triplet Data</a></li>
+    <li><a class="dropdown-item" href="../articles/embedding_vignette.html">Computing Triplet Embeddings</a></li>
+    <li><a class="dropdown-item" href="../articles/comparing_embeddings_vignette.html">Comparing Triplet Embeddings to Alternative Representations</a></li>
+    <li><a class="dropdown-item" href="../articles/condor_workflows_vignette.html">Deploying tripletTools on HTCondor</a></li>
   </ul></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -64,6 +64,7 @@ place.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">test_for_clusters</span><span class="op">(</span></span>
 <span>  <span class="va">dist_mat</span>,</span>
 <span>  max_clusters <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  k_use <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  m <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
@@ -84,6 +85,17 @@ place.</p>
 the BIC comparison (the G = 1, "no clusters" baseline is always
 included in addition). Default 5. Must be less than the number of
 participants.</p></dd>
+
+
+<dt id="arg-k-use">k_use<a class="anchor" aria-label="anchor" href="#arg-k-use"></a></dt>
+<dd><p>Integer or <code>NULL</code>. Number of classical-MDS dimensions
+to use for both the Hopkins statistic and the BIC comparison. Default
+<code>NULL</code> estimates it automatically via
+<code><a href="estimate_intrinsic_dimension.html">estimate_intrinsic_dimension</a></code> – see <em>Dimensionality
+reduction</em> below for why this matters far more than it might seem.
+Pass an integer to bypass estimation and use a fixed number of
+dimensions directly (must be between 1 and the number of usable cMDS
+dimensions).</p></dd>
 
 
 <dt id="arg-m">m<a class="anchor" aria-label="anchor" href="#arg-m"></a></dt>
@@ -122,6 +134,12 @@ the BIC (lower is better) for <code>G = 1, ..., max_clusters</code>.</p></dd>
 <dt><code>best_g</code></dt>
 <dd><p>The number of clusters minimizing <code>bic</code>.</p></dd>
 
+<dt><code>k_use</code></dt>
+<dd><p>The number of cMDS dimensions actually used –
+either the supplied <code>k_use</code> or the value estimated by
+<code><a href="estimate_intrinsic_dimension.html">estimate_intrinsic_dimension</a></code>, so results stay
+traceable without needing to rerun the estimation separately.</p></dd>
+
 
 </dl></div>
     <div class="section level2">
@@ -130,17 +148,29 @@ the BIC (lower is better) for <code>G = 1, ..., max_clusters</code>.</p></dd>
 
 <p>Both the Hopkins statistic and the BIC comparison need actual
 coordinates, not just a distance matrix, so <code>dist_mat</code> is first
-converted to coordinates via classical MDS
-(<code><a href="https://rdrr.io/r/stats/cmdscale.html" class="external-link">cmdscale</a></code>), retaining every dimension with a
-positive eigenvalue (up to the maximum of <code>n - 2</code>), rather than a
-small, hand-picked number of dimensions. Since the goal here is a
-faithful coordinate representation of the same distances – not a
-parsimonious summary for visualization – there's no real "how many
-dimensions" choice to make the way there is for cluster count. If a
-nontrivial fraction of the total eigenvalue magnitude is negative (i.e.
-<code>dist_mat</code> isn't well approximated by any Euclidean configuration),
-a warning is issued; consider <code>cmdscale(dist_mat, add = TRUE)</code>'s
-Cailliez correction in that case.</p>
+converted to coordinates via classical MDS (<code><a href="https://rdrr.io/r/stats/cmdscale.html" class="external-link">cmdscale</a></code>).
+The number of dimensions retained for that coordinate representation
+turns out to matter a great deal – far more than it might seem, since
+it isn't just a summary-for-visualization choice the way it looks at
+first. With realistic individual-level noise (i.e. essentially any real
+representational-distance matrix), every dimension's eigenvalue gets
+pushed measurably away from zero, so a purely numerical rank check
+retains nearly every available dimension (up to <code>n - 2</code>) almost
+regardless of how many dimensions actually carry real signal – and the
+more of those noise-only dimensions get included, the harder it becomes
+for a nearest-neighbor statistic like Hopkins to detect real structure
+amid them (a real 2-cluster effect that was easily detectable at a
+correctly-chosen small <code>k</code> became statistically invisible once
+every positive-eigenvalue dimension was retained, verified empirically
+during development on real, not synthetic, data). <code>k_use</code> controls
+this directly: leave it <code>NULL</code> to estimate it via
+<code><a href="estimate_intrinsic_dimension.html">estimate_intrinsic_dimension</a></code>'s permutation-based approach
+(distinguishing dimensions with real, reproducible structure from ones
+that only look nonzero because of ordinary noise), or supply it directly
+to bypass estimation. If a nontrivial fraction of the total eigenvalue
+magnitude is negative (i.e. <code>dist_mat</code> isn't well approximated by
+any Euclidean configuration), a warning is issued; consider
+<code>cmdscale(dist_mat, add = TRUE)</code>'s Cailliez correction in that case.</p>
     </div>
     <div class="section level2">
     <h2 id="hopkins-statistic">Hopkins statistic<a class="anchor" aria-label="anchor" href="#hopkins-statistic"></a></h2>
@@ -148,7 +178,17 @@ Cailliez correction in that case.</p>
 
 <p>Compares nearest-neighbor distances among the real (cMDS-derived)
 points to nearest-neighbor distances from synthetic points generated
-uniformly at random within the same coordinate ranges:
+uniformly at random within the same coordinate ranges, <strong>both
+measured within the same <code>k_use</code>-dimensional coordinate space</strong> –
+an earlier version of this function computed the real-to-real distances
+from the original, untruncated <code>dist_mat</code> instead, which silently
+deflated the synthetic-to-real distances relative to the real-to-real
+ones whenever <code>k_use</code> was less than the full reconstructing
+dimensionality, dragging <code>H</code> toward "less clustered than random"
+as an artifact of truncation itself, regardless of whether the dropped
+dimensions were signal or noise (this is what made a naive fixed small
+<code>k_use</code> look harmful before the fix, when it was actually the
+truncation-vs-full-space mismatch that was harmful):
 \(H = \sum w_i / (\sum u_i + \sum w_i)\), where \(u_i\) are
 real-to-real nearest-neighbor distances and \(w_i\) are
 synthetic-to-real nearest-neighbor distances (the simple, unweighted

@@ -254,7 +254,7 @@ names:
   the triplet
 
 Data in this format can be read into the current session using the
-function `get_combined(fname)` where `fname` is the path to the data
+function `get.combined(fname)` where `fname` is the path to the data
 file. This function returns a named list, where each element includes
 the triplet judgment data from a single subject, and elements are named
 by the subject identified. This package includes an example dataset in
