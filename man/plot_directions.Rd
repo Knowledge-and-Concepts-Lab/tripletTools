@@ -44,7 +44,7 @@ a fraction of the plotted data's span (the larger of the x- and y-range)
 rather than an absolute value, so arrows scale sensibly regardless of
 the units \code{x}/\code{y} are in. Arrows are centered on their
 coordinate, so each extends \code{length / 2} of that span to either
-side of the point. Default \code{0.05} (5\\% of the plotted range).}
+side of the point. Default \code{0.05} (5\% of the plotted range).}
 
 \item{col}{Color for the arrows, and by default the center dots too.
 Recycled across points as usual.}

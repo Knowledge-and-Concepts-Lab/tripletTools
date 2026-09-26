@@ -51,6 +51,29 @@
 #' comparison is on the exact same scale as the permuted side -- both go
 #' through the same \code{cov()} then \code{eigen()} pipeline.
 #'
+#' @section A known weakness for a single dominant dimension:
+#' Horn's parallel analysis is well documented to be conservative at rank 1
+#' specifically, and this can be severe enough that \emph{even an obvious,
+#' dominant true dimension fails to clear its own threshold} -- not just a
+#' borderline one. The reason: permutation preserves each column's own
+#' variance exactly (only scrambling which participant has which value), so
+#' when nearly all the real signal is concentrated in one dimension, the
+#' permutation null's own top eigenvalue is built largely from that same
+#' large variance, plus a small extra upward bias from incidental
+#' correlations among the now-independent shuffled columns. In effect, the
+#' leading dimension has to "beat a shuffled version of itself" -- a bar
+#' that stays hard to clear regardless of how strong the true signal
+#' actually is. When this happens, \code{k} is floored at 1 (see
+#' \code{forced_to_one} below) rather than allowed to drop to 0, but that
+#' floor is a default, not a detection -- \code{dominance_ratio} (also
+#' below) is provided specifically to help tell apart "this floor is very
+#' likely masking a real dominant dimension" from "this floor reflects a
+#' genuine absence of detectable structure," and \code{verbose} output
+#' spells out which case applies when \code{forced_to_one} is \code{TRUE}.
+#' Corroborating evidence independent of this test (e.g. a reproducible
+#' \code{hclust} split, or \code{\link{test_for_clusters}}'s BIC) is the
+#' most reliable way to resolve the ambiguity.
+#'
 #' @return A list with elements:
 #' \describe{
 #'   \item{\code{k}}{Estimated number of real dimensions (integer, at least 1).}
@@ -58,6 +81,16 @@
 #'   \item{\code{null_threshold}}{The permutation-based cutoff at each rank
 #'     (same length as \code{eigenvalues}).}
 #'   \item{\code{n_permutations}}{As supplied.}
+#'   \item{\code{forced_to_one}}{Logical: \code{TRUE} if \code{k} is the
+#'     floored default (not even the leading dimension passed) rather than
+#'     an actual detection -- see \emph{A known weakness for a single
+#'     dominant dimension} above.}
+#'   \item{\code{dominance_ratio}}{Numeric, or \code{NA} if there was only
+#'     one candidate dimension to begin with. The leading eigenvalue
+#'     divided by the mean of the rest -- a large value (rule of thumb:
+#'     above about 3) alongside \code{forced_to_one = TRUE} suggests the
+#'     floor is likely masking a real dominant dimension rather than
+#'     reflecting an honest absence of structure (see above).}
 #' }
 #'
 #' @importFrom stats cmdscale cov quantile as.dist
@@ -133,6 +166,15 @@ estimate_intrinsic_dimension <- function(dist_mat, n_permutations = 200,
   k <- max(1, last_pass)
   forced_to_one <- last_pass == 0
 
+  # When forced_to_one, distinguish "the data has essentially no detectable
+  # multivariate structure" from "there's an obvious dominant dimension, but
+  # Horn's parallel analysis is conservative for exactly this case" (see
+  # dominance_ratio's docs below for why). A large ratio here doesn't prove
+  # dimension 1 is real, but it's a strong, easy-to-compute hint that the
+  # forced floor is likely masking real structure rather than reporting an
+  # honest absence of it.
+  dominance_ratio <- if (k_candidate > 1) real_eig[1] / mean(real_eig[-1]) else NA_real_
+
   if (verbose) {
     cat("Observed vs. permutation-null eigenvalues (kept = observed > threshold):\n")
     print(data.frame(
@@ -144,6 +186,31 @@ estimate_intrinsic_dimension <- function(dist_mat, n_permutations = 200,
     if (forced_to_one) {
       cat("Note: not even the leading dimension exceeded its permutation threshold;",
           "k forced to the minimum of 1 rather than 0.\n")
+      if (!is.na(dominance_ratio) && dominance_ratio > 3) {
+        cat(sprintf(
+          paste(
+            "This is likely a false negative rather than a genuine absence of structure:",
+            "the leading eigenvalue (%.3g) is about %.1fx the typical size of the rest",
+            "(%.3g), suggesting one real dominant dimension. Horn's parallel analysis is",
+            "known to be conservative for exactly this case: when nearly all the real",
+            "signal is concentrated in a single factor, the permutation null preserves",
+            "each column's own variance (only scrambling which participant has which",
+            "value), so the null's own top eigenvalue ends up built largely from that",
+            "same dominant variance -- the leading dimension effectively has to 'beat a",
+            "shuffled version of itself,' a bar that's unusually hard to clear regardless",
+            "of how strong the true signal is. Corroborate with independent evidence",
+            "(e.g. a reproducible hclust split, or test_for_clusters()'s BIC) before",
+            "concluding there's no real structure here.\n"
+          ),
+          real_eig[1], dominance_ratio, mean(real_eig[-1])
+        ))
+      } else {
+        cat("No leading dimension stood out as dominant enough to suggest this is just",
+            "Horn's single-dominant-factor conservatism (see the function's",
+            "documentation) -- here, k = 1 is closer to a genuine floor default than a",
+            "likely-real detection, and the data may have little detectable",
+            "multivariate structure.\n")
+      }
     }
     cat(sprintf("-> estimated intrinsic dimension: %d\n", k))
   }
@@ -152,6 +219,8 @@ estimate_intrinsic_dimension <- function(dist_mat, n_permutations = 200,
     k = k,
     eigenvalues = real_eig,
     null_threshold = null_threshold,
-    n_permutations = n_permutations
+    n_permutations = n_permutations,
+    forced_to_one = forced_to_one,
+    dominance_ratio = dominance_ratio
   ))
 }

@@ -1,7 +1,7 @@
 #' Estimate a learning curve for a triplet embedding
 #'
 #' Fits an embedding at a fixed dimensionality using increasing fractions of
-#' the training data (10\%, 20\%, ..., 100\% by default), and evaluates
+#' the training data (10%, 20%, ..., 100% by default), and evaluates
 #' every fit against the same fixed hold-out set. Use the results to see how
 #' hold-out loss and accuracy improve as more training data is added.
 #'
@@ -22,8 +22,8 @@
 #' \code{sampleSet == "train"} pool is drawn first (see
 #' \code{\link{sample_internal_test}} and \code{internal_test_frac} below);
 #' the remainder is shuffled and fractions are taken as nested, cumulative
-#' prefixes of that shuffled order: the 20\% subset contains every trial in
-#' the 10\% subset plus more, and so on up to 100\%. This means differences
+#' prefixes of that shuffled order: the 20% subset contains every trial in
+#' the 10% subset plus more, and so on up to 100%. This means differences
 #' between fractions reflect only the amount of training data, not which
 #' trials happened to be sampled, \emph{within a restart}. The
 #' \code{internal_test} evaluation set is held constant across every fraction

@@ -29,6 +29,44 @@ test_that("clear evidence of two clusters in well-separated blobs", {
 
   expect_lt(res$hopkins_p_value, 0.05)
   expect_equal(res$best_g, 2)
+
+  expect_type(res$model_name, "character")
+  expect_length(res$model_name, 1)
+  expect_length(res$classification, 30)
+  expect_equal(sort(unique(res$classification)), 1:2)
+  # the two true 15-member blobs should come back as two clean 15/15 groups
+  expect_equal(sort(as.vector(table(res$classification))), c(15, 15))
+})
+
+test_that("report_classification_for returns extra G classifications consistent with bic", {
+  set.seed(1)
+  X <- rbind(
+    matrix(rnorm(15 * 4, mean = 0), nrow = 15),
+    matrix(rnorm(15 * 4, mean = 12), nrow = 15)
+  )
+  res <- test_for_clusters(dist(X), max_clusters = 4, seed = 1, verbose = FALSE,
+                            report_classification_for = c(1, 3))
+
+  expect_named(res$alt_classifications, c("G=1", "G=3"))
+  expect_length(res$alt_classifications[["G=1"]]$classification, 30)
+  expect_equal(length(unique(res$alt_classifications[["G=1"]]$classification)), 1)
+  # forcing G=3 on genuinely 2-cluster data can legitimately leave one of
+  # the 3 components unpopulated in the MAP assignment -- just check the
+  # classification is well-formed, not that all 3 labels are necessarily used
+  expect_length(res$alt_classifications[["G=3"]]$classification, 30)
+  expect_true(length(unique(res$alt_classifications[["G=3"]]$classification)) <= 3)
+
+  # NULL when not requested
+  res2 <- test_for_clusters(dist(X), max_clusters = 4, seed = 1, verbose = FALSE)
+  expect_null(res2$alt_classifications)
+})
+
+test_that("report_classification_for validates its range", {
+  X <- matrix(runif(15 * 3), nrow = 15)
+  expect_error(
+    test_for_clusters(dist(X), max_clusters = 3, report_classification_for = 5, verbose = FALSE),
+    "report_classification_for must be between 1 and max_clusters"
+  )
 })
 
 test_that("errors on too few participants or max_clusters >= n", {

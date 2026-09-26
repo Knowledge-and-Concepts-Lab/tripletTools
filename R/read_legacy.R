@@ -53,7 +53,7 @@
 #'     \code{"uncertainty"} → \code{"uncertainty"}. Filled with \code{NA}
 #'     when absent.}
 #'   \item{sampleSet}{Recognised input names: \code{sampleSet},
-#'     \code{Alg.Label}, \code{TrnTest}. When absent, 10\% of trials are
+#'     \code{Alg.Label}, \code{TrnTest}. When absent, 10% of trials are
 #'     randomly assigned to \code{"test"} and the remainder to
 #'     \code{"train"} (seed \code{2025}).}
 #' }

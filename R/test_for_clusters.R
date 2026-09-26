@@ -32,6 +32,15 @@
 #'   uniform points the Hopkins statistic compares against. Default
 #'   \code{NULL} leaves the global random state untouched.
 #' @param verbose Logical. Print an interpretive summary? Default \code{TRUE}.
+#' @param report_classification_for Integer vector or \code{NULL}. Extra
+#'   values of \code{G} (besides \code{best_g}) to also compute a winning
+#'   covariance-structure model and MAP classification for -- useful for
+#'   inspecting a close runner-up \code{G} (e.g. one with a BIC nearly
+#'   tied with \code{best_g}'s), or for comparing mclust's own assignment
+#'   at a given \code{G} against a separately-chosen \code{hclust} +
+#'   \code{cutree(G)} partition, which need not agree (see
+#'   \code{classification} below). Default \code{NULL} computes nothing
+#'   extra. Each requested value must be between 1 and \code{max_clusters}.
 #'
 #' @section Dimensionality reduction:
 #' Both the Hopkins statistic and the BIC comparison need actual
@@ -106,7 +115,7 @@
 #' \code{best_g} spuriously favored more than one cluster in roughly a
 #' third of runs at \code{n = 20}, versus essentially never for the
 #' Hopkins-based test at the same n; this false-positive rate fell to
-#' roughly 5-10\% by \code{n = 60}. This is a real limitation of searching
+#' roughly 5-10% by \code{n = 60}. This is a real limitation of searching
 #' over many (G, covariance-structure) model combinations via BIC at small
 #' n, not a bug -- treat \code{best_g} as considerably less trustworthy
 #' than \code{hopkins}/\code{hopkins_p_value} when the number of
@@ -121,10 +130,35 @@
 #'   \item{\code{hopkins_p_value}}{Approximate one-sided p-value for
 #'     \code{hopkins > 0.5} (see \emph{Hopkins statistic} above).}
 #'   \item{\code{best_g}}{The number of clusters minimizing \code{bic}.}
+#'   \item{\code{model_name}}{The \pkg{mclust} covariance-structure model
+#'     (e.g. \code{"EII"}, \code{"VVV"}) that won at \code{best_g} -- see
+#'     \code{\link[mclust]{mclustModelNames}}. Worth checking directly: a
+#'     model far from \code{"EII"}/\code{"VII"} (roughly spherical,
+#'     equal-volume clusters) means the winning partition assumes a shape
+#'     that hierarchical clustering + silhouette evaluation (which
+#'     implicitly favor spherical, similarly-shaped clusters) is not well
+#'     suited to judge -- a low silhouette score at \code{best_g} in that
+#'     case reflects a mismatch between evaluation method and winning
+#'     model, not necessarily a bad clustering.}
+#'   \item{\code{classification}}{Integer vector of length \code{n} (named
+#'     with \code{dist_mat}'s labels, if any), the hard cluster assignment
+#'     from the winning \code{model_name} at \code{best_g} (MAP: each
+#'     participant assigned to their most probable cluster). This is
+#'     \strong{not} printed even when \code{verbose = TRUE} -- only
+#'     returned, for callers who want it directly.}
 #'   \item{\code{k_use}}{The number of cMDS dimensions actually used --
 #'     either the supplied \code{k_use} or the value estimated by
 #'     \code{\link{estimate_intrinsic_dimension}}, so results stay
 #'     traceable without needing to rerun the estimation separately.}
+#'   \item{\code{alt_classifications}}{\code{NULL} unless
+#'     \code{report_classification_for} was supplied; otherwise a named
+#'     list (one entry per requested \code{G}, e.g. \code{"G=3"}), each
+#'     itself a list with \code{model_name} and \code{classification} for
+#'     that \code{G} -- same meaning as the top-level fields above, but for
+#'     a \code{G} other than \code{best_g}. Computed from the same
+#'     \code{mclustBIC} object used for \code{bic}/\code{best_g}, so a
+#'     requested \code{G}'s \code{model_name} always matches what's
+#'     implied by \code{bic}'s value at that \code{G}.}
 #' }
 #'
 #' @importFrom stats cmdscale runif pbeta as.dist dist
@@ -135,9 +169,14 @@
 #' \dontrun{
 #' repdist <- get.rep.dist(icon_emb_ind)
 #' test_for_clusters(repdist, max_clusters = 3)
+#'
+#' # Also inspect a close runner-up G's own classification:
+#' res <- test_for_clusters(repdist, max_clusters = 4, report_classification_for = 3)
+#' res$alt_classifications[["G=3"]]$classification
 #' }
 test_for_clusters <- function(dist_mat, max_clusters = 5, k_use = NULL, m = NULL,
-                               seed = NULL, verbose = TRUE) {
+                               seed = NULL, verbose = TRUE,
+                               report_classification_for = NULL) {
   if (!requireNamespace("mclust", quietly = TRUE)) {
     stop("The 'mclust' package is required. Install it with install.packages('mclust').")
   }
@@ -149,6 +188,13 @@ test_for_clusters <- function(dist_mat, max_clusters = 5, k_use = NULL, m = NULL
   if (max_clusters < 1) stop("max_clusters must be at least 1.")
   if (max_clusters >= n) {
     stop("max_clusters must be less than the number of participants (", n, ").")
+  }
+  if (!is.null(report_classification_for) &&
+      any(report_classification_for < 1 | report_classification_for > max_clusters)) {
+    stop(sprintf(
+      "report_classification_for must be between 1 and max_clusters (%d).",
+      max_clusters
+    ))
   }
 
   ## ---- Classical MDS: retain every positive-eigenvalue dimension, up to n - 2 ----
@@ -228,6 +274,48 @@ test_for_clusters <- function(dist_mat, max_clusters = 5, k_use = NULL, m = NULL
   names(bic) <- paste0("G=", seq_len(max_clusters))
   best_g <- unname(which.min(bic))
 
+  # Re-derive the winning model directly from bic_mat (rather than
+  # recomputing BIC via a fresh Mclust() call) so model_name/classification
+  # are guaranteed consistent with best_g/bic above: best_g is already the
+  # argmin over the *entire* (G, model-type) grid, since bic itself already
+  # took the best model type at each G, so the overall-best cell of bic_mat
+  # is exactly the best model type at G = best_g.
+  #
+  # mclust::Mclust(coords, x = bic_mat) internally re-evaluates a stored
+  # call to mclustBIC() *unqualified*, which only resolves if the mclust
+  # namespace is attached to the search path -- requireNamespace() alone
+  # (this package's usual Suggests convention) is not enough, confirmed by
+  # this failing even against a properly installed package with no
+  # devtools::load_all() involved. Attach it only for this call, and only
+  # if it isn't already attached, undoing that afterward -- avoids the
+  # package silently leaving 'mclust' attached to the caller's search path
+  # as a side effect of calling this function.
+  mclust_attached_here <- !("package:mclust" %in% search())
+  if (mclust_attached_here) {
+    attachNamespace("mclust")
+    on.exit(try(detach("package:mclust"), silent = TRUE), add = TRUE)
+  }
+  mod_fit <- mclust::Mclust(coords, x = bic_mat)
+  model_name <- mod_fit$modelName
+  classification <- mod_fit$classification
+  if (!is.null(rownames(coords))) names(classification) <- rownames(coords)
+
+  # Extra, non-best G's: same bic_mat, same mclust::Mclust(..., x = bic_mat)
+  # mechanism as best_g above, just restricted to a specific G instead of
+  # letting it pick the overall best -- this reuses the already-computed
+  # BIC values rather than re-searching, so the returned model_name always
+  # matches what bic's value at that G implies.
+  alt_classifications <- NULL
+  if (!is.null(report_classification_for)) {
+    alt_classifications <- lapply(report_classification_for, function(g) {
+      alt_fit <- mclust::Mclust(coords, G = g, x = bic_mat)
+      alt_cls <- alt_fit$classification
+      if (!is.null(rownames(coords))) names(alt_cls) <- rownames(coords)
+      list(model_name = alt_fit$modelName, classification = alt_cls)
+    })
+    names(alt_classifications) <- paste0("G=", report_classification_for)
+  }
+
   if (verbose) {
     cat(sprintf("Dimensions used (k_use): %d\n", k_use))
     cat(sprintf("Hopkins statistic: %.3f (p = %.4g for H0: no clustering)\n", H, hopkins_p))
@@ -239,6 +327,15 @@ test_for_clusters <- function(dist_mat, max_clusters = 5, k_use = NULL, m = NULL
     cat("BIC by number of clusters (lower is better):\n")
     print(round(bic, 2))
     cat(sprintf("  -> best supported number of clusters: %d\n", best_g))
+    cat(sprintf("  -> winning covariance model at G=%d: %s\n", best_g, model_name))
+    if (!is.null(alt_classifications)) {
+      for (g in report_classification_for) {
+        cat(sprintf(
+          "  -> also computed: winning covariance model at G=%d: %s\n",
+          g, alt_classifications[[paste0("G=", g)]]$model_name
+        ))
+      }
+    }
   }
 
   invisible(list(
@@ -246,6 +343,9 @@ test_for_clusters <- function(dist_mat, max_clusters = 5, k_use = NULL, m = NULL
     bic = bic,
     hopkins_p_value = hopkins_p,
     best_g = best_g,
-    k_use = k_use
+    model_name = model_name,
+    classification = classification,
+    k_use = k_use,
+    alt_classifications = alt_classifications
   ))
 }

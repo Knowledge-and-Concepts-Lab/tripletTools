@@ -14,3 +14,4 @@
 ^\.github$
 ^Dockerfile$
 ^\.dockerignore$
+^inst/python/.*__pycache__$

@@ -87,6 +87,33 @@ test_that("errors on too few participants or invalid arguments", {
                "threshold_quantile must be strictly between 0 and 1")
 })
 
+test_that("forced_to_one + a large dominance_ratio flags a likely dominant-factor false negative", {
+  # A single, clearly dominant real dimension (much larger SD than several
+  # noise dimensions) still frequently fails to clear its OWN permutation
+  # threshold -- Horn's parallel analysis's well-documented rank-1
+  # conservatism, here severe enough to swamp even an obvious true signal
+  # (see the function's "A known weakness for a single dominant dimension"
+  # docs section). Reproduces reliably (confirmed across a grid of n,
+  # noise-dimension count, and seed during development): this is a common
+  # failure mode, not a rare edge case.
+  set.seed(1)
+  dom <- rnorm(20, sd = 5)
+  noise <- matrix(rnorm(20 * 6, sd = 1), 20, 6)
+  X <- cbind(dom, noise)
+  res <- estimate_intrinsic_dimension(dist(X), n_permutations = 300, seed = 1, verbose = FALSE)
+
+  expect_true(res$forced_to_one)
+  expect_equal(res$k, 1)
+  expect_gt(res$dominance_ratio, 3)
+})
+
+test_that("dominance_ratio is NA when there's only one candidate dimension", {
+  set.seed(1)
+  X <- matrix(rnorm(20), 20, 1)
+  res <- estimate_intrinsic_dimension(dist(X), n_permutations = 50, seed = 1, verbose = FALSE)
+  expect_true(is.na(res$dominance_ratio))
+})
+
 test_that("same seed gives identical results", {
   X <- make_blobs_with_noise(seed = 3)
   r1 <- estimate_intrinsic_dimension(dist(X), n_permutations = 50, seed = 5, verbose = FALSE)

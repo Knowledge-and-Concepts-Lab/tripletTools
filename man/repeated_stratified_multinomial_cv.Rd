@@ -59,7 +59,7 @@ list with elements:
 pooled held-out macro-averaged metrics for that repetition (accuracy,
 balanced accuracy, precision, F1, AUC) plus a count of unstable folds.}
 \item{\code{summary}}{Data frame with one row per metric, summarizing
-\code{performance} across repetitions (mean, SD, median, and 95\\%
+\code{performance} across repetitions (mean, SD, median, and 95\%
 interval).}
 \item{\code{per_class_performance}}{Data frame with one row per
 repetition x class, giving that class's one-vs-rest sensitivity,
