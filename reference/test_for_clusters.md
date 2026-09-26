@@ -16,7 +16,8 @@ test_for_clusters(
   k_use = NULL,
   m = NULL,
   seed = NULL,
-  verbose = TRUE
+  verbose = TRUE,
+  report_classification_for = NULL
 )
 ```
 
@@ -64,6 +65,17 @@ test_for_clusters(
 
   Logical. Print an interpretive summary? Default `TRUE`.
 
+- report_classification_for:
+
+  Integer vector or `NULL`. Extra values of `G` (besides `best_g`) to
+  also compute a winning covariance-structure model and MAP
+  classification for – useful for inspecting a close runner-up `G` (e.g.
+  one with a BIC nearly tied with `best_g`'s), or for comparing mclust's
+  own assignment at a given `G` against a separately-chosen `hclust` +
+  `cutree(G)` partition, which need not agree (see `classification`
+  below). Default `NULL` computes nothing extra. Each requested value
+  must be between 1 and `max_clusters`.
+
 ## Value
 
 A list with elements:
@@ -86,6 +98,27 @@ A list with elements:
 
   The number of clusters minimizing `bic`.
 
+- `model_name`:
+
+  The mclust covariance-structure model (e.g. `"EII"`, `"VVV"`) that won
+  at `best_g` – see
+  [`mclustModelNames`](https://mclust-org.github.io/mclust/reference/mclustModelNames.html).
+  Worth checking directly: a model far from `"EII"`/`"VII"` (roughly
+  spherical, equal-volume clusters) means the winning partition assumes
+  a shape that hierarchical clustering + silhouette evaluation (which
+  implicitly favor spherical, similarly-shaped clusters) is not well
+  suited to judge – a low silhouette score at `best_g` in that case
+  reflects a mismatch between evaluation method and winning model, not
+  necessarily a bad clustering.
+
+- `classification`:
+
+  Integer vector of length `n` (named with `dist_mat`'s labels, if any),
+  the hard cluster assignment from the winning `model_name` at `best_g`
+  (MAP: each participant assigned to their most probable cluster). This
+  is **not** printed even when `verbose = TRUE` – only returned, for
+  callers who want it directly.
+
 - `k_use`:
 
   The number of cMDS dimensions actually used – either the supplied
@@ -93,6 +126,16 @@ A list with elements:
   [`estimate_intrinsic_dimension`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md),
   so results stay traceable without needing to rerun the estimation
   separately.
+
+- `alt_classifications`:
+
+  `NULL` unless `report_classification_for` was supplied; otherwise a
+  named list (one entry per requested `G`, e.g. `"G=3"`), each itself a
+  list with `model_name` and `classification` for that `G` – same
+  meaning as the top-level fields above, but for a `G` other than
+  `best_g`. Computed from the same `mclustBIC` object used for
+  `bic`/`best_g`, so a requested `G`'s `model_name` always matches
+  what's implied by `bic`'s value at that `G`.
 
 ## Dimensionality reduction
 
@@ -171,9 +214,10 @@ statistic at small-to-moderate sample sizes.** In a simulation over
 purely random (no true clusters) data during development, the BIC-based
 `best_g` spuriously favored more than one cluster in roughly a third of
 runs at `n = 20`, versus essentially never for the Hopkins-based test at
-the same n; this false-positive rate fell to roughly 5-10\\ over many
-(G, covariance-structure) model combinations via BIC at small n, not a
-bug – treat `best_g` as considerably less trustworthy than
+the same n; this false-positive rate fell to roughly 5-10% by `n = 60`.
+This is a real limitation of searching over many (G,
+covariance-structure) model combinations via BIC at small n, not a bug –
+treat `best_g` as considerably less trustworthy than
 `hopkins`/`hopkins_p_value` when the number of participants is small,
 and prefer the Hopkins-based conclusion if the two disagree.
 
@@ -183,5 +227,9 @@ and prefer the Hopkins-based conclusion if the two disagree.
 if (FALSE) { # \dontrun{
 repdist <- get.rep.dist(icon_emb_ind)
 test_for_clusters(repdist, max_clusters = 3)
+
+# Also inspect a close runner-up G's own classification:
+res <- test_for_clusters(repdist, max_clusters = 4, report_classification_for = 3)
+res$alt_classifications[["G=3"]]$classification
 } # }
 ```

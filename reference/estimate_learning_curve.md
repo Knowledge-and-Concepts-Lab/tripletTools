@@ -1,9 +1,9 @@
 # Estimate a learning curve for a triplet embedding
 
 Fits an embedding at a fixed dimensionality using increasing fractions
-of the training data (10\\ every fit against the same fixed hold-out
-set. Use the results to see how hold-out loss and accuracy improve as
-more training data is added.
+of the training data (10%, 20%, ..., 100% by default), and evaluates
+every fit against the same fixed hold-out set. Use the results to see
+how hold-out loss and accuracy improve as more training data is added.
 
 ## Usage
 
@@ -161,17 +161,18 @@ For each restart, a fresh `internal_test` subset of the
 `sampleSet == "train"` pool is drawn first (see
 [`sample_internal_test`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
 and `internal_test_frac` below); the remainder is shuffled and fractions
-are taken as nested, cumulative prefixes of that shuffled order: the
-20\\ the 10\\ between fractions reflect only the amount of training
-data, not which trials happened to be sampled, *within a restart*. The
-`internal_test` evaluation set is held constant across every fraction
-*within a restart* (so fraction comparisons stay apples-to-apples), but
-is resampled independently *across restarts* – this is what gives
-`sd_loss` in `summary` a genuine data-resampling component rather than
-reflecting only optimization noise on a single fixed hold-out. The
-`sampleSet == "test"` pool is never touched by this function at all; it
-is reserved for evaluating the finally-selected embedding elsewhere
-(e.g.
+are taken as nested, cumulative prefixes of that shuffled order: the 20%
+subset contains every trial in the 10% subset plus more, and so on up to
+100%. This means differences between fractions reflect only the amount
+of training data, not which trials happened to be sampled, *within a
+restart*. The `internal_test` evaluation set is held constant across
+every fraction *within a restart* (so fraction comparisons stay
+apples-to-apples), but is resampled independently *across restarts* –
+this is what gives `sd_loss` in `summary` a genuine data-resampling
+component rather than reflecting only optimization noise on a single
+fixed hold-out. The `sampleSet == "test"` pool is never touched by this
+function at all; it is reserved for evaluating the finally-selected
+embedding elsewhere (e.g.
 [`run_group_embedding_from_list`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)).
 
 ## Parallelism

@@ -93,7 +93,7 @@ elements:
 - `summary`:
 
   Data frame with one row per metric, summarizing `performance` across
-  repetitions (mean, SD, median, and 95\\ interval).
+  repetitions (mean, SD, median, and 95% interval).
 
 - `per_class_performance`:
 

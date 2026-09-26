@@ -38,6 +38,8 @@
   : Find triplets where two embeddings make discrepant predictions
 - [`fit_embedding_restart()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_embedding_restart.md)
   : Fit one embedding restart and summarize it as a single result row
+- [`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md)
+  : Align multiple embeddings into one shared reference frame
 - [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
   : Get combined data
 - [`get.group.list.mean()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.group.list.mean.md)
@@ -120,6 +122,8 @@
   dataset
 - [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md)
   : Set up the Python environment for triplet embeddings
+- [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)
+  : Smoothly averaged embedding trajectory along a 1-D latent axis
 - [`strsplit1()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.md)
   : Split a string
 - [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md)
@@ -130,6 +134,9 @@
   : Summarize per-restart learning-curve results
 - [`test.model()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.md)
   : Test embedding model predictions.
+- [`test_cluster_stability()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_cluster_stability.md)
+  : Test how stable a hierarchical-clustering partition is under
+  resampling
 - [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)
   : Test whether embeddings show any cluster structure at all
 - [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)

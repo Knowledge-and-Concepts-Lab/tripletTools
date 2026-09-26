@@ -67,7 +67,8 @@ place.</p>
 <span>  k_use <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  m <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  report_classification_for <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -117,6 +118,18 @@ uniform points the Hopkins statistic compares against. Default
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
 <dd><p>Logical. Print an interpretive summary? Default <code>TRUE</code>.</p></dd>
 
+
+<dt id="arg-report-classification-for">report_classification_for<a class="anchor" aria-label="anchor" href="#arg-report-classification-for"></a></dt>
+<dd><p>Integer vector or <code>NULL</code>. Extra
+values of <code>G</code> (besides <code>best_g</code>) to also compute a winning
+covariance-structure model and MAP classification for – useful for
+inspecting a close runner-up <code>G</code> (e.g. one with a BIC nearly
+tied with <code>best_g</code>'s), or for comparing mclust's own assignment
+at a given <code>G</code> against a separately-chosen <code>hclust</code> +
+<code>cutree(G)</code> partition, which need not agree (see
+<code>classification</code> below). Default <code>NULL</code> computes nothing
+extra. Each requested value must be between 1 and <code>max_clusters</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -134,11 +147,42 @@ the BIC (lower is better) for <code>G = 1, ..., max_clusters</code>.</p></dd>
 <dt><code>best_g</code></dt>
 <dd><p>The number of clusters minimizing <code>bic</code>.</p></dd>
 
+<dt><code>model_name</code></dt>
+<dd><p>The <span class="pkg">mclust</span> covariance-structure model
+(e.g. <code>"EII"</code>, <code>"VVV"</code>) that won at <code>best_g</code> – see
+<code><a href="https://mclust-org.github.io/mclust/reference/mclustModelNames.html" class="external-link">mclustModelNames</a></code>. Worth checking directly: a
+model far from <code>"EII"</code>/<code>"VII"</code> (roughly spherical,
+equal-volume clusters) means the winning partition assumes a shape
+that hierarchical clustering + silhouette evaluation (which
+implicitly favor spherical, similarly-shaped clusters) is not well
+suited to judge – a low silhouette score at <code>best_g</code> in that
+case reflects a mismatch between evaluation method and winning
+model, not necessarily a bad clustering.</p></dd>
+
+<dt><code>classification</code></dt>
+<dd><p>Integer vector of length <code>n</code> (named
+with <code>dist_mat</code>'s labels, if any), the hard cluster assignment
+from the winning <code>model_name</code> at <code>best_g</code> (MAP: each
+participant assigned to their most probable cluster). This is
+<strong>not</strong> printed even when <code>verbose = TRUE</code> – only
+returned, for callers who want it directly.</p></dd>
+
 <dt><code>k_use</code></dt>
 <dd><p>The number of cMDS dimensions actually used –
 either the supplied <code>k_use</code> or the value estimated by
 <code><a href="estimate_intrinsic_dimension.html">estimate_intrinsic_dimension</a></code>, so results stay
 traceable without needing to rerun the estimation separately.</p></dd>
+
+<dt><code>alt_classifications</code></dt>
+<dd><p><code>NULL</code> unless
+<code>report_classification_for</code> was supplied; otherwise a named
+list (one entry per requested <code>G</code>, e.g. <code>"G=3"</code>), each
+itself a list with <code>model_name</code> and <code>classification</code> for
+that <code>G</code> – same meaning as the top-level fields above, but for
+a <code>G</code> other than <code>best_g</code>. Computed from the same
+<code>mclustBIC</code> object used for <code>bic</code>/<code>best_g</code>, so a
+requested <code>G</code>'s <code>model_name</code> always matches what's
+implied by <code>bic</code>'s value at that <code>G</code>.</p></dd>
 
 
 </dl></div>
@@ -223,7 +267,7 @@ purely random (no true clusters) data during development, the BIC-based
 <code>best_g</code> spuriously favored more than one cluster in roughly a
 third of runs at <code>n = 20</code>, versus essentially never for the
 Hopkins-based test at the same n; this false-positive rate fell to
-roughly 5-10\<!-- % by \code{n = 60}. This is a real limitation of searching -->
+roughly 5-10% by <code>n = 60</code>. This is a real limitation of searching
 over many (G, covariance-structure) model combinations via BIC at small
 n, not a bug – treat <code>best_g</code> as considerably less trustworthy
 than <code>hopkins</code>/<code>hopkins_p_value</code> when the number of
@@ -236,6 +280,10 @@ two disagree.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
 <span class="r-in"><span><span class="va">repdist</span> <span class="op">&lt;-</span> <span class="fu"><a href="get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="va">icon_emb_ind</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">test_for_clusters</span><span class="op">(</span><span class="va">repdist</span>, max_clusters <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Also inspect a close runner-up G's own classification:</span></span></span>
+<span class="r-in"><span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu">test_for_clusters</span><span class="op">(</span><span class="va">repdist</span>, max_clusters <span class="op">=</span> <span class="fl">4</span>, report_classification_for <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">res</span><span class="op">$</span><span class="va">alt_classifications</span><span class="op">[[</span><span class="st">"G=3"</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">classification</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>

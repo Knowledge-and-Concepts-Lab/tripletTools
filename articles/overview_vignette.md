@@ -440,6 +440,8 @@ clusters:
 ``` r
 
 test_for_clusters(repdist, max_clusters = 3, seed = 3)
+#> Package 'mclust' version 6.1.3
+#> Type 'citation("mclust")' for citing this R package in publications.
 #> Dimensions used (k_use): 1
 #> Hopkins statistic: 0.828 (p = 0.005436 for H0: no clustering)
 #>   -> evidence of cluster structure (more than one cluster likely)
@@ -447,6 +449,7 @@ test_for_clusters(repdist, max_clusters = 3, seed = 3)
 #>   G=1   G=2   G=3 
 #>  9.88 -5.08 -9.67 
 #>   -> best supported number of clusters: 3
+#>   -> winning covariance model at G=3: E
 ```
 
 A significant Hopkins statistic (small `hopkins_p_value`, `hopkins` well

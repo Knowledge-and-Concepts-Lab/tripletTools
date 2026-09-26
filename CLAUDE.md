@@ -142,6 +142,10 @@ Current version: **0.2.0**. Package URL:
 | [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md) | R/find_discrepant_items.R | Ranks items by how much their distance-to-others profile differs between two embeddings; alignment-free alternative to per-item Procrustes residuals |
 | [`reduce_embedding_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/reduce_embedding_dimension.md) | R/reduce_embedding_dimension.R | Reduces an embedding fit at a generously high `d` to the lowest dimension (via PCA) that preserves most of its variance, and reports triplet-prediction accuracy before/after |
 | [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md) | R/estimate_intrinsic_dimension.R | Horn’s parallel analysis on the cMDS decomposition of a distance matrix (e.g. from [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)) — estimates how many dimensions carry real, permutation-irreducible structure vs. noise. Used by [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)’s `k_use` when not supplied directly |
+| [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md) | R/test_for_clusters.R | Hopkins statistic (is there cluster structure at all?) + `mclust` BIC comparison (how many clusters?) on a participant distance matrix; also returns `model_name`/`classification` — the winning BIC model’s covariance-structure type and its own MAP hard assignment, for comparing against a separate hierarchical-clustering-based partition |
+| [`test_cluster_stability()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_cluster_stability.md) | R/test_cluster_stability.R | Resampling (subsample-without-replacement) stability check for a chosen `hclust`+`cutree(k)` partition: refits on random participant subsets and compares each back to the full-data partition via Adjusted Rand Index, plus a per-participant co-clustering stability score |
+| [`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md) | R/generalized_procrustes.R | Iterative GPA (Gower, 1975): aligns *every* embedding in a list into one shared consensus frame simultaneously, unlike [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)’s pairwise-only alignment. Prerequisite for [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) |
+| [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) | R/smooth_embedding_trajectory.R | Kernel-weighted (Gaussian/Epanechnikov) average embedding at a grid of query points along a 1-D latent participant axis (e.g. `cmdscale(get.rep.dist(elist), k=1)`) — a continuous alternative to binning participants and averaging each bin separately. Returns Kish’s effective sample size per query point to flag boundary regions where the average is driven by only one or two participants |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`,
 `.get_compute_py()`. Internal helpers in
@@ -901,3 +905,182 @@ back to the returned matrices.
   auto-printed output in the rendered page – caught by actually
   rendering and reading the HTML, not just checking the source looked
   right, and removed.
+- **[`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)
+  now also returns `model_name`/`classification`** – the BIC-winning
+  covariance-structure model (e.g. `"EII"`, `"VVV"`) at `best_g`, and
+  that model’s own MAP hard cluster assignment, printed (`model_name`
+  only, not the classification vector) and returned invisibly alongside
+  the existing fields. Motivated by a user design question: given the
+  package’s usual downstream step is `hclust(..., method="ward.D")` +
+  [`cutree()`](https://rdrr.io/r/stats/cutree.html) rather than mclust’s
+  own assignment, should the two be unified? Landed on: expose both so
+  users can directly compare a `hclust`-based partition against the
+  winning GMM’s own assignment (a winning model far from `"EII"`/`"VII"`
+  – roughly spherical, equal-volume – explains a low silhouette score at
+  the BIC-recommended k as a method-assumption mismatch rather than a
+  wrong partition) without making the package pick one as authoritative,
+  given the already-documented small-n BIC fragility (see the bug entry
+  above) argues against trusting the full 14-model search for the actual
+  grouping decision. Implementation reuses `bic_mat` directly
+  (`mclust::Mclust(coords, x = bic_mat)`) rather than recomputing BIC,
+  so `model_name`/`classification` are guaranteed consistent with
+  `best_g`. **Real bug caught while adding this**:
+  `mclust::Mclust(data, x = bic_mat)` internally re-evaluates a stored
+  call to `mclustBIC()` *unqualified* – this only resolves if the
+  `mclust` namespace is attached to the search path;
+  [`requireNamespace("mclust", quietly = TRUE)`](https://rdrr.io/r/base/ns-load.html)
+  (this package’s usual Suggests convention, never
+  [`library()`](https://rdrr.io/r/base/library.html)) is not enough,
+  confirmed against a properly installed package (not just
+  `devtools::load_all()`, which was ruled out as a possible confound
+  first). Fixed by attaching `mclust` only for the duration of that one
+  call ([`attachNamespace()`](https://rdrr.io/r/base/ns-load.html) +
+  `on.exit(detach(...))`), and only if not already attached – avoids
+  silently leaving `mclust` on the caller’s search path as a side effect
+  of calling this function.
+- **[`test_cluster_stability()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_cluster_stability.md)**
+  – new function, companion to
+  [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md),
+  addressing a follow-up methodological question: is a
+  hierarchical-clustering partition that “looks interpretable” actually
+  trustworthy, especially when Hopkins/BIC/silhouette give mixed
+  signals? Refits `hclust(method="ward.D")` + `cutree(k)` on many random
+  subsamples (without replacement, default 80% of participants) and
+  compares each resampled partition back to the full-data partition via
+  [`mclust::adjustedRandIndex()`](https://mclust-org.github.io/mclust/reference/adjustedRandIndex.html)
+  (mean/median `ari` across resamples), plus a per-participant
+  `participant_stability` score (fraction of pairwise
+  same-cluster-vs-different-cluster decisions, against every
+  co-resampled participant, that agree with the full-data partition)
+  flagging the least reproducibly-assigned individuals. Deliberately
+  does *not* reduce to `k_use` cMDS dimensions first (unlike
+  [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md))
+  – it tests the partition users actually act on, which in this
+  package’s own convention
+  (`get_group_list_mean()`/[`pacc.by.cluster()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/pacc.by.cluster.md)
+  examples) is `hclust` on the raw distance matrix directly, not a
+  cMDS-reduced one. **Important documented limitation, found
+  empirically, not assumed:** this tests whether *this specific finite
+  sample’s* split survives resampling, not whether the population has
+  real structure – on purely random, structure-free synthetic data
+  during development, mean ARI averaged ~0.67 at n=20 and ~0.38 at n=60
+  across independent draws (individual draws ranging ~0.2-0.85),
+  i.e. far from the naively-expected ~0 “no stability” value, and worse
+  at smaller n – directly echoing the already-documented small-n BIC
+  false-positive pattern above. Ruled out this being a computation bug
+  by checking real variability across 15 independent random draws (not a
+  fixed inflated constant) and confirming a genuinely no-natural-split
+  case (points evenly spaced on a circle) scores lower than typical
+  random-Gaussian draws. Documented explicitly in the function’s roxygen
+  (“What ‘stable’ does and doesn’t mean”) so a high `mean_ari` isn’t
+  mistaken for population-level validation on its own – pair with a
+  significant Hopkins result, and treat an external,
+  independently-measured correlate of cluster membership as the
+  strongest available validation.
+- **[`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)’s
+  “forced to 1” message improved to distinguish two very different
+  situations it was previously conflating.** Prompted by a real,
+  confusing case on a live dataset (36-stimulus Gabor-wavelet triplet
+  task, orientation x contrast, individual embeddings compared via
+  [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)):
+  the leading cMDS eigenvalue was clearly, visually dominant, yet
+  [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
+  reported “not even the leading dimension exceeded its permutation
+  threshold” – read at face value, this sounds like “no structure at
+  all,” which didn’t match the data. Root cause (confirmed via a
+  parameter sweep that reproduced it in *every* combination tried, not a
+  rare edge case): permutation preserves each column’s own variance
+  exactly, only scrambling which participant has which value, so when
+  nearly all real signal concentrates in one dimension, the permutation
+  null’s own top eigenvalue ends up built largely from that same
+  dominant variance – the leading dimension effectively has to “beat a
+  shuffled version of itself,” a bar Horn’s parallel analysis is
+  documented to handle poorly at rank 1 specifically, here severe enough
+  to fail even an obvious true signal. Added `dominance_ratio` (leading
+  eigenvalue / mean of the rest) and `forced_to_one` to the return
+  value; when `forced_to_one` is `TRUE` and `dominance_ratio > 3`, the
+  verbose message now explains this is likely a false negative rather
+  than an absence of structure, and to corroborate with independent
+  evidence (a reproducible `hclust` split, or
+  [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)’s
+  BIC) rather than trusting the “k=1 forced” floor as a genuine
+  non-detection. New test (`test-estimate_intrinsic_dimension.R`) locks
+  down the exact failure mode: a single dominant dimension plus a few
+  noise dimensions reliably triggers `forced_to_one = TRUE` with
+  `dominance_ratio` in the 15-40x range across every `n`/`n_noise`/seed
+  combination tried during development.
+- **[`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)
+  gained `report_classification_for`**, letting a caller also get the
+  winning covariance model and MAP classification at a specific `G`
+  other than `best_g` (e.g. a close runner-up), not just at the
+  BIC-optimal one. Reuses the already-computed `bic_mat`
+  (`mclust::Mclust(coords, G = g, x = bic_mat)`, confirmed to return the
+  value already sitting in `bic_mat`’s own row for that `G`, not a fresh
+  independent search), so a requested `G`’s `model_name` is always
+  consistent with what the printed `bic` table already implies. Returned
+  as `alt_classifications`, a named list (`"G=3"`, etc.), `NULL` when
+  not requested. Motivated by a live finding on the Gabor-wavelet
+  dataset above: `hclust`’s natural 2-way split isolates a small, tight,
+  well-separated participant subgroup, but the GMM’s own `G=2` MAP
+  assignment doesn’t match it – it makes a more balanced split instead.
+  Forcing `G=3` via this new argument showed the GMM’s 3rd component
+  subdivides the *large* group rather than isolating the small one,
+  confirming (not just theorizing) that Gaussian-mixture BIC search and
+  Ward’s linkage are optimizing genuinely different objectives here: a
+  GMM with a spare component generally gains more likelihood by
+  subdividing a dominant, numerically large mass than by dedicating a
+  whole component to a small, tight minority – exactly where Ward’s
+  excels and GMM/BIC struggles. Practical upshot for interpreting this
+  class of dataset: don’t expect
+  [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)’s
+  own classification/BIC search to reproduce a `hclust`-identified
+  minority subgroup, even when both agree on the same best `G`.
+- **[`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md)**
+  (new) +
+  **[`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)**
+  (new) – built after the same Gabor-wavelet investigation above
+  concluded the representational distance matrix’s dominant single
+  latent dimension plausibly reflects a genuine *continuum*
+  (contrast-only strategy at one end, shifting through increasing use of
+  orientation, not necessarily two or three discrete strategy clusters).
+  The user’s own first-pass approach – bin participants along the 1-D
+  cMDS axis into a few fixed-width bins, Procrustes-align and average
+  each bin *separately* – has two rough edges this generalizes away:
+  hard bin boundaries discard real position information, and
+  independently-chosen per-bin alignments make bin-to-bin comparisons
+  only loosely comparable.
+  [`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md)
+  does iterative GPA (Gower, 1975): align every embedding in a list onto
+  a running consensus, recompute the consensus, repeat to convergence,
+  so *all* participants land in one shared frame simultaneously (unlike
+  [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)’s
+  pairwise-only alignment).
+  [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)
+  then takes a 1-D position per participant
+  (e.g. `cmdscale(get.rep.dist(elist), k=1)`) and a grid of query
+  points, and at each one computes a Gaussian- (or Epanechnikov-)
+  kernel-weighted average of the GPA-aligned embeddings – a continuous
+  version of the bin-and-average procedure, default bandwidth via
+  [`stats::bw.nrd0()`](https://rdrr.io/r/stats/bandwidth.html) (same
+  rule of thumb [`density()`](https://rdrr.io/r/stats/density.html)
+  uses). Also returns Kish’s effective sample size
+  (`(sum(w))^2 / sum(w^2)`) at each query point specifically to flag the
+  boundary regions (fewest nearby participants, most exposed to being
+  driven by one or two extreme individuals) – directly relevant to
+  interpreting any trend or reversal found near either end of the axis.
+  **Real bug caught and fixed during development, not just a design
+  choice:** naive iterative GPA with `scale = TRUE` (rescaling each
+  embedding to best match the *previous* iteration’s consensus, then
+  re-averaging) is not scale-neutral – traced directly: the consensus’s
+  sum of squares decayed *geometrically* toward exactly zero (~0.37x per
+  iteration, verified on real `icon_emb_ind` data), never stabilizing,
+  so every aligned embedding came out at ~1e-6 magnitude regardless of
+  the actual data. Fixed by renormalizing the consensus to unit
+  sum-of-squares after each iteration (standard practice in GPA,
+  Gower 1975) – but *only* when `scale = TRUE`; skipped when
+  `scale = FALSE`, since nothing rescales embeddings during alignment in
+  that case, so there’s no drift to correct, and forcing a fixed size
+  would destroy genuine average-size information a caller explicitly
+  chose to keep. Locked down with a regression test asserting
+  aligned-embedding magnitudes stay well above the collapsed-to-~0 range
+  on real data.

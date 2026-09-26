@@ -1,5 +1,11 @@
 # Scatterplot with directional arrows
 
+Like a standard scatterplot of 2D coordinates, but represents each point
+as an arrow centered on its (x, y) location and pointing in a specified
+direction, with a small dot marking the exact coordinate. Useful for
+visualizing an embedding of motion stimuli (e.g. random-dot kinetograms)
+alongside the direction each one represents.
+
 ## Usage
 
 ``` r
@@ -53,52 +59,75 @@ plot_directions(
   rather than an absolute value, so arrows scale sensibly regardless of
   the units `x`/`y` are in. Arrows are centered on their coordinate, so
   each extends `length / 2` of that span to either side of the point.
-  Default `0.05` (5\\
+  Default `0.05` (5% of the plotted range).
 
-  colColor for the arrows, and by default the center dots too. Recycled
+- col:
+
+  Color for the arrows, and by default the center dots too. Recycled
   across points as usual.
 
-  point_colColor for the center dots marking each (x, y) location.
-  Defaults to `col`.
+- point_col:
 
-  point_pch, point_cexPlotting character and size for the center dots.
-  Set `point_pch = NA` to omit them.
+  Color for the center dots marking each (x, y) location. Defaults to
+  `col`.
 
-  head_lengthNumeric. Length of the arrowhead edges, in inches. Passed
-  as `length` to [`arrows`](https://rdrr.io/r/graphics/arrows.html).
-  Default `0.08`.
+- point_pch, point_cex:
 
-  head_angleNumeric. Angle in degrees between the arrowhead edges and
-  the shaft. Passed as `angle` to
+  Plotting character and size for the center dots. Set `point_pch = NA`
+  to omit them.
+
+- head_length:
+
+  Numeric. Length of the arrowhead edges, in inches. Passed as `length`
+  to [`arrows`](https://rdrr.io/r/graphics/arrows.html). Default `0.08`.
+
+- head_angle:
+
+  Numeric. Angle in degrees between the arrowhead edges and the shaft.
+  Passed as `angle` to
   [`arrows`](https://rdrr.io/r/graphics/arrows.html). Default `25`.
 
-  lwdLine width for the arrows.
+- lwd:
 
-  addLogical. If `TRUE`, add arrows to an existing plot instead of
-  starting a new one (all plot-setup arguments below are then ignored).
-  Default `FALSE`.
+  Line width for the arrows.
 
-  aspNumeric aspect ratio passed to
+- add:
+
+  Logical. If `TRUE`, add arrows to an existing plot instead of starting
+  a new one (all plot-setup arguments below are then ignored). Default
+  `FALSE`.
+
+- asp:
+
+  Numeric aspect ratio passed to
   [`plot`](https://rdrr.io/r/graphics/plot.default.html) when
   `add = FALSE`. Default `1`, so that a stimulus's direction is not
   visually distorted by unequal x/y scaling; set to `NA` to use the
   device default instead.
 
-  xlab, ylab, xlim, ylim, mainPassed to
+- xlab, ylab, xlim, ylim, main:
+
+  Passed to [`plot`](https://rdrr.io/r/graphics/plot.default.html) when
+  `add = FALSE`.
+
+- ...:
+
+  Further arguments passed to
   [`plot`](https://rdrr.io/r/graphics/plot.default.html) when
   `add = FALSE`.
 
-  ...Further arguments passed to
-  [`plot`](https://rdrr.io/r/graphics/plot.default.html) when
-  `add = FALSE`.
+## Value
 
 Invisibly returns a data frame with columns `x`, `y`, `z` and the arrow
 endpoints `x0`, `y0`, `x1`, `y1`. Called chiefly for its side effect of
-drawing on the current graphics device. Like a standard scatterplot of
-2D coordinates, but represents each point as an arrow centered on its
-(x, y) location and pointing in a specified direction, with a small dot
-marking the exact coordinate. Useful for visualizing an embedding of
-motion stimuli (e.g. random-dot kinetograms) alongside the direction
-each one represents. set.seed(1) x \<- rnorm(8) y \<- rnorm(8) z \<-
-seq(0, 315, by = 45) plot_directions(x, y, z, length = 0.15, col =
-"steelblue")
+drawing on the current graphics device.
+
+## Examples
+
+``` r
+set.seed(1)
+x <- rnorm(8)
+y <- rnorm(8)
+z <- seq(0, 315, by = 45)
+plot_directions(x, y, z, length = 0.15, col = "steelblue")
+```

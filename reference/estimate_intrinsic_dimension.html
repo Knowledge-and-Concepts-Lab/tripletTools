@@ -117,6 +117,20 @@ Default <code>NULL</code> leaves the global random state untouched.</p></dd>
 <dt><code>n_permutations</code></dt>
 <dd><p>As supplied.</p></dd>
 
+<dt><code>forced_to_one</code></dt>
+<dd><p>Logical: <code>TRUE</code> if <code>k</code> is the
+floored default (not even the leading dimension passed) rather than
+an actual detection – see <em>A known weakness for a single
+dominant dimension</em> above.</p></dd>
+
+<dt><code>dominance_ratio</code></dt>
+<dd><p>Numeric, or <code>NA</code> if there was only
+one candidate dimension to begin with. The leading eigenvalue
+divided by the mean of the rest – a large value (rule of thumb:
+above about 3) alongside <code>forced_to_one = TRUE</code> suggests the
+floor is likely masking a real dominant dimension rather than
+reflecting an honest absence of structure (see above).</p></dd>
+
 
 </dl></div>
     <div class="section level2">
@@ -152,6 +166,32 @@ recomputed from <code>coords</code>' own covariance matrix (rather than taken
 directly from <code>cmdscale</code>'s output) so the "real" side of the
 comparison is on the exact same scale as the permuted side – both go
 through the same <code><a href="https://rdrr.io/r/stats/cor.html" class="external-link">cov()</a></code> then <code><a href="https://rdrr.io/r/base/eigen.html" class="external-link">eigen()</a></code> pipeline.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="a-known-weakness-for-a-single-dominant-dimension">A known weakness for a single dominant dimension<a class="anchor" aria-label="anchor" href="#a-known-weakness-for-a-single-dominant-dimension"></a></h2>
+
+
+<p>Horn's parallel analysis is well documented to be conservative at rank 1
+specifically, and this can be severe enough that <em>even an obvious,
+dominant true dimension fails to clear its own threshold</em> – not just a
+borderline one. The reason: permutation preserves each column's own
+variance exactly (only scrambling which participant has which value), so
+when nearly all the real signal is concentrated in one dimension, the
+permutation null's own top eigenvalue is built largely from that same
+large variance, plus a small extra upward bias from incidental
+correlations among the now-independent shuffled columns. In effect, the
+leading dimension has to "beat a shuffled version of itself" – a bar
+that stays hard to clear regardless of how strong the true signal
+actually is. When this happens, <code>k</code> is floored at 1 (see
+<code>forced_to_one</code> below) rather than allowed to drop to 0, but that
+floor is a default, not a detection – <code>dominance_ratio</code> (also
+below) is provided specifically to help tell apart "this floor is very
+likely masking a real dominant dimension" from "this floor reflects a
+genuine absence of detectable structure," and <code>verbose</code> output
+spells out which case applies when <code>forced_to_one</code> is <code>TRUE</code>.
+Corroborating evidence independent of this test (e.g. a reproducible
+<code>hclust</code> split, or <code><a href="test_for_clusters.html">test_for_clusters</a></code>'s BIC) is the
+most reliable way to resolve the ambiguity.</p>
     </div>
 
     <div class="section level2">

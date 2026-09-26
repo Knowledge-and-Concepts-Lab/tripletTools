@@ -70,6 +70,20 @@ A list with elements:
 
   As supplied.
 
+- `forced_to_one`:
+
+  Logical: `TRUE` if `k` is the floored default (not even the leading
+  dimension passed) rather than an actual detection – see *A known
+  weakness for a single dominant dimension* above.
+
+- `dominance_ratio`:
+
+  Numeric, or `NA` if there was only one candidate dimension to begin
+  with. The leading eigenvalue divided by the mean of the rest – a large
+  value (rule of thumb: above about 3) alongside `forced_to_one = TRUE`
+  suggests the floor is likely masking a real dominant dimension rather
+  than reflecting an honest absence of structure (see above).
+
 ## Method
 
 This is Horn's parallel analysis (Horn, 1965), applied to the classical
@@ -104,6 +118,30 @@ nonzero its eigenvalue is. Observed eigenvalues are recomputed from
 exact same scale as the permuted side – both go through the same
 [`cov()`](https://rdrr.io/r/stats/cor.html) then
 [`eigen()`](https://rdrr.io/r/base/eigen.html) pipeline.
+
+## A known weakness for a single dominant dimension
+
+Horn's parallel analysis is well documented to be conservative at rank 1
+specifically, and this can be severe enough that *even an obvious,
+dominant true dimension fails to clear its own threshold* – not just a
+borderline one. The reason: permutation preserves each column's own
+variance exactly (only scrambling which participant has which value), so
+when nearly all the real signal is concentrated in one dimension, the
+permutation null's own top eigenvalue is built largely from that same
+large variance, plus a small extra upward bias from incidental
+correlations among the now-independent shuffled columns. In effect, the
+leading dimension has to "beat a shuffled version of itself" – a bar
+that stays hard to clear regardless of how strong the true signal
+actually is. When this happens, `k` is floored at 1 (see `forced_to_one`
+below) rather than allowed to drop to 0, but that floor is a default,
+not a detection – `dominance_ratio` (also below) is provided
+specifically to help tell apart "this floor is very likely masking a
+real dominant dimension" from "this floor reflects a genuine absence of
+detectable structure," and `verbose` output spells out which case
+applies when `forced_to_one` is `TRUE`. Corroborating evidence
+independent of this test (e.g. a reproducible `hclust` split, or
+[`test_for_clusters`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)'s
+BIC) is the most reliable way to resolve the ambiguity.
 
 ## Examples
 

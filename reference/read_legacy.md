@@ -123,8 +123,8 @@ punctuation.
 - sampleSet:
 
   Recognised input names: `sampleSet`, `Alg.Label`, `TrnTest`. When
-  absent, 10\\ randomly assigned to `"test"` and the remainder to
-  `"train"` (seed `2025`).
+  absent, 10% of trials are randomly assigned to `"test"` and the
+  remainder to `"train"` (seed `2025`).
 
 ## Examples
 
