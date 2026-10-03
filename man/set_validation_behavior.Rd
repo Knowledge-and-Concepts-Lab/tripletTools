@@ -4,7 +4,7 @@
 \alias{set_validation_behavior}
 \title{Set how validation trials are used in an already-split triplet dataset}
 \usage{
-set_validation_behavior(triplets, mode = c("train", "test"))
+set_validation_behavior(triplets, mode = c("train", "test", "holdout"))
 }
 \arguments{
 \item{triplets}{A single triplet data frame, or a (optionally named) list
@@ -13,8 +13,15 @@ of them -- e.g. one element per participant, as returned by
 \code{sampleAlg} and \code{sampleSet} columns (i.e. it has already been
 through \code{\link{assign_sample_sets}} or equivalent).}
 
-\item{mode}{Either \code{"train"} or \code{"test"}: the \code{sampleSet}
-value to assign to validation trials.}
+\item{mode}{One of \code{"train"}, \code{"test"}, or \code{"holdout"}:
+the \code{sampleSet} value to assign to validation trials.
+\code{"holdout"} sets it to \code{NA} instead of a string -- the same
+treatment as check trials -- excluding validation trials from training
+\emph{and} from the test-loss-based model-selection criterion, so they
+stay a clean final evaluation set with no double-dipping. Evaluate on
+them afterward via \code{\link{get.hoacc}}'s
+\code{trialtype = "validation"}, which identifies them through
+\code{sampleAlg} rather than \code{sampleSet} for exactly this reason.}
 }
 \value{
 \code{triplets} with \code{sampleSet} updated for validation
@@ -27,7 +34,8 @@ Changes \code{sampleSet} for \code{sampleAlg == "validation"} trials only,
 leaving every other trial's train/test assignment untouched. Useful when
 you've already read data in (e.g. via \code{\link{read_raw_data}} or
 \code{\link{get.combined}}) and want to switch whether validation trials
-are being used to train an embedding or held out to evaluate one, without
+are used to train an embedding, held out as part of the ordinary test
+set, or excluded entirely as a clean final evaluation set -- without
 redoing the whole train/test split.
 }
 \examples{
@@ -36,8 +44,9 @@ redoing the whole train/test split.
 d <- set_validation_behavior(icon_triplets[[1]], mode = "test")
 
 # A whole list of participants at once
-triplets_test  <- set_validation_behavior(icon_triplets, mode = "test")
-triplets_train <- set_validation_behavior(icon_triplets, mode = "train")
+triplets_test    <- set_validation_behavior(icon_triplets, mode = "test")
+triplets_train   <- set_validation_behavior(icon_triplets, mode = "train")
+triplets_holdout <- set_validation_behavior(icon_triplets, mode = "holdout")
 }
 
 }

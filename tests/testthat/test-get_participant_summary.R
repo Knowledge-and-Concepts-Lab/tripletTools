@@ -29,10 +29,12 @@ test_that("trial-type counts (ncheck/nvalidation/ntrain/ntest) are correct", {
 
   # sampleSet is train/test for every trial *except* check trials, which are
   # excluded (sampleSet == NA, see the package's own is.na(sampleSet)
-  # convention for identifying them) -- validation trials already carry a
-  # real train/test sampleSet value (which side depends on
-  # train_with_validation), so they're a subset of ntrain/ntest, not a
-  # separate additive category. Confirmed against the real data: every
+  # convention for identifying them) -- validation trials carry a real
+  # train/test sampleSet value under assign_sample_sets()'s default
+  # validation_mode ("train"), so under the default they're a subset of
+  # ntrain/ntest, not a separate additive category (this would no longer
+  # hold under validation_mode = "holdout", which gives them sampleSet ==
+  # NA like check trials instead). Confirmed against the real data: every
   # check trial has sampleSet == NA, no train/test trial is ever miscounted.
   expect_true(all(part.summary$ntrain + part.summary$ntest + part.summary$ncheck
                    == part.summary$ndat))

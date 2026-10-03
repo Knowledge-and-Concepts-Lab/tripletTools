@@ -11,7 +11,9 @@ get.prediction.matrix(elist, tlist, ttype = "test")
 
 \item{tlist}{Named list of triplet data.}
 
-\item{ttype}{Type of trial to evaluate on, defaults to test trials}
+\item{ttype}{Type of trial to evaluate on, defaults to test trials.
+Passed straight through to \code{\link{get.hoacc}}, including its
+special \code{"validation"} handling.}
 }
 \value{
 A matrix. Each row is an embedding, each column a triplet dataset.
@@ -31,7 +33,15 @@ The function expects files conform to naming conventions. It first
 extracts trials of the indicated type, then uses \code{get.hoacc} to compute the
 proportion of items for which the embedding predicts the correct response.
 It loops through all embeddings and datasets, returning a matrix of the
-corresponding prediction accuracies.
+corresponding prediction accuracies. The trial-type filtering happens
+entirely inside \code{get.hoacc()} -- this function passes each
+participant's full triplet data frame through unfiltered, so
+\code{get.hoacc()}'s \code{sampleAlg}-based handling of
+\code{ttype = "validation"} works correctly here too (filtering on
+\code{sampleSet} first, before \code{get.hoacc()} ever saw the data,
+would have selected nothing for that case, since \code{sampleSet} never
+literally equals \code{"validation"} once validation trials have been
+excluded from training -- see \code{\link{assign_sample_sets}}).
 
 Assuming the two lists contain the same participants in the same order,
 the matrix diagonal will indicate how well a participant's own embedding

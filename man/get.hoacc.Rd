@@ -11,7 +11,8 @@ get.hoacc(em, td, trialtype = "test", isemb = TRUE)
 
 \item{td}{Dataframe containing triplet data to be evaluated.}
 
-\item{trialtype}{Type of trial to be evaluated, defaults to \code{test}}
+\item{trialtype}{Type of trial to be evaluated, defaults to \code{test}.
+\code{"validation"} is a special case -- see Details.}
 
 \item{isemb}{When true, \code{em} is a matrix of embedding coordinates;
 when false, it is assumed to be a distance matrix.}
@@ -34,6 +35,16 @@ Triplet data must be in dataframe objects containing columns labeled
 \code{sampleSet} that indicates the trial type for each triplet. Embedding
 data must be a numeric matrix (or coercible to one) containing either
 the embedding coordinates for each item or a matrix of item-to-item distances.
+
+\code{trialtype = "validation"} is handled differently from any other value:
+validation trials are identified via \code{sampleAlg == "validation"} instead
+of \code{sampleSet == trialtype}. This matters when validation trials have
+been excluded from training and model selection by setting their
+\code{sampleSet} to \code{NA} (see \code{assign_sample_sets()}'s or
+\code{set_validation_behavior()}'s \code{"holdout"} option) -- in that case
+\code{sampleSet} never literally equals \code{"validation"}, so filtering on it
+directly would select nothing. \code{td} must have a \code{sampleAlg} column for
+this to work; it is not needed for any other \code{trialtype} value.
 }
 \examples{
 

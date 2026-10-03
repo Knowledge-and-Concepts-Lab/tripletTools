@@ -13,7 +13,7 @@ read_raw_data(
   max_prop_wrong = 1,
   test_prop = 0.1,
   seed = 42,
-  train_with_validation = TRUE,
+  validation_mode = c("train", "test", "holdout"),
   stimuli_extension = ".png",
   worker_id_regex = NULL
 )
@@ -49,11 +49,14 @@ assigned to the test set in the train/test split. Passed to
 \item{seed}{Integer. Random seed for reproducible train/test splitting.
 Passed to \code{\link{assign_sample_sets}}. Default: \code{42}.}
 
-\item{train_with_validation}{Logical. Whether \code{sampleAlg ==
-  "validation"} trials are assigned to \code{"train"} (\code{TRUE}, the
-default) or held out as \code{"test"} (\code{FALSE}) -- set this to
-\code{FALSE} when validation trials are instead being used to evaluate
-a fitted embedding. Passed to \code{\link{assign_sample_sets}}.}
+\item{validation_mode}{One of \code{"train"} (the default), \code{"test"},
+or \code{"holdout"} -- where \code{sampleAlg == "validation"} trials are
+routed. Use \code{"holdout"} to exclude them from training and model
+selection entirely (same treatment as check trials) so they stay a
+clean final evaluation set -- see \code{\link{assign_sample_sets}}'s
+\emph{Validation trials} section for why this matters and how to
+evaluate on them afterward via \code{\link{get.hoacc}}. Passed to
+\code{\link{assign_sample_sets}}.}
 
 \item{stimuli_extension}{Character. File extension (including the leading
 dot) to strip from stimulus and choice names. Default: \code{".png"}.}

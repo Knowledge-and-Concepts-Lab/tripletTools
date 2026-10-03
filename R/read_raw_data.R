@@ -101,11 +101,14 @@ normalize_response <- function(response) {
 #'   \code{\link{assign_sample_sets}}. Default: \code{0.2}.
 #' @param seed Integer. Random seed for reproducible train/test splitting.
 #'   Passed to \code{\link{assign_sample_sets}}. Default: \code{42}.
-#' @param train_with_validation Logical. Whether \code{sampleAlg ==
-#'   "validation"} trials are assigned to \code{"train"} (\code{TRUE}, the
-#'   default) or held out as \code{"test"} (\code{FALSE}) -- set this to
-#'   \code{FALSE} when validation trials are instead being used to evaluate
-#'   a fitted embedding. Passed to \code{\link{assign_sample_sets}}.
+#' @param validation_mode One of \code{"train"} (the default), \code{"test"},
+#'   or \code{"holdout"} -- where \code{sampleAlg == "validation"} trials are
+#'   routed. Use \code{"holdout"} to exclude them from training and model
+#'   selection entirely (same treatment as check trials) so they stay a
+#'   clean final evaluation set -- see \code{\link{assign_sample_sets}}'s
+#'   \emph{Validation trials} section for why this matters and how to
+#'   evaluate on them afterward via \code{\link{get.hoacc}}. Passed to
+#'   \code{\link{assign_sample_sets}}.
 #' @param stimuli_extension Character. File extension (including the leading
 #'   dot) to strip from stimulus and choice names. Default: \code{".png"}.
 #' @param worker_id_regex Character or \code{NULL}. Only used when a file has
@@ -166,10 +169,12 @@ read_raw_data <- function(
     max_prop_wrong    = 1.0,
     test_prop         = 0.1,
     seed              = 42,
-    train_with_validation = TRUE,
+    validation_mode   = c("train", "test", "holdout"),
     stimuli_extension = ".png",
     worker_id_regex   = NULL
 ) {
+  validation_mode <- match.arg(validation_mode)
+
   # ── Read all CSVs, resolving column-name aliases per file ──
   file_list <- list.files(data_dir, pattern = "\\.csv$", full.names = TRUE)
   if (length(file_list) == 0) stop("No CSV files found in: ", data_dir)
@@ -255,7 +260,7 @@ read_raw_data <- function(
     sampleAlg = f$sampleAlg
   ) %>%
     assign_sample_sets(test_prop = test_prop, seed = seed,
-                       train_with_validation = train_with_validation)
+                       validation_mode = validation_mode)
 
   # ── Stimulus-level mapping ─────────────────────────────
   levels_map <- data.frame(item = unique_labels) %>%

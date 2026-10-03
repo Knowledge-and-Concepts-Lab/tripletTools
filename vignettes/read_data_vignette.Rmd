@@ -50,17 +50,26 @@ result <- read_raw_data(
   max_prop_wrong = 0.20,      # drop participants who fail >20% of catch trials
   test_prop      = 0.20,      # fraction of "random" trials assigned to the test set
   seed           = 42,
-  train_with_validation = TRUE   # FALSE holds validation trials out as "test" instead
+  validation_mode = "train"   # "test" or "holdout" are the other options -- see below
 )
 ```
 
-`validation` trials are a separate category from the `random` trials that `test_prop` splits: `train_with_validation` (default `TRUE`) sends all of them to `sampleSet = "train"`; set it to `FALSE` when validation trials are instead being held out to evaluate a fitted embedding, which sends all of them to `sampleSet = "test"` instead. This is passed through to `assign_sample_sets()`, which can also be called again directly on already-cleaned data (it still has the `sampleAlg` column) to flip this without redoing the whole pipeline -- doing so with the same `seed` reproduces an identical split of the `random` trials, since validation trials don't consume any of the random draws `test_prop` uses.
+`validation` trials are a separate category from the `random` trials that `test_prop` splits, and `validation_mode` controls where they go:
+
+- `"train"` (the default) sends all of them to `sampleSet = "train"`.
+- `"test"` sends all of them to `sampleSet = "test"`, alongside the ordinary test trials.
+- `"holdout"` sends all of them to `sampleSet = NA` -- the same treatment as check trials -- excluding them from training **and** from the test-loss-based model-selection criterion entirely.
+
+`"holdout"` matters because `"test"` alone isn't actually a clean final evaluation set if you also used the test set to pick which training checkpoint to keep: the model selection has already indirectly "seen" the validation trials via the test loss that chose it, even though no gradient was ever computed on them. Since validation trials repeat across participants (unlike `random` trials, which vary), they're the natural choice for a held-out set used for final cross-participant evaluation -- but only if nothing upstream of that evaluation ever touched them. `validation_mode = "holdout"` guarantees that. Evaluate on them afterward with `get.hoacc(..., trialtype = "validation")` (or `get.prediction.matrix(..., ttype = "validation")` across several participants/embeddings at once) -- both identify validation trials via `sampleAlg` rather than `sampleSet`, since `sampleSet` no longer labels them as anything once they've been excluded this way.
+
+This is passed through to `assign_sample_sets()`, which can also be called again directly on already-cleaned data (it still has the `sampleAlg` column) to flip this without redoing the whole pipeline -- doing so with the same `seed` reproduces an identical split of the `random` trials, since validation trials don't consume any of the random draws `test_prop` uses.
 
 If your data are already split into a list of per-participant data frames (e.g. from `get.combined()`) rather than one combined data frame with a `worker_id` column, `set_validation_behavior()` does the same flip more directly -- it only touches `sampleSet` for validation trials, leaving everything else as-is, and accepts either a single data frame or a whole list at once:
 
 ```{r read-raw-set-validation, eval = FALSE}
-triplets_for_training  <- set_validation_behavior(triplet_list, mode = "train")
+triplets_for_training   <- set_validation_behavior(triplet_list, mode = "train")
 triplets_for_evaluation <- set_validation_behavior(triplet_list, mode = "test")
+triplets_held_out       <- set_validation_behavior(triplet_list, mode = "holdout")
 ```
 
 The function returns a list invisibly with two elements:

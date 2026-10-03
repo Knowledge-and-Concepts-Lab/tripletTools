@@ -5,7 +5,8 @@
 #'
 #' @param em Embedding or distance matrix for generating predictions.
 #' @param td Dataframe containing triplet data to be evaluated.
-#' @param trialtype Type of trial to be evaluated, defaults to `test`
+#' @param trialtype Type of trial to be evaluated, defaults to `test`.
+#'   `"validation"` is a special case -- see Details.
 #' @param isemb When true, `em` is a matrix of embedding coordinates;
 #'   when false, it is assumed to be a distance matrix.
 #'
@@ -22,6 +23,16 @@
 #' `sampleSet` that indicates the trial type for each triplet. Embedding
 #' data must be a numeric matrix (or coercible to one) containing either
 #' the embedding coordinates for each item or a matrix of item-to-item distances.
+#'
+#' `trialtype = "validation"` is handled differently from any other value:
+#' validation trials are identified via `sampleAlg == "validation"` instead
+#' of `sampleSet == trialtype`. This matters when validation trials have
+#' been excluded from training and model selection by setting their
+#' `sampleSet` to `NA` (see `assign_sample_sets()`'s or
+#' `set_validation_behavior()`'s `"holdout"` option) -- in that case
+#' `sampleSet` never literally equals `"validation"`, so filtering on it
+#' directly would select nothing. `td` must have a `sampleAlg` column for
+#' this to work; it is not needed for any other `trialtype` value.
 #'
 #' @export
 #'
@@ -47,8 +58,19 @@
 get.hoacc <- function (em, td, trialtype="test", isemb = TRUE)
 {
   ##Check arguments
-  #Pull out the trials to be evaluated:
-  td <- subset(td, td$sampleSet == trialtype)
+  #Pull out the trials to be evaluated. "validation" is identified via
+  #sampleAlg, not sampleSet, since sampleSet never literally equals
+  #"validation" once validation trials have been excluded from training via
+  #assign_sample_sets()/set_validation_behavior()'s "holdout" option (their
+  #sampleSet is NA in that case, same as check trials) -- see Details.
+  if (trialtype == "validation") {
+    if (is.null(td$sampleAlg)) {
+      stop("td must have a sampleAlg column to use trialtype = \"validation\".")
+    }
+    td <- subset(td, !is.na(td$sampleAlg) & td$sampleAlg == "validation")
+  } else {
+    td <- subset(td, td$sampleSet == trialtype)
+  }
 
   #Test the embedding. pred_name is fixed explicitly here (rather than relying
   #on test.model()'s default, which names the column after whatever

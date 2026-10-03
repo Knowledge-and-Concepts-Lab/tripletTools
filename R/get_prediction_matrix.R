@@ -6,7 +6,9 @@
 #'
 #' @param elist Named list of embeddings.
 #' @param tlist Named list of triplet data.
-#' @param ttype Type of trial to evaluate on, defaults to test trials
+#' @param ttype Type of trial to evaluate on, defaults to test trials.
+#'   Passed straight through to \code{\link{get.hoacc}}, including its
+#'   special \code{"validation"} handling.
 #'
 #' @return A matrix. Each row is an embedding, each column a triplet dataset.
 #'  Entries indicate how accurately the embedding predicts the triplet data
@@ -20,7 +22,15 @@
 #' extracts trials of the indicated type, then uses `get.hoacc` to compute the
 #' proportion of items for which the embedding predicts the correct response.
 #' It loops through all embeddings and datasets, returning a matrix of the
-#' corresponding prediction accuracies.
+#' corresponding prediction accuracies. The trial-type filtering happens
+#' entirely inside \code{get.hoacc()} -- this function passes each
+#' participant's full triplet data frame through unfiltered, so
+#' \code{get.hoacc()}'s \code{sampleAlg}-based handling of
+#' \code{ttype = "validation"} works correctly here too (filtering on
+#' \code{sampleSet} first, before \code{get.hoacc()} ever saw the data,
+#' would have selected nothing for that case, since \code{sampleSet} never
+#' literally equals \code{"validation"} once validation trials have been
+#' excluded from training -- see \code{\link{assign_sample_sets}}).
 #'
 #' Assuming the two lists contain the same participants in the same order,
 #' the matrix diagonal will indicate how well a participant's own embedding
@@ -47,8 +57,7 @@ get.prediction.matrix <- function(elist, tlist, ttype = "test"){
   for(i in c(1:nemb)){
     thisemb <- elist[[i]]
     for(j in c(1:ntrip)){
-      thistrip <- subset(tlist[[j]], tlist[[j]]$sampleSet==ttype)
-      o[i,j] <- get.hoacc(thisemb, thistrip, ttype)
+      o[i,j] <- get.hoacc(thisemb, tlist[[j]], ttype)
     }
   }
   o
