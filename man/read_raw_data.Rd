@@ -91,8 +91,12 @@ experiment code) do not always export identical column names. Before
 combining files, each one is checked for a small set of known aliases:
 \describe{
 \item{Trial category}{Recognised input names: \code{trial_category},
-\code{sampleAlg}, \code{AlgSample}. If none is found in a file, the
-function stops with an error naming that file.}
+\code{sampleAlg}, \code{AlgSample}. If none is found in a file, that
+file is skipped (with a warning naming it) rather than aborting the
+whole read -- useful when a directory of raw exports has picked up
+an unrelated stray CSV (e.g. a precomputed embeddings file) that was
+never meant to be read as a trial-level export. An error is only
+raised if \emph{every} CSV in \code{data_dir} is skipped this way.}
 \item{Participant ID (\code{worker_id})}{Recognised input names:
 \code{worker_id}, \code{sessionID}, \code{session_ID}, \code{puid},
 \code{Participant.ID}, \code{sub_id}, \code{pid}. If none is found,

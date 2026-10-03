@@ -23,10 +23,12 @@ read_one_raw_file <- function(file, worker_id_regex = NULL) {
     c("trial_category", "sampleAlg", "AlgSample"), d
   )
   if (is.null(trial_category_col)) {
-    stop(
-      "Could not find a trial-category column (tried: trial_category, ",
-      "sampleAlg, AlgSample) in file: ", file
+    warning(
+      "Skipping file -- no recognized trial-category column (tried: ",
+      "trial_category, sampleAlg, AlgSample): ", file,
+      call. = FALSE
     )
+    return(NULL)
   }
   if (trial_category_col != "trial_category") {
     names(d)[names(d) == trial_category_col] <- "trial_category"
@@ -122,8 +124,12 @@ normalize_response <- function(response) {
 #' combining files, each one is checked for a small set of known aliases:
 #' \describe{
 #'   \item{Trial category}{Recognised input names: \code{trial_category},
-#'     \code{sampleAlg}, \code{AlgSample}. If none is found in a file, the
-#'     function stops with an error naming that file.}
+#'     \code{sampleAlg}, \code{AlgSample}. If none is found in a file, that
+#'     file is skipped (with a warning naming it) rather than aborting the
+#'     whole read -- useful when a directory of raw exports has picked up
+#'     an unrelated stray CSV (e.g. a precomputed embeddings file) that was
+#'     never meant to be read as a trial-level export. An error is only
+#'     raised if \emph{every} CSV in \code{data_dir} is skipped this way.}
 #'   \item{Participant ID (\code{worker_id})}{Recognised input names:
 #'     \code{worker_id}, \code{sessionID}, \code{session_ID}, \code{puid},
 #'     \code{Participant.ID}, \code{sub_id}, \code{pid}. If none is found,
@@ -168,10 +174,20 @@ read_raw_data <- function(
   file_list <- list.files(data_dir, pattern = "\\.csv$", full.names = TRUE)
   if (length(file_list) == 0) stop("No CSV files found in: ", data_dir)
 
-  f_full <- rbindlist(
-    lapply(file_list, read_one_raw_file, worker_id_regex = worker_id_regex),
-    fill = TRUE
-  )
+  # A directory of raw exports can end up with stray CSVs that aren't trial-
+  # level exports at all (e.g. a precomputed embeddings file accidentally
+  # left alongside them) -- read_one_raw_file() warns and returns NULL for
+  # those rather than aborting the whole read, so they're just dropped here.
+  raw_list <- lapply(file_list, read_one_raw_file, worker_id_regex = worker_id_regex)
+  raw_list <- raw_list[!vapply(raw_list, is.null, logical(1))]
+  if (length(raw_list) == 0) {
+    stop(
+      "No CSV files in ", data_dir, " contained a recognized trial-category ",
+      "column (tried: trial_category, sampleAlg, AlgSample)."
+    )
+  }
+
+  f_full <- rbindlist(raw_list, fill = TRUE)
 
   # ── Filter for experiment trials ───────────────────────
   # trial_category is set by the experiment for all response modes.
