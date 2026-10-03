@@ -342,7 +342,18 @@ def process_all_workers(input_file, additional_data_file, output_dir,
         )
 
         emb_df = pd.DataFrame(embedding, columns=[f'dim_{i}' for i in range(embedding.shape[1])])
-        emb_df['worker_id'] = worker_id
+        # str(), not the raw (numpy int) worker_id: the group chunk below uses
+        # the string 'group', and concatenating an int-typed column with a
+        # str-typed one forces pandas to an object dtype holding genuinely
+        # mixed int/str values. reticulate's as.data.frame() can't coerce
+        # that to one atomic R type, so it becomes an R *list* column --
+        # comparing a list column with == (e.g. emb_df$worker_id == wid on
+        # the R side) then returns NA (not FALSE) for every row whose value
+        # doesn't coerce to the comparison type, and indexing a data frame
+        # with a logical selector containing NA inserts a bogus all-NA row
+        # for each one -- which is exactly what was silently doubling every
+        # individual participant's returned embedding with NA rows.
+        emb_df['worker_id'] = str(worker_id)
 
         for column in additional_data.columns:
             emb_df[column] = additional_data[column].values[:len(emb_df)]
