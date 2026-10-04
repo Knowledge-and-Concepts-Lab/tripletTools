@@ -32,6 +32,7 @@ Start with **[Getting Started](https://knowledge-and-concepts-lab.github.io/trip
 - **[tripletTools Overview](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/overview_vignette.html)** — the broader analysis toolkit: data loading, quality checks, inter-subject agreement, clustering
 - **[Computing Triplet Embeddings](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/embedding_vignette.html)** — the full embedding pipeline, dimensionality selection, parallel/HTCondor execution
 - **[Comparing Triplet Embeddings to Alternative Representations](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/comparing_embeddings_vignette.html)** — Procrustes ceilings, classifier-based evaluation, verbal-fluency similarity
+- **[Characterizing Individual Differences Along a Continuous Manifold](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/trajectory_vignette.html)** — smoothed trajectories, generalized Procrustes alignment, and 2-D/3-D visualization, using a real color-similarity dataset
 - **[Read Triplet Data](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/read_data_vignette.html)** — file formats for bringing in your own data
 
 Every vignette is also available from within R/RStudio (`build_vignettes = TRUE` above), and all functions are documented in `tripletTools_manual.pdf`.

@@ -1,0 +1,177 @@
+---
+title: "Characterizing Individual Differences Along a Continuous Manifold"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Characterizing Individual Differences Along a Continuous Manifold}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  fig.width  = 6,
+  fig.height = 6
+)
+```
+
+## Introduction
+
+The other vignettes in this package mostly treat individual differences in representation as a question of *clustering*: do participants fall into a small number of qualitatively distinct groups (see `vignette("tripletTools")`'s clustering section, and `test_for_clusters()`/`test_cluster_stability()`)? That's a natural first question, but it assumes the answer is discrete. Sometimes it isn't -- individual differences can instead vary smoothly along a *continuum*, with no natural dividing line between participants at one end and the other.
+
+This vignette walks through that alternative using a real dataset: triplet similarity judgments on 58 color patches spanning color space, from 46 participants, collected by Clementine Zimnicki and described in a poster presented at the Annual Meeting of the Cognitive Science Society (Zimnicki et al.; <https://escholarship.org/uc/item/8778p3t3>). Participants judged which of two option patches was more similar in color to a reference patch, with no further instruction about what "similar" should mean. It covers:
+
+- `generalized_procrustes()` -- aligning many embeddings into one shared consensus frame
+- `smooth_embedding_trajectory()` -- a kernel-weighted average embedding at points along a continuous 1-D axis of individual variation
+- `plot_3d_trajectory()`/`plot_2d_trajectory()` -- visualizing how the representation changes along that axis
+
+The dataset is bundled with the package as `color_triplets` (raw judgments), `color_emb_ind`/`color_emb_group` (precomputed 3-D embeddings, fit the same way as in `vignette("embedding_vignette")`), and `color_lab` (the patches' own CIE LAB coordinates, for comparison).
+
+```{r load}
+library(tripletTools)
+```
+
+---
+
+## The stimuli
+
+The 58 patches span color space fairly evenly in CIE LAB coordinates. Their hex codes double as both item identifiers and plotting colors throughout this vignette. `color_lab` and the embedding objects (`color_emb_group`/`color_emb_ind`) aren't guaranteed to list the 58 patches in the same row order (confirmed they don't, here), so we fix one canonical order up front -- matching the embeddings, since that's what most of this vignette plots -- and derive `pcols` from it, rather than re-deriving row order (and risking a mismatch) in every later chunk:
+
+```{r stimuli-plot, fig.width = 8, fig.height = 4.5, fig.cap="The 58 color patches plotted in their true CIE LAB coordinates (lightness vs. a, and b vs. a)."}
+pcols <- rownames(color_emb_group) # canonical item order used throughout
+lab_matched <- color_lab[pcols, ]  # color_lab re-indexed to match it
+
+par(mfrow = c(1, 2), mar = c(3, 3, 2, 1))
+plot(lab_matched[, c("l", "a")], pch = 22, bg = pcols, col = "gray",
+     xlab = "L", ylab = "a", asp = 1, cex = 1.6)
+plot(lab_matched[, c("b", "a")], pch = 22, bg = pcols, col = "gray",
+     xlab = "b", ylab = "a", asp = 1, cex = 1.6)
+```
+
+## Does the group embedding recover real color space?
+
+```{r align, fig.width = 8, fig.height = 8, fig.cap="True CIE LAB coordinates (top) vs. the group triplet embedding aligned to them via Procrustes (bottom)."}
+pr <- vegan::procrustes(lab_matched, color_emb_group, symmetric = TRUE)
+aligned <- pr$Yrot
+rownames(aligned) <- pcols
+
+cat("Procrustes correlation:", round(sqrt(1 - pr$ss), 3), "\n")
+
+par(mfrow = c(2, 2), mar = c(3, 3, 2, 1))
+plot(lab_matched[, c("l", "a")], pch = 22, bg = pcols, col = "gray",
+     xlab = "L", ylab = "a", asp = 1, cex = 1.6, main = "True LAB")
+plot(lab_matched[, c("b", "a")], pch = 22, bg = pcols, col = "gray",
+     xlab = "b", ylab = "a", asp = 1, cex = 1.6, main = "True LAB")
+plot(aligned[, 1:2], pch = 22, bg = pcols, col = "gray", cex = 1.6,
+     xlab = "dim 1", ylab = "dim 2", main = "Aligned group embedding")
+plot(aligned[, c(3, 2)], pch = 22, bg = pcols, col = "gray", cex = 1.6,
+     xlab = "dim 3", ylab = "dim 2", main = "Aligned group embedding")
+```
+
+The two spaces are correlated overall (Procrustes correlation ~0.87) -- the group embedding does roughly recover real color space. But the recovered arrangement is visibly *not* the regular grid that true LAB space is: patches bow into a warped, roughly ring-shaped arrangement rather than staying evenly spaced. That's already a hint that participants' judgments are organized by something closer to color *category* than by precise perceptual distance -- a useful fact to hold onto, since it's exactly the kind of structure the trajectory analysis below will unpack further.
+
+## Is there discrete cluster structure across participants?
+
+Before assuming individual differences are continuous, it's worth checking whether they're actually discrete. `get.rep.dist()` gives a participant-by-participant representational distance matrix from the individual embeddings; `test_for_clusters()` checks both whether there's any real cluster structure at all (Hopkins statistic) and, if so, how many clusters (BIC):
+
+```{r repdist}
+repdist <- get.rep.dist(color_emb_ind)
+```
+
+```{r tfc, eval = requireNamespace("mclust", quietly = TRUE)}
+test_for_clusters(repdist, max_clusters = 5, seed = 3)
+```
+
+The Hopkins statistic is non-significant and the BIC search prefers a single component (`best_g = 1`) -- no evidence of discrete subgroups. That rules out the clustering approach used elsewhere in this package and motivates treating individual differences as continuous instead.
+
+## A continuous axis of individual differences
+
+`estimate_intrinsic_dimension()` asks how many real dimensions of variation exist among participants' embeddings (as opposed to how many dimensions the color embeddings themselves have):
+
+```{r intrinsic-dim}
+estimate_intrinsic_dimension(repdist)
+```
+
+This comes back "forced to 1" -- but with the leading eigenvalue several times the size of the rest, which is exactly the known false-negative pattern documented for this function (see `?estimate_intrinsic_dimension`): when nearly all the real signal sits in one dominant dimension, Horn's parallel analysis has to beat a shuffled version of that same dominant variance, which is an unusually hard bar to clear. Combined with the non-significant Hopkins result above (no evidence of multiple discrete components either), this is good evidence for one real, continuous dimension of individual variation -- not zero dimensions of structure.
+
+`cmdscale()` gives each participant's own position along that one dimension:
+
+```{r cmdscale, fig.cap="Distribution of participants' positions along the single estimated axis of representational variation."}
+pos <- cmdscale(repdist, 1)
+hist(pos, breaks = 15, xlab = "Manifold position", main = "")
+```
+
+Positions spread fairly evenly across the axis, with no obvious gap separating two groups -- consistent with a genuine continuum rather than two clusters that `test_for_clusters()` simply failed to detect.
+
+## A smoothed trajectory along the manifold
+
+`smooth_embedding_trajectory()` takes each participant's embedding and their position along this axis, and computes a kernel-weighted average embedding at a grid of query points spanning the axis. Internally, it first runs `generalized_procrustes()` to align every participant's embedding into one shared consensus frame (via iterative GPA, Gower 1975) -- without that step, averaging embeddings that are each in their own arbitrary rotation would wash out any real structure.
+
+```{r traj}
+traj <- smooth_embedding_trajectory(color_emb_ind, pos, n_query = 16)
+names(traj)
+```
+
+`traj$effective_n` (Kish's effective sample size) tells us how many participants are really contributing to each query point -- useful for flagging the boundary regions, which are necessarily driven by fewer people:
+
+```{r effn}
+range(traj$effective_n)
+```
+
+## Visualizing the trajectory
+
+`plot_3d_trajectory()` draws one query point at a time, with a gray strip along the bottom showing `effective_n` across the whole axis and a red marker showing which point is currently displayed. Plotting all 16 query points in sequence shows the representation changing smoothly:
+
+```{r traj-grid, fig.width = 8, fig.height = 8, eval = requireNamespace("scatterplot3d", quietly = TRUE), fig.cap="The group representation at 16 points along the manifold, from one end (top-left) to the other (bottom-right)."}
+par(mfrow = c(4, 4), mar = c(1, 1, 1, 1), oma = c(1, 1, 1, 1))
+for (i in 1:16) {
+  plot_3d_trajectory(traj, pos, loc = i, pcols = pcols, bcols = "gray")
+}
+```
+
+The shift is striking: at one end of the manifold the patches collapse toward a nearly one-dimensional line (consistent with a strategy driven mostly by lightness), while at the other end they spread into a ring -- the same warped, category-like hue structure seen in the group embedding above, but now attributable to specific participants rather than smeared across everyone by averaging. `plot_2d_trajectory()` provides the same strip/marker/dot visualization for 2-D embeddings, using base `graphics::plot()` instead of `scatterplot3d` (not shown here, since these embeddings are 3-D).
+
+## Does manifold position predict individual judgments?
+
+If this axis reflects a real difference in how participants represent color, then each participant's own held-out judgments should be better predicted by the embedding from *their* end of the manifold than by the embedding from the opposite end. `get.hoacc()` gives, for one embedding, the proportion of a participant's held-out validation trials it predicts correctly:
+
+```{r crossover-compute}
+n <- length(color_triplets)
+acc <- matrix(NA, n, 2)
+for (i in seq_len(n)) {
+  acc[i, 1] <- get.hoacc(traj$embeddings[[1]],  color_triplets[[i]], trialtype = "validation")
+  acc[i, 2] <- get.hoacc(traj$embeddings[[16]], color_triplets[[i]], trialtype = "validation")
+}
+```
+
+```{r crossover-plot, fig.width = 7, fig.height = 6, fig.cap="Held-out prediction accuracy from the two end-of-manifold embeddings, plotted against each participant's own manifold position."}
+plot(0, .5, type = "n", xlim = range(pos), ylim = c(min(acc) - .05, max(acc) + .05),
+     xlab = "Manifold position", ylab = "Accuracy on held-out validation trials")
+for (i in seq_len(n)) lines(c(pos[i], pos[i]), c(acc[i, 1], acc[i, 2]), col = "gray")
+
+points(pos, acc[, 1], pch = 16, col = "steelblue")
+abline(lm(acc[, 1] ~ pos[, 1]), col = "steelblue")
+
+points(pos, acc[, 2], pch = 16, col = "firebrick")
+abline(lm(acc[, 2] ~ pos[, 1]), col = "firebrick")
+
+abline(h = .5, lty = 2)
+legend("bottomleft", legend = c("Embedding at left end", "Embedding at right end"),
+       col = c("steelblue", "firebrick"), pch = 16, bty = "n")
+```
+
+A clean crossover: the left-end embedding predicts best for participants near the left end of the manifold, the right-end embedding predicts best for everyone else, and which one wins tracks manifold position almost perfectly (R<sup>2</sup> = `r round(summary(lm(I(acc[,1]-acc[,2]) ~ pos[,1]))$r.squared, 2)`, from a simple linear regression of the accuracy difference on position). This is a genuine, strong individual-differences effect -- in a domain (color similarity) where that kind of heterogeneity might not be expected at all.
+
+## Summary
+
+| Question | Function(s) |
+|---|---|
+| Does the embedding recover a known reference space? | `vegan::procrustes()` |
+| Is there discrete cluster structure across participants? | `test_for_clusters()` |
+| Is there a real, continuous axis of individual variation? | `estimate_intrinsic_dimension()`, `cmdscale()` |
+| How does representation change smoothly along that axis? | `generalized_procrustes()`, `smooth_embedding_trajectory()` |
+| How do I visualize that change? | `plot_3d_trajectory()`, `plot_2d_trajectory()` |
+| Does manifold position predict individual judgments? | `get.hoacc()` |
+
+See `vignette("tripletTools")` for the discrete-clustering alternative (`test_for_clusters()`, `test_cluster_stability()`, hierarchical clustering), and `vignette("comparing_embeddings_vignette")` for more on Procrustes alignment and classifier-based evaluation.
