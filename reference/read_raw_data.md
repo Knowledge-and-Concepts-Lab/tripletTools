@@ -16,7 +16,7 @@ read_raw_data(
   max_prop_wrong = 1,
   test_prop = 0.1,
   seed = 42,
-  train_with_validation = TRUE,
+  validation_mode = c("train", "test", "holdout"),
   stimuli_extension = ".png",
   worker_id_regex = NULL
 )
@@ -75,12 +75,18 @@ read_raw_data(
   [`assign_sample_sets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md).
   Default: `42`.
 
-- train_with_validation:
+- validation_mode:
 
-  Logical. Whether `sampleAlg == "validation"` trials are assigned to
-  `"train"` (`TRUE`, the default) or held out as `"test"` (`FALSE`) –
-  set this to `FALSE` when validation trials are instead being used to
-  evaluate a fitted embedding. Passed to
+  One of `"train"` (the default), `"test"`, or `"holdout"` – where
+  `sampleAlg == "validation"` trials are routed. Use `"holdout"` to
+  exclude them from training and model selection entirely (same
+  treatment as check trials) so they stay a clean final evaluation set –
+  see
+  [`assign_sample_sets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)'s
+  *Validation trials* section for why this matters and how to evaluate
+  on them afterward via
+  [`get.hoacc`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md).
+  Passed to
   [`assign_sample_sets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md).
 
 - stimuli_extension:
@@ -123,8 +129,12 @@ aliases:
 - Trial category:
 
   Recognised input names: `trial_category`, `sampleAlg`, `AlgSample`. If
-  none is found in a file, the function stops with an error naming that
-  file.
+  none is found in a file, that file is skipped (with a warning naming
+  it) rather than aborting the whole read – useful when a directory of
+  raw exports has picked up an unrelated stray CSV (e.g. a precomputed
+  embeddings file) that was never meant to be read as a trial-level
+  export. An error is only raised if *every* CSV in `data_dir` is
+  skipped this way.
 
 - Participant ID (`worker_id`):
 

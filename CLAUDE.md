@@ -1084,3 +1084,141 @@ back to the returned matrices.
   chose to keep. Locked down with a regression test asserting
   aligned-embedding magnitudes stay well above the collapsed-to-~0 range
   on real data.
+- **Real production bug in
+  [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)/[`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md):
+  individual participant embeddings silently came back with exactly
+  double the expected rows, half of them all-`NA`.** Found on a real
+  36-item motion-triplets dataset (`part1_triplets.csv`, 55
+  participants, purely-numeric `worker_id` values like `87059`) – each
+  individual’s embedding had 72 rows instead of 36, while the *group*
+  embedding (unaffected) was correctly 36 rows, which was the key clue
+  that ruled out the vendored Python training code (shared by both
+  paths) and pointed at the per-worker result-splitting step instead.
+  Root cause, in `compute_embeddings.py::process_all_workers()`: each
+  per-worker chunk tagged `emb_df['worker_id'] = worker_id` (the raw
+  numpy int), while the pooled group chunk used the string `'group'`.
+  `pd.concat()`-ing an int-typed column with a str-typed one forces
+  pandas to an `object` dtype holding genuinely mixed int/str values;
+  [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) can’t
+  coerce that to one atomic R type on the way back to R, so it becomes
+  an R **list column**. Comparing a list column with `==` (exactly what
+  [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)’s
+  per-worker split does) then returns `NA`, not `FALSE`, for every row
+  that doesn’t coerce to the comparison type – confirmed directly, with
+  a minimal reproduction, that `list(87059L, 87059L, "group") == 87059`
+  gives `TRUE TRUE NA`, not `TRUE TRUE FALSE` – and indexing a data
+  frame with a logical selector containing `NA` inserts a bogus all-`NA`
+  row for each one. Net effect: every individual’s embedding came back
+  with one extra all-NA row per *other* chunk in the pool (every other
+  participant, plus the group), which looked like exactly double
+  whenever there was only one other worker plus the group. Only
+  triggered when `worker_id` values are purely numeric-looking (pandas
+  infers `int64` on `read_csv`) – string-like IDs such as `"p1"` (as in
+  this package’s own `make_fake_triplet_list()` test fixture) were never
+  affected, which is presumably why this went unnoticed; a regression
+  test (`test-run_embeddings_from_list.R`) had to override the fixture’s
+  worker IDs to numeric ones specifically to reproduce it, and was
+  confirmed to actually fail against the pre-fix code before being
+  locked in. Fixed by making every chunk’s `worker_id` a string
+  (`str(worker_id)`) before concatenation, so the column’s dtype is
+  consistent from the start.
+- **[`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
+  now skips (with a warning) a CSV in `data_dir` that isn’t actually a
+  raw trial-level export, instead of hard-erroring the whole directory
+  read.** Found when the user pointed it at a real raw-export directory
+  (`ColorTriplets/raw_data/part1`) that had accidentally picked up an
+  unrelated precomputed-embeddings CSV
+  (`embeddings_all_prolific_part1.csv` – `dim_0`/`item`/`worker_id`
+  columns, no trial-category column at all, since it was never meant to
+  be read as a trial export). Previously `read_one_raw_file()` called
+  [`stop()`](https://rdrr.io/r/base/stop.html) the moment any file
+  lacked a recognized trial-category column
+  (`trial_category`/`sampleAlg`/`AlgSample`), aborting the entire
+  [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
+  call over one stray file. Now it
+  [`warning()`](https://rdrr.io/r/base/warning.html)s (naming the file)
+  and returns `NULL`;
+  [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
+  filters those out before `rbindlist()`-ing the rest, and only raises a
+  hard error if *every* CSV in the directory gets skipped this way (a
+  clearer message than the generic downstream failure that would
+  otherwise result from an empty combined data frame). New tests
+  (`test-read_raw_data.R`) cover all three cases: a stray file skipped
+  with a warning while the valid file still reads correctly, an
+  all-stray directory giving the new clear error, and a fully clean
+  directory producing no warning at all.
+- **Validation trials gained a third, clean “holdout” treatment,
+  resolving a real double-dipping problem the user identified.**
+  Validation trials repeat across participants (unlike `random` trials,
+  which vary), making them the natural choice for a final
+  cross-participant evaluation set – but only if nothing upstream of
+  that evaluation ever touched them. Previously they could only be
+  routed to `sampleSet = "train"` or `"test"`; if `"test"`, they’d still
+  contaminate the early-stopping/model-selection criterion (which picks
+  the best checkpoint by minimizing test loss), so evaluating on them
+  afterward is double-dipping even though no gradient was ever computed
+  on them directly. Fixed by adding a third option that sets
+  `sampleSet = NA` for validation trials – the same treatment as check
+  trials – which every model-fitting code path already excludes from
+  both train and test matrices (confirmed directly across
+  [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md),
+  [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md),
+  [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md),
+  [`prepare_triplet_matrices()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/prepare_triplet_matrices.md),
+  and
+  [`reduce_embedding_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/reduce_embedding_dimension.md)
+  before making this change, not assumed). Landed across four functions,
+  all sharing the vocabulary `"train"`/`"test"`/`"holdout"`:
+  - [`set_validation_behavior()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/set_validation_behavior.md)’s
+    `mode` argument gained `"holdout"` – the natural place for this,
+    since the function already existed specifically to switch
+    validation-trial treatment on already-read data without redoing the
+    train/test split.
+  - [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)’s
+    `train_with_validation` (logical) was renamed to `validation_mode`
+    (character: `"train"`/`"test"`/`"holdout"`, default `"train"`) – a
+    deliberate breaking change (confirmed with the user rather than kept
+    logical-compatible, since this is a small lab-internal package) for
+    a cleaner, consistent 3-way vocabulary matching
+    [`set_validation_behavior()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/set_validation_behavior.md).
+    [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)’s
+    own `train_with_validation` parameter was renamed the same way and
+    passed through.
+  - [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)’s
+    `trialtype` argument now special-cases `"validation"`: since
+    `sampleSet` never literally equals `"validation"` once holdout
+    trials are excluded this way, it instead filters via
+    `sampleAlg == "validation"` directly (erroring clearly if `td` has
+    no `sampleAlg` column).
+  - **Found and fixed a related bug while wiring this up**:
+    [`get.prediction.matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.prediction.matrix.md)
+    (a thin per-pair wrapper around
+    [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md))
+    did its own redundant pre-filter by `sampleSet == ttype` *before*
+    ever calling
+    [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md),
+    which would have silently selected nothing for
+    `ttype = "validation"` even after fixing
+    [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)
+    itself, since that pre-filter never had the sampleAlg-based special
+    case. The pre-filter was fully redundant with what
+    [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)
+    already does internally (its only use was being passed straight into
+    [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)),
+    so it was simply removed –
+    [`get.prediction.matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.prediction.matrix.md)
+    now passes each participant’s full, unfiltered triplet data frame
+    through, letting
+    [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)’s
+    own filtering (including the new validation handling) run on it
+    directly.
+  - [`get.participant.summary()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.participant.summary.md)’s
+    `nvalidation` count was already computed from `sampleAlg`, not
+    `sampleSet` – confirmed unaffected, no change needed.
+  - New tests: `test-assign_sample_sets.R`,
+    `test-set_validation_behavior.R`, plus new cases added to
+    `test-get_hoacc.R` and `test-get_prediction_matrix.R` covering the
+    validation-via-sampleAlg path specifically (including the
+    [`get.prediction.matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.prediction.matrix.md)
+    regression, constructed so it would have failed against the pre-fix
+    redundant-pre-filter code).

@@ -61,7 +61,7 @@ data ready for modelling. Optionally writes the results to disk.</p>
 <span>  max_prop_wrong <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  test_prop <span class="op">=</span> <span class="fl">0.1</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">42</span>,</span>
-<span>  train_with_validation <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  validation_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"train"</span>, <span class="st">"test"</span>, <span class="st">"holdout"</span><span class="op">)</span>,</span>
 <span>  stimuli_extension <span class="op">=</span> <span class="st">".png"</span>,</span>
 <span>  worker_id_regex <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -117,12 +117,15 @@ assigned to the test set in the train/test split. Passed to
 Passed to <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>. Default: <code>42</code>.</p></dd>
 
 
-<dt id="arg-train-with-validation">train_with_validation<a class="anchor" aria-label="anchor" href="#arg-train-with-validation"></a></dt>
-<dd><p>Logical. Whether <code>sampleAlg ==
-  "validation"</code> trials are assigned to <code>"train"</code> (<code>TRUE</code>, the
-default) or held out as <code>"test"</code> (<code>FALSE</code>) – set this to
-<code>FALSE</code> when validation trials are instead being used to evaluate
-a fitted embedding. Passed to <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>.</p></dd>
+<dt id="arg-validation-mode">validation_mode<a class="anchor" aria-label="anchor" href="#arg-validation-mode"></a></dt>
+<dd><p>One of <code>"train"</code> (the default), <code>"test"</code>,
+or <code>"holdout"</code> – where <code>sampleAlg == "validation"</code> trials are
+routed. Use <code>"holdout"</code> to exclude them from training and model
+selection entirely (same treatment as check trials) so they stay a
+clean final evaluation set – see <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>'s
+<em>Validation trials</em> section for why this matters and how to
+evaluate on them afterward via <code><a href="get.hoacc.html">get.hoacc</a></code>. Passed to
+<code><a href="assign_sample_sets.html">assign_sample_sets</a></code>.</p></dd>
 
 
 <dt id="arg-stimuli-extension">stimuli_extension<a class="anchor" aria-label="anchor" href="#arg-stimuli-extension"></a></dt>
@@ -164,8 +167,12 @@ names and paths.</p></dd>
 experiment code) do not always export identical column names. Before
 combining files, each one is checked for a small set of known aliases:</p><dl><dt>Trial category</dt>
 <dd><p>Recognised input names: <code>trial_category</code>,
-<code>sampleAlg</code>, <code>AlgSample</code>. If none is found in a file, the
-function stops with an error naming that file.</p></dd>
+<code>sampleAlg</code>, <code>AlgSample</code>. If none is found in a file, that
+file is skipped (with a warning naming it) rather than aborting the
+whole read – useful when a directory of raw exports has picked up
+an unrelated stray CSV (e.g. a precomputed embeddings file) that was
+never meant to be read as a trial-level export. An error is only
+raised if <em>every</em> CSV in <code>data_dir</code> is skipped this way.</p></dd>
 
 <dt>Participant ID (<code>worker_id</code>)</dt>
 <dd><p>Recognised input names:

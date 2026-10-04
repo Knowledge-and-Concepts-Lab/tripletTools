@@ -68,7 +68,9 @@ dataset, returning the mean accuracy as a matrix.</p>
 
 
 <dt id="arg-ttype">ttype<a class="anchor" aria-label="anchor" href="#arg-ttype"></a></dt>
-<dd><p>Type of trial to evaluate on, defaults to test trials</p></dd>
+<dd><p>Type of trial to evaluate on, defaults to test trials.
+Passed straight through to <code><a href="get.hoacc.html">get.hoacc</a></code>, including its
+special <code>"validation"</code> handling.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -86,7 +88,15 @@ The function expects files conform to naming conventions. It first
 extracts trials of the indicated type, then uses <code>get.hoacc</code> to compute the
 proportion of items for which the embedding predicts the correct response.
 It loops through all embeddings and datasets, returning a matrix of the
-corresponding prediction accuracies.</p>
+corresponding prediction accuracies. The trial-type filtering happens
+entirely inside <code><a href="get.hoacc.html">get.hoacc()</a></code> – this function passes each
+participant's full triplet data frame through unfiltered, so
+<code><a href="get.hoacc.html">get.hoacc()</a></code>'s <code>sampleAlg</code>-based handling of
+<code>ttype = "validation"</code> works correctly here too (filtering on
+<code>sampleSet</code> first, before <code><a href="get.hoacc.html">get.hoacc()</a></code> ever saw the data,
+would have selected nothing for that case, since <code>sampleSet</code> never
+literally equals <code>"validation"</code> once validation trials have been
+excluded from training – see <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>).</p>
 <p>Assuming the two lists contain the same participants in the same order,
 the matrix diagonal will indicate how well a participant's own embedding
 predicts their decisions on the test items (typically hold-out items not

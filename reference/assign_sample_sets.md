@@ -11,7 +11,7 @@ assign_sample_sets(
   df,
   test_prop = 0.2,
   seed = 42,
-  train_with_validation = TRUE
+  validation_mode = c("train", "test", "holdout")
 )
 ```
 
@@ -33,17 +33,17 @@ assign_sample_sets(
   [`set.seed`](https://rdrr.io/r/base/Random.html) for reproducibility.
   Default: `42`.
 
-- train_with_validation:
+- validation_mode:
 
-  Logical. Whether `sampleAlg == "validation"` trials are assigned to
-  `"train"` (`TRUE`, the default) or `"test"` (`FALSE`) – set this to
-  `FALSE` when validation trials are instead being held out to evaluate
-  a fitted embedding. See *Validation trials* below.
+  One of `"train"` (the default), `"test"`, or `"holdout"` – where
+  `sampleAlg == "validation"` trials are routed. See *Validation trials*
+  below.
 
 ## Value
 
 The input data frame with an additional character column `sampleSet`
-containing `"train"`, `"test"`, or `NA` (for catch trials).
+containing `"train"`, `"test"`, or `NA` (for catch trials, and for
+validation trials when `validation_mode = "holdout"`).
 
 ## Details
 
@@ -55,14 +55,25 @@ Setting `seed` ensures the assignment is reproducible.
 
 `sampleAlg == "validation"` trials are a separate category from the
 `"random"` trials that `test_prop` splits – they're routed entirely by
-`train_with_validation` instead: all to `"train"` (the default) when
-they're not being used to evaluate an embedding, or all to `"test"` when
-they are. Re-running this function on the same `df` (which must still
-have `sampleAlg`, so this only works before it's dropped from a
-pipeline's output) with the same `seed` but a different
-`train_with_validation` reproduces an identical `"random"`-trial split
-and only changes validation trials, since validation rows never consume
-any of the random draws `test_prop` uses.
+`validation_mode` instead: all to `"train"` (the default) when they're
+not being used to evaluate an embedding, all to `"test"` when they are,
+or all to `NA` (excluded from both – same treatment as check trials)
+when you want them held out as a clean final evaluation set that never
+influences training *or* the early-stopping/model-selection criterion,
+avoiding the double-dipping that comes from putting them in the ordinary
+test set a model is also selected against. Use
+[`get.hoacc`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)'s
+`trialtype = "validation"` to evaluate on them afterward (it identifies
+them via `sampleAlg`, not `sampleSet`, since `sampleSet` no longer
+labels them as anything once they're excluded this way). Re-running this
+function on the same `df` (which must still have `sampleAlg`, so this
+only works before it's dropped from a pipeline's output) with the same
+`seed` but a different `validation_mode` reproduces an identical
+`"random"`-trial split and only changes validation trials, since
+validation rows never consume any of the random draws `test_prop` uses.
+[`set_validation_behavior`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/set_validation_behavior.md)
+offers the same three modes for data that's already been through this
+function, without redoing the `"random"`-trial split.
 
 ## Examples
 
@@ -74,6 +85,9 @@ d <- data.frame(
 )
 assign_sample_sets(d, test_prop = 0.2, seed = 1)
 # Hold validation trials out for evaluation instead:
-assign_sample_sets(d, test_prop = 0.2, seed = 1, train_with_validation = FALSE)
+assign_sample_sets(d, test_prop = 0.2, seed = 1, validation_mode = "test")
+# Exclude them from training and model selection entirely, for use as a
+# clean final evaluation set via get.hoacc(trialtype = "validation"):
+assign_sample_sets(d, test_prop = 0.2, seed = 1, validation_mode = "holdout")
 } # }
 ```

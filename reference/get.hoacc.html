@@ -62,7 +62,8 @@
 
 
 <dt id="arg-trialtype">trialtype<a class="anchor" aria-label="anchor" href="#arg-trialtype"></a></dt>
-<dd><p>Type of trial to be evaluated, defaults to <code>test</code></p></dd>
+<dd><p>Type of trial to be evaluated, defaults to <code>test</code>.
+<code>"validation"</code> is a special case – see Details.</p></dd>
 
 
 <dt id="arg-isemb">isemb<a class="anchor" aria-label="anchor" href="#arg-isemb"></a></dt>
@@ -86,6 +87,15 @@ for which the prediction is matched.</p>
 <code>sampleSet</code> that indicates the trial type for each triplet. Embedding
 data must be a numeric matrix (or coercible to one) containing either
 the embedding coordinates for each item or a matrix of item-to-item distances.</p>
+<p><code>trialtype = "validation"</code> is handled differently from any other value:
+validation trials are identified via <code>sampleAlg == "validation"</code> instead
+of <code>sampleSet == trialtype</code>. This matters when validation trials have
+been excluded from training and model selection by setting their
+<code>sampleSet</code> to <code>NA</code> (see <code><a href="assign_sample_sets.html">assign_sample_sets()</a></code>'s or
+<code><a href="set_validation_behavior.html">set_validation_behavior()</a></code>'s <code>"holdout"</code> option) – in that case
+<code>sampleSet</code> never literally equals <code>"validation"</code>, so filtering on it
+directly would select nothing. <code>td</code> must have a <code>sampleAlg</code> column for
+this to work; it is not needed for any other <code>trialtype</code> value.</p>
     </div>
 
     <div class="section level2">

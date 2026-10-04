@@ -59,7 +59,7 @@ both sets.</p>
 <span>  <span class="va">df</span>,</span>
 <span>  test_prop <span class="op">=</span> <span class="fl">0.2</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">42</span>,</span>
-<span>  train_with_validation <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  validation_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"train"</span>, <span class="st">"test"</span>, <span class="st">"holdout"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -83,19 +83,18 @@ non-validation trials to assign to the test set. Default: <code>0.2</code>.</p><
 for reproducibility. Default: <code>42</code>.</p></dd>
 
 
-<dt id="arg-train-with-validation">train_with_validation<a class="anchor" aria-label="anchor" href="#arg-train-with-validation"></a></dt>
-<dd><p>Logical. Whether <code>sampleAlg ==
-  "validation"</code> trials are assigned to <code>"train"</code> (<code>TRUE</code>,
-the default) or <code>"test"</code> (<code>FALSE</code>) – set this to
-<code>FALSE</code> when validation trials are instead being held out to
-evaluate a fitted embedding. See <em>Validation trials</em> below.</p></dd>
+<dt id="arg-validation-mode">validation_mode<a class="anchor" aria-label="anchor" href="#arg-validation-mode"></a></dt>
+<dd><p>One of <code>"train"</code> (the default),
+<code>"test"</code>, or <code>"holdout"</code> – where <code>sampleAlg ==
+  "validation"</code> trials are routed. See <em>Validation trials</em> below.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>The input data frame with an additional character column
 <code>sampleSet</code> containing <code>"train"</code>, <code>"test"</code>, or
-<code>NA</code> (for catch trials).</p>
+<code>NA</code> (for catch trials, and for validation trials when
+<code>validation_mode = "holdout"</code>).</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -109,15 +108,26 @@ approximately <code>test_prop</code> of their trials to the test set. Setting
 
 <p><code>sampleAlg == "validation"</code> trials are a separate category from the
 <code>"random"</code> trials that <code>test_prop</code> splits – they're routed
-entirely by <code>train_with_validation</code> instead: all to <code>"train"</code>
-(the default) when they're not being used to evaluate an embedding, or
-all to <code>"test"</code> when they are. Re-running this function on the same
-<code>df</code> (which must still have <code>sampleAlg</code>, so this only works
-before it's dropped from a pipeline's output) with the same <code>seed</code>
-but a different <code>train_with_validation</code> reproduces an identical
+entirely by <code>validation_mode</code> instead: all to <code>"train"</code> (the
+default) when they're not being used to evaluate an embedding, all to
+<code>"test"</code> when they are, or all to <code>NA</code> (excluded from both –
+same treatment as check trials) when you want them held out as a clean
+final evaluation set that never influences training <em>or</em> the
+early-stopping/model-selection criterion, avoiding the double-dipping
+that comes from putting them in the ordinary test set a model is also
+selected against. Use <code><a href="get.hoacc.html">get.hoacc</a></code>'s
+<code>trialtype = "validation"</code> to evaluate on them afterward (it
+identifies them via <code>sampleAlg</code>, not <code>sampleSet</code>, since
+<code>sampleSet</code> no longer labels them as anything once they're
+excluded this way). Re-running this function on the same <code>df</code>
+(which must still have <code>sampleAlg</code>, so this only works before it's
+dropped from a pipeline's output) with the same <code>seed</code> but a
+different <code>validation_mode</code> reproduces an identical
 <code>"random"</code>-trial split and only changes validation trials, since
 validation rows never consume any of the random draws <code>test_prop</code>
-uses.</p>
+uses. <code><a href="set_validation_behavior.html">set_validation_behavior</a></code> offers the same three modes
+for data that's already been through this function, without redoing
+the <code>"random"</code>-trial split.</p>
     </div>
 
     <div class="section level2">
@@ -129,7 +139,10 @@ uses.</p>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">assign_sample_sets</span><span class="op">(</span><span class="va">d</span>, test_prop <span class="op">=</span> <span class="fl">0.2</span>, seed <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="co"># Hold validation trials out for evaluation instead:</span></span></span>
-<span class="r-in"><span><span class="fu">assign_sample_sets</span><span class="op">(</span><span class="va">d</span>, test_prop <span class="op">=</span> <span class="fl">0.2</span>, seed <span class="op">=</span> <span class="fl">1</span>, train_with_validation <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">assign_sample_sets</span><span class="op">(</span><span class="va">d</span>, test_prop <span class="op">=</span> <span class="fl">0.2</span>, seed <span class="op">=</span> <span class="fl">1</span>, validation_mode <span class="op">=</span> <span class="st">"test"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># Exclude them from training and model selection entirely, for use as a</span></span></span>
+<span class="r-in"><span><span class="co"># clean final evaluation set via get.hoacc(trialtype = "validation"):</span></span></span>
+<span class="r-in"><span><span class="fu">assign_sample_sets</span><span class="op">(</span><span class="va">d</span>, test_prop <span class="op">=</span> <span class="fl">0.2</span>, seed <span class="op">=</span> <span class="fl">1</span>, validation_mode <span class="op">=</span> <span class="st">"holdout"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

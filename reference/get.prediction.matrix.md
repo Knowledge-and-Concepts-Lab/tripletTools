@@ -22,7 +22,10 @@ get.prediction.matrix(elist, tlist, ttype = "test")
 
 - ttype:
 
-  Type of trial to evaluate on, defaults to test trials
+  Type of trial to evaluate on, defaults to test trials. Passed straight
+  through to
+  [`get.hoacc`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md),
+  including its special `"validation"` handling.
 
 ## Value
 
@@ -39,7 +42,19 @@ function expects files conform to naming conventions. It first extracts
 trials of the indicated type, then uses `get.hoacc` to compute the
 proportion of items for which the embedding predicts the correct
 response. It loops through all embeddings and datasets, returning a
-matrix of the corresponding prediction accuracies.
+matrix of the corresponding prediction accuracies. The trial-type
+filtering happens entirely inside
+[`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)
+– this function passes each participant's full triplet data frame
+through unfiltered, so
+[`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)'s
+`sampleAlg`-based handling of `ttype = "validation"` works correctly
+here too (filtering on `sampleSet` first, before
+[`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)
+ever saw the data, would have selected nothing for that case, since
+`sampleSet` never literally equals `"validation"` once validation trials
+have been excluded from training – see
+[`assign_sample_sets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)).
 
 Assuming the two lists contain the same participants in the same order,
 the matrix diagonal will indicate how well a participant's own embedding

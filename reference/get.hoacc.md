@@ -20,7 +20,8 @@ get.hoacc(em, td, trialtype = "test", isemb = TRUE)
 
 - trialtype:
 
-  Type of trial to be evaluated, defaults to `test`
+  Type of trial to be evaluated, defaults to `test`. `"validation"` is a
+  special case – see Details.
 
 - isemb:
 
@@ -45,6 +46,19 @@ Triplet data must be in dataframe objects containing columns labeled
 data must be a numeric matrix (or coercible to one) containing either
 the embedding coordinates for each item or a matrix of item-to-item
 distances.
+
+`trialtype = "validation"` is handled differently from any other value:
+validation trials are identified via `sampleAlg == "validation"` instead
+of `sampleSet == trialtype`. This matters when validation trials have
+been excluded from training and model selection by setting their
+`sampleSet` to `NA` (see
+[`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)'s
+or
+[`set_validation_behavior()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/set_validation_behavior.md)'s
+`"holdout"` option) – in that case `sampleSet` never literally equals
+`"validation"`, so filtering on it directly would select nothing. `td`
+must have a `sampleAlg` column for this to work; it is not needed for
+any other `trialtype` value.
 
 ## Examples
 
