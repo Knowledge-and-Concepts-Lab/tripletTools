@@ -46,6 +46,10 @@ evaluating/visualizing the result end to end. From there:
   Representations](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/comparing_embeddings_vignette.html)**
   — Procrustes ceilings, classifier-based evaluation, verbal-fluency
   similarity
+- **[Characterizing Individual Differences Along a Continuous
+  Manifold](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/trajectory_vignette.html)**
+  — smoothed trajectories, generalized Procrustes alignment, and 2-D/3-D
+  visualization, using a real color-similarity dataset
 - **[Read Triplet
   Data](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/read_data_vignette.html)**
   — file formats for bringing in your own data

@@ -9,6 +9,7 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/articles/index.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/articles/overview_vignette.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/articles/read_data_vignette.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/articles/trajectory_vignette.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/articles/tripletTools.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/authors.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/index.html</loc></url>
@@ -17,6 +18,10 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/animal_triplet_embedding.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_alg.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_emb_group.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_emb_ind.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_lab.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_triplets.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_bge_embedding.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_categories.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_triplet_embedding.html</loc></url>
@@ -51,6 +56,8 @@
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/matrix_rank.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/model.strength.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/pacc.by.cluster.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_2d_trajectory.html</loc></url>
+<url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_cis.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_directions.html</loc></url>
 <url><loc>https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.html</loc></url>

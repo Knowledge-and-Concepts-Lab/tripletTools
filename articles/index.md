@@ -10,5 +10,7 @@
   Embeddings](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/embedding_vignette.md):
 - [Comparing Triplet Embeddings to Alternative
   Representations](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/comparing_embeddings_vignette.md):
+- [Characterizing Individual Differences Along a Continuous
+  Manifold](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/trajectory_vignette.md):
 - [Deploying tripletTools on
   HTCondor](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/condor_workflows_vignette.md):

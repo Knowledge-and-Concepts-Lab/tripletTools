@@ -12,6 +12,14 @@
   : Label each trial with its sampling algorithm
 - [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
   : Assign trials to train or test sets
+- [`color_emb_group`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_emb_group.md)
+  : Group embedding data for 58 color patches
+- [`color_emb_ind`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_emb_ind.md)
+  : Individual embedding data for 58 color patches
+- [`color_lab`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_lab.md)
+  : CIE LAB coordinates for 58 color patches
+- [`color_triplets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_triplets.md)
+  : Triplet data for 58 color patches
 - [`emotion_bge_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_bge_embedding.md)
   : Language-model embedding of 213 emotion words (BAAI/bge-m3)
 - [`emotion_categories`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_categories.md)
@@ -80,6 +88,10 @@
   : Get model strength
 - [`pacc.by.cluster()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/pacc.by.cluster.md)
   : Prediction accuracy by cluster
+- [`plot_2d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_2d_trajectory.md)
+  : Plot a 2-D embedding at one point along a smoothed trajectory
+- [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md)
+  : Plot a 3-D embedding at one point along a smoothed trajectory
 - [`plot_cis()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_cis.md)
   : Plot column means and 95% confidence intervals
 - [`plot_directions()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_directions.md)
