@@ -16,6 +16,7 @@ articles:
   - read_data_vignette
   - embedding_vignette
   - comparing_embeddings_vignette
+  - trajectory_vignette
   - condor_workflows_vignette
 
 navbar:
@@ -31,6 +32,8 @@ navbar:
         href: articles/embedding_vignette.html
       - text: Comparing Triplet Embeddings to Alternative Representations
         href: articles/comparing_embeddings_vignette.html
+      - text: Characterizing Individual Differences Along a Continuous Manifold
+        href: articles/trajectory_vignette.html
       - text: Deploying tripletTools on HTCondor
         href: articles/condor_workflows_vignette.html
 
