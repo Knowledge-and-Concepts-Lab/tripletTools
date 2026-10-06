@@ -1518,6 +1518,38 @@ back to the returned matrices.
     built from its output used a color/label vector in that same row
     order – these are separate things to check, and only the rendered
     figure actually catches the latter.
+- **[`plot_pics()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.md)
+  fixed to preserve each image’s own native pixel aspect ratio, instead
+  of stretching it to match the plotting surface’s.** Root cause: the
+  old sizing code computed `xsz <- psize * xrange` and
+  `ysz <- psize * yrange` independently from the axis data ranges alone
+  – working out the actual *physical* box size this produces (via
+  `par('pin')`, the plot region’s size in inches) shows the rendered
+  box’s physical width/height ratio always equals `pin[1]/pin[2]` (the
+  plotting region’s own aspect ratio), regardless of the image’s own
+  shape – so any non-square plotting window (the common case –
+  e.g. `png(width=, height=)` with unequal width/height) silently
+  stretched every image to match the window, not just unusual cases.
+  Fixed by anchoring `psize` to physical height only (`psize * pin[2]`,
+  unchanged in spirit from before) and deriving the box’s width from the
+  image’s own native aspect ratio (`dim(currpic)[2]/dim(currpic)[1]`,
+  works for both PNG arrays and `"raster"` matrices) combined with the
+  actual data-units-per-inch conversion in each direction – factored
+  into a new internal (non-exported) helper,
+  `compute_pic_halfsize(native_ar, psize, pin, xlim, ylim)`,
+  deliberately taking `pin`/`xlim`/`ylim` as plain arguments rather than
+  reading [`par()`](https://rdrr.io/r/graphics/par.html) itself so it’s
+  unit-testable without a live graphics device. Verified algebraically
+  (worked through by hand before implementing, confirming the new
+  formula reduces to the exact old one when both the image and the
+  plotting device are square) and empirically:
+  `tests/testthat/test-plot_pics.R` checks the physical aspect ratio
+  comes out correct for a square image on a non-square device and for a
+  non-square (2:1) image on a non-square device with non-square axis
+  ranges, plus a real rendered check on `icon_pics` at an extreme
+  1400x500 (2.8:1) device confirming the icons render square and
+  undistorted, where they’d have been visibly squished under the old
+  code.
 - **[`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
   changed from an independent per-trial coin-flip to an exact
   per-participant count**, at the user’s request. Previously

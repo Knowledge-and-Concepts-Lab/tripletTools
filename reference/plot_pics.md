@@ -48,7 +48,10 @@ plot_pics(
 
 - psize:
 
-  Plot size for each image as proportion of plotting surface
+  Each image's height, as a proportion of the plotting surface's
+  physical height. Width is derived from the image's own native pixel
+  aspect ratio, so images are never stretched to match the plotting
+  surface's aspect ratio (see Details).
 
 - newplot:
 
@@ -78,6 +81,15 @@ When there are many images, they often clutter the plot, making it hard
 to see structure. You can control the proportion of images shown by
 setting `pr` to a value smaller than 1.0. In this case, a random sample
 of impages will be plotted.
+
+Each image is drawn with its own native pixel aspect ratio
+(width/height, from its [`dim()`](https://rdrr.io/r/base/dim.html)), not
+the plotting surface's aspect ratio. `psize` only sets the physical
+height of each image (as a proportion of the plotting region's physical
+height); the width is derived from that image's own aspect ratio.
+Without this, a non-square plotting device/window (or a mix of portrait
+and landscape images) would silently stretch every image to fill a box
+shaped like the plot window, distorting it.
 
 If images are line-drawings and are loaded as rasters rather than PNGs,
 setting the plot color `pc` will control the color the image is
