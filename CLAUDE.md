@@ -309,6 +309,15 @@ back to the returned matrices.
   2026-09-23.)
 - `sampleAlg == "check"` rows are attention-check trials; functions
   exclude them by checking `is.na(sampleSet)`
+- **Adding a new vignette touches four places, not one**: the `.Rmd`
+  itself, `README.md`’s vignette list, this file’s `Repository layout`
+  section, and `_pkgdown.yml`’s
+  `articles.contents`/`navbar.components.articles.menu` lists. Missing
+  `_pkgdown.yml` is a hard build failure, not a cosmetic gap – pkgdown’s
+  sitrep check aborts the whole site build if any vignette is missing
+  from that explicit index (see the `trajectory_vignette.Rmd` bullet in
+  “Recently added” for a real instance of this breaking the live GitHub
+  Actions pkgdown build).
 
 ------------------------------------------------------------------------
 
@@ -1509,3 +1518,56 @@ back to the returned matrices.
     built from its output used a color/label vector in that same row
     order – these are separate things to check, and only the rendered
     figure actually catches the latter.
+- **[`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
+  changed from an independent per-trial coin-flip to an exact
+  per-participant count**, at the user’s request. Previously
+  `sampleAlg == "random"` trials were each independently assigned to
+  test via `runif(n()) <= test_prop`, so the *number* of test trials per
+  participant only matched `test_prop` in expectation – two participants
+  with the same number of random trials could (and typically did) end up
+  with different test-set sizes. Now a new internal (non-exported)
+  helper, `select_test_trials()`, computes
+  `n_test = round(test_prop * n_random)` once per participant and
+  selects exactly that many random trials (via
+  `sample.int(n_random, n_test)`, without replacement) to be test – so
+  same trial count always means same test count, and different trial
+  counts still get matched *proportions* with a controlled,
+  deterministic-given-seed exact count. Kept the existing
+  `case_when()`/`group_by(worker_id)` structure, just swapped the
+  `random`-trial branch’s condition for a call to the new helper
+  (computed in a [`{ }`](https://rdrr.io/r/base/Paren.html) block inside
+  the single `mutate()` call, so the intermediate logical vector doesn’t
+  leak out as a stray column). Verified the existing claim in this
+  function’s own docs still holds after the change – validation trials
+  still never consume any of `test_prop`’s random draws, since
+  `select_test_trials()` only looks at `sampleAlg == "random"` rows and
+  runs identically regardless of `validation_mode` – and added new
+  regression tests locking down the exact-count property directly (same
+  `n_random` -\> same test count across participants;
+  [`round()`](https://rdrr.io/r/base/Round.html)’s exact behavior at a
+  non-round `test_prop * n_random`; the `test_prop ∈ {0, 1}` extremes; a
+  zero-random-trials participant not erroring).
+- **The pkgdown GitHub Actions build broke on push, right after
+  `trajectory_vignette.Rmd` was committed** – found via the GitHub
+  Actions REST API (not the HTML page – `gh` CLI isn’t installed here)
+  after the user reported it, then reproduced and confirmed fixed with a
+  real local
+  `pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)`
+  run rather than guessing from the log alone. Root cause:
+  `_pkgdown.yml` keeps an *explicit* `articles:`/navbar listing of every
+  vignette (see its own in-file comment on why – needed for the navbar
+  dropdown to show individual links rather than collapsing to one
+  “Articles” entry), and pkgdown’s own sitrep check treats any vignette
+  missing from that list as a hard build failure (“1 vignette missing
+  from index”), not a warning – a new vignette that’s never added to
+  `_pkgdown.yml` breaks every subsequent push’s pkgdown build, silently
+  from the vignette-author’s point of view (nothing about writing or
+  committing the `.Rmd` itself fails). Fixed by adding
+  `trajectory_vignette` to both the `articles.contents` list and the
+  `navbar.components.articles.menu` list in `_pkgdown.yml`, positioned
+  to match the order already used in `README.md`. General lesson:
+  **adding a new vignette to this package means a fourth file, not
+  three** – the `.Rmd` itself, `README.md`’s list, and this file’s
+  `Repository layout` section were all updated for
+  `trajectory_vignette.Rmd`, but `_pkgdown.yml` was missed; check all
+  four together from now on whenever a vignette is added.
