@@ -5,9 +5,17 @@
 #' (\code{sampleAlg == "check"}) receive \code{NA} and are excluded from
 #' both sets.
 #'
-#' The split is performed per participant so that each participant contributes
-#' approximately \code{test_prop} of their trials to the test set. Setting
-#' \code{seed} ensures the assignment is reproducible.
+#' The split is performed per participant: within each participant's
+#' \code{sampleAlg == "random"} trials, exactly
+#' \code{round(test_prop * n_random)} of them (chosen uniformly at random,
+#' without replacement) are assigned to the test set, and the rest to
+#' train. Using an exact count rather than an independent per-trial
+#' coin-flip means two participants with the same number of random trials
+#' always get the same number (and proportion) of test trials -- not just
+#' approximately, as an i.i.d. Bernoulli draw per trial would give -- and
+#' participants with different trial counts still get matched
+#' \emph{proportions}, with the exact per-participant count controlled by
+#' rounding. Setting \code{seed} ensures the assignment is reproducible.
 #'
 #' @section Validation trials:
 #' \code{sampleAlg == "validation"} trials are a separate category from the
@@ -75,13 +83,31 @@ assign_sample_sets <- function(df, test_prop = 0.2, seed = 42,
   df %>%
     group_by(.data$worker_id) %>%
     mutate(
-      sampleSet = case_when(
-        .data$sampleAlg == "check"                                        ~ NA_character_,
-        .data$sampleAlg == "random" & runif(n()) <= test_prop             ~ "test",
-        .data$sampleAlg == "validation" & validation_mode == "holdout"    ~ NA_character_,
-        .data$sampleAlg == "validation" & validation_mode == "test"       ~ "test",
-        TRUE                                                              ~ "train"
-      )
+      sampleSet = {
+        is_test_random <- select_test_trials(.data$sampleAlg, test_prop)
+        case_when(
+          .data$sampleAlg == "check"                                        ~ NA_character_,
+          .data$sampleAlg == "random" & is_test_random                      ~ "test",
+          .data$sampleAlg == "validation" & validation_mode == "holdout"    ~ NA_character_,
+          .data$sampleAlg == "validation" & validation_mode == "test"       ~ "test",
+          TRUE                                                              ~ "train"
+        )
+      }
     ) %>%
     ungroup()
+}
+
+# Picks exactly round(test_prop * n_random) of the sampleAlg == "random"
+# entries (uniformly at random, without replacement) to be test trials --
+# an exact count per participant rather than an independent per-trial
+# Bernoulli draw, so participants with the same number of random trials get
+# the same number of test trials, not just the same expected number.
+select_test_trials <- function(sample_alg, test_prop) {
+  is_random <- sample_alg == "random"
+  n_random  <- sum(is_random)
+  n_test    <- round(test_prop * n_random)
+
+  out <- rep(FALSE, length(sample_alg))
+  out[is_random][sample.int(n_random, n_test)] <- TRUE
+  out
 }

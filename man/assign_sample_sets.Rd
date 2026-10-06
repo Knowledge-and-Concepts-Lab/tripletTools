@@ -39,9 +39,17 @@ set using a stratified split within each participant. Catch trials
 both sets.
 }
 \details{
-The split is performed per participant so that each participant contributes
-approximately \code{test_prop} of their trials to the test set. Setting
-\code{seed} ensures the assignment is reproducible.
+The split is performed per participant: within each participant's
+\code{sampleAlg == "random"} trials, exactly
+\code{round(test_prop * n_random)} of them (chosen uniformly at random,
+without replacement) are assigned to the test set, and the rest to
+train. Using an exact count rather than an independent per-trial
+coin-flip means two participants with the same number of random trials
+always get the same number (and proportion) of test trials -- not just
+approximately, as an i.i.d. Bernoulli draw per trial would give -- and
+participants with different trial counts still get matched
+\emph{proportions}, with the exact per-participant count controlled by
+rounding. Setting \code{seed} ensures the assignment is reproducible.
 }
 \section{Validation trials}{
 
