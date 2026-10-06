@@ -288,7 +288,7 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
 
 def process_all_workers(input_file, additional_data_file, output_dir,
                         d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000, device=None,
-                        geometry="euclidean", radius=1.0):
+                        geometry="euclidean", radius=1.0, compute_group=True):
     """
     Process triplets for all workers from a single CSV file and append additional data.
 
@@ -304,11 +304,17 @@ def process_all_workers(input_file, additional_data_file, output_dir,
     tol_window: epochs without improvement before early stopping triggers (default 10,000)
     geometry: "euclidean" (default) or "sphere". See train_embedding_model().
     radius: radius of the sphere when geometry="sphere". Ignored otherwise.
+    compute_group: if True (default), also fit a group-level embedding across
+                   all workers' pooled trials. If False, skip it entirely --
+                   only the per-worker embeddings are fit, which is faster
+                   when the group embedding isn't needed. embeddings_group.csv
+                   is not written in that case, and the returned/written
+                   history and embeddings tables have no "group" row.
 
     Output files written to output_dir:
-        model_history.csv       -- training history per worker
-        embeddings_group.csv    -- group-level embedding only
-        embeddings.csv          -- all per-worker and group embeddings concatenated
+        model_history.csv       -- training history per worker (and group, if computed)
+        embeddings_group.csv    -- group-level embedding only (only if compute_group)
+        embeddings.csv          -- all per-worker (and group, if computed) embeddings concatenated
     """
     os.makedirs(output_dir, exist_ok=True)
 
@@ -374,45 +380,46 @@ def process_all_workers(input_file, additional_data_file, output_dir,
         history_df.to_csv(os.path.join(output_dir, "model_history.csv"), index=False)
 
     # Group-level embedding across all workers
-    print("Processing group-level embedding across all workers...")
-    group_train = df[df['sampleSet'] == 'train'] if 'sampleSet' in df.columns else df
-    group_test  = df[df['sampleSet'] == 'test']  if 'sampleSet' in df.columns else pd.DataFrame()
+    if compute_group:
+        print("Processing group-level embedding across all workers...")
+        group_train = df[df['sampleSet'] == 'train'] if 'sampleSet' in df.columns else df
+        group_test  = df[df['sampleSet'] == 'test']  if 'sampleSet' in df.columns else pd.DataFrame()
 
-    if len(group_train) == 0 or len(group_test) == 0:
-        shuffled  = df.sample(frac=1.0, random_state=42)
-        split_idx = int(0.7 * len(shuffled)) if len(shuffled) > 0 else 0
-        group_train = shuffled.iloc[:split_idx]
-        group_test  = shuffled.iloc[split_idx:]
+        if len(group_train) == 0 or len(group_test) == 0:
+            shuffled  = df.sample(frac=1.0, random_state=42)
+            split_idx = int(0.7 * len(shuffled)) if len(shuffled) > 0 else 0
+            group_train = shuffled.iloc[:split_idx]
+            group_test  = shuffled.iloc[split_idx:]
 
-    if len(group_train) > 0 and len(group_test) > 0:
-        X_train_group = group_train[["head", "winner", "loser"]].to_numpy()
-        X_test_group  = group_test[["head",  "winner", "loser"]].to_numpy()
+        if len(group_train) > 0 and len(group_test) > 0:
+            X_train_group = group_train[["head", "winner", "loser"]].to_numpy()
+            X_test_group  = group_test[["head",  "winner", "loser"]].to_numpy()
 
-        emb_group, loss_group, epoch_group, counter_group, _ = train_embedding_model(
-            X_train_group, X_test_group, d=d, max_epochs=max_epochs,
-            tolerance=tolerance, tol_window=tol_window, device=device,
-            geometry=geometry, radius=radius,
-        )
+            emb_group, loss_group, epoch_group, counter_group, _ = train_embedding_model(
+                X_train_group, X_test_group, d=d, max_epochs=max_epochs,
+                tolerance=tolerance, tol_window=tol_window, device=device,
+                geometry=geometry, radius=radius,
+            )
 
-        emb_group_df = pd.DataFrame(emb_group, columns=[f'dim_{i}' for i in range(emb_group.shape[1])])
-        emb_group_df['worker_id'] = 'group'
+            emb_group_df = pd.DataFrame(emb_group, columns=[f'dim_{i}' for i in range(emb_group.shape[1])])
+            emb_group_df['worker_id'] = 'group'
 
-        for column in additional_data.columns:
-            emb_group_df[column] = additional_data[column].values[:len(emb_group_df)]
+            for column in additional_data.columns:
+                emb_group_df[column] = additional_data[column].values[:len(emb_group_df)]
 
-        all_embeddings.append(emb_group_df)
+            all_embeddings.append(emb_group_df)
 
-        history_entry = {
-            "worker_id":              'group',
-            "lowest_loss":            loss_group,
-            "epoch":                  epoch_group,
-            "counter_from_last_update": counter_group,
-            "n_train_triplets":       len(group_train),
-            "n_test_triplets":        len(group_test),
-        }
-        model_history.append(history_entry)
+            history_entry = {
+                "worker_id":              'group',
+                "lowest_loss":            loss_group,
+                "epoch":                  epoch_group,
+                "counter_from_last_update": counter_group,
+                "n_train_triplets":       len(group_train),
+                "n_test_triplets":        len(group_test),
+            }
+            model_history.append(history_entry)
 
-        emb_group_df.to_csv(os.path.join(output_dir, "embeddings_group.csv"), index=False)
+            emb_group_df.to_csv(os.path.join(output_dir, "embeddings_group.csv"), index=False)
 
     history_df = pd.DataFrame(model_history)
     history_df.to_csv(os.path.join(output_dir, "model_history.csv"), index=False)

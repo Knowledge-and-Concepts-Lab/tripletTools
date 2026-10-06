@@ -15,7 +15,8 @@ run_embeddings(
   seed = 222L,
   device = NULL,
   geometry = c("euclidean", "sphere"),
-  radius = 1
+  radius = 1,
+  compute_group = TRUE
 )
 }
 \arguments{
@@ -53,14 +54,23 @@ including why this roughly doubles training time.}
 
 \item{radius}{Radius of the sphere used when \code{geometry = "sphere"}.
 Ignored when \code{geometry = "euclidean"}.  Default \code{1}.}
+
+\item{compute_group}{Logical. If \code{TRUE} (default), also fit a
+group-level embedding across all workers' pooled trials. If
+\code{FALSE}, skip it entirely and only fit the per-worker embeddings
+-- faster when the group embedding isn't needed.
+\code{embeddings_group.csv} is not written in that case, and neither
+the returned \code{history} nor \code{embeddings} data frame has a
+\code{"group"} row.}
 }
 \value{
 A named list with two elements:
 \describe{
 \item{\code{history}}{Data frame with one row per worker (plus one for
-the group model) containing: \code{worker_id}, \code{lowest_loss},
-\code{epoch}, \code{counter_from_last_update},
-\code{n_train_triplets}, \code{n_test_triplets}.}
+the group model, unless \code{compute_group = FALSE}) containing:
+\code{worker_id}, \code{lowest_loss}, \code{epoch},
+\code{counter_from_last_update}, \code{n_train_triplets},
+\code{n_test_triplets}.}
 \item{\code{embeddings}}{Data frame of all embeddings concatenated, with
 dimension columns (\code{dim_0}, \code{dim_1}, …), a \code{worker_id}
 column, and any columns from \code{additional_data_file}.}
@@ -117,5 +127,15 @@ results <- run_embeddings(
 
 head(results$history)
 head(results$embeddings)
+
+# Skip the group embedding when only the per-worker ones are needed
+results_ind_only <- run_embeddings(
+  input_file           = "triplets.csv",
+  additional_data_file = "item_labels.csv",
+  output_dir           = "embeddings_output",
+  d                    = 5L,
+  max_epochs           = 50000L,
+  compute_group        = FALSE
+)
 }
 }

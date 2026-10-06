@@ -14,7 +14,8 @@ run_embeddings_from_list(
   seed = 222L,
   device = NULL,
   geometry = c("euclidean", "sphere"),
-  radius = 1
+  radius = 1,
+  compute_group = TRUE
 )
 }
 \arguments{
@@ -50,6 +51,14 @@ including why this roughly doubles training time.}
 
 \item{radius}{Radius of the sphere used when \code{geometry = "sphere"}.
 Ignored when \code{geometry = "euclidean"}.  Default \code{1}.}
+
+\item{compute_group}{Logical. If \code{TRUE} (default), also fit a
+group-level embedding across all workers' pooled trials, returned as
+\code{group}. If \code{FALSE}, skip it entirely and only fit the
+per-worker embeddings -- faster when the group embedding isn't
+needed. \code{group} is \code{NULL} in that case, and neither
+\code{embeddings_group.csv} nor a \code{"group"} row of
+\code{history}/\code{embeddings.csv} is written.}
 }
 \value{
 A named list with three elements:
@@ -58,9 +67,11 @@ A named list with three elements:
 participant.  Each matrix has one row per item (with item names as row
 names) and \code{d} columns (\code{dim_0}, \code{dim_1}, …).}
 \item{\code{group}}{Numeric matrix of the group-level embedding, with
-item names as row names and \code{d} columns.}
-\item{\code{history}}{Data frame with one row per worker (plus \code{"group"})
-containing training diagnostics: \code{worker_id}, \code{lowest_loss},
+item names as row names and \code{d} columns -- or \code{NULL} if
+\code{compute_group = FALSE}.}
+\item{\code{history}}{Data frame with one row per worker (plus
+\code{"group"}, unless \code{compute_group = FALSE}) containing
+training diagnostics: \code{worker_id}, \code{lowest_loss},
 \code{epoch}, \code{counter_from_last_update},
 \code{n_train_triplets}, \code{n_test_triplets}.}
 }
@@ -111,5 +122,15 @@ head(results$individual[[1]])
 
 # Training diagnostics
 results$history
+
+# Only need per-participant embeddings? Skip the group fit entirely:
+results_ind_only <- run_embeddings_from_list(
+  triplet_list  = icon_triplets,
+  output_dir    = "embeddings_output",
+  d             = 3L,
+  max_epochs    = 50000L,
+  compute_group = FALSE
+)
+results_ind_only$group  # NULL
 }
 }

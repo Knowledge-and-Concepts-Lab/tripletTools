@@ -51,6 +51,31 @@ test_that("individual embeddings have no bogus NA rows with numeric-looking work
   expect_false(any(apply(res$group, 1, function(r) all(is.na(r)))))
 })
 
+test_that("compute_group = FALSE skips the group embedding entirely", {
+  trips <- make_fake_triplet_list(n_participants = 3L, n_items = 5L, n_trials = 30L, seed = 3L)
+  out_dir <- tempfile("run_embeddings_no_group_")
+  res <- run_embeddings_from_list(
+    triplet_list  = trips,
+    output_dir    = out_dir,
+    d             = 2L, max_epochs = 20L, tol_window = 10L, seed = 1L,
+    compute_group = FALSE
+  )
+
+  expect_null(res$group)
+  expect_length(res$individual, 3L)
+  expect_false("group" %in% res$history$worker_id)
+  expect_false(file.exists(file.path(out_dir, "embeddings_group.csv")))
+
+  all_item_names <- sort(unique(unlist(lapply(trips, function(df) {
+    c(df$Center, df$Left, df$Right)
+  }))))
+  for (nm in names(res$individual)) {
+    emb <- res$individual[[nm]]
+    expect_equal(nrow(emb), length(all_item_names))
+    expect_false(any(apply(emb, 1, function(r) all(is.na(r)))))
+  }
+})
+
 test_that("string worker IDs (unaffected by the dtype bug) still work", {
   trips <- make_fake_triplet_list(n_participants = 2L, n_items = 5L, n_trials = 30L, seed = 2L)
   out_dir <- tempfile("run_embeddings_string_")

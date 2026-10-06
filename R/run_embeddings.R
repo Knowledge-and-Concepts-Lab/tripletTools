@@ -247,13 +247,21 @@ run_group_embedding_from_list <- function(triplet_list,
 #'   including why this roughly doubles training time.
 #' @param radius Radius of the sphere used when \code{geometry = "sphere"}.
 #'   Ignored when \code{geometry = "euclidean"}.  Default \code{1}.
+#' @param compute_group Logical. If \code{TRUE} (default), also fit a
+#'   group-level embedding across all workers' pooled trials. If
+#'   \code{FALSE}, skip it entirely and only fit the per-worker embeddings
+#'   -- faster when the group embedding isn't needed.
+#'   \code{embeddings_group.csv} is not written in that case, and neither
+#'   the returned \code{history} nor \code{embeddings} data frame has a
+#'   \code{"group"} row.
 #'
 #' @return A named list with two elements:
 #' \describe{
 #'   \item{\code{history}}{Data frame with one row per worker (plus one for
-#'     the group model) containing: \code{worker_id}, \code{lowest_loss},
-#'     \code{epoch}, \code{counter_from_last_update},
-#'     \code{n_train_triplets}, \code{n_test_triplets}.}
+#'     the group model, unless \code{compute_group = FALSE}) containing:
+#'     \code{worker_id}, \code{lowest_loss}, \code{epoch},
+#'     \code{counter_from_last_update}, \code{n_train_triplets},
+#'     \code{n_test_triplets}.}
 #'   \item{\code{embeddings}}{Data frame of all embeddings concatenated, with
 #'     dimension columns (\code{dim_0}, \code{dim_1}, …), a \code{worker_id}
 #'     column, and any columns from \code{additional_data_file}.}
@@ -273,6 +281,16 @@ run_group_embedding_from_list <- function(triplet_list,
 #'
 #' head(results$history)
 #' head(results$embeddings)
+#'
+#' # Skip the group embedding when only the per-worker ones are needed
+#' results_ind_only <- run_embeddings(
+#'   input_file           = "triplets.csv",
+#'   additional_data_file = "item_labels.csv",
+#'   output_dir           = "embeddings_output",
+#'   d                    = 5L,
+#'   max_epochs           = 50000L,
+#'   compute_group        = FALSE
+#' )
 #' }
 run_embeddings <- function(input_file,
                            additional_data_file,
@@ -284,7 +302,8 @@ run_embeddings <- function(input_file,
                            seed       = 222L,
                            device     = NULL,
                            geometry   = c("euclidean", "sphere"),
-                           radius     = 1) {
+                           radius     = 1,
+                           compute_group = TRUE) {
   geometry <- match.arg(geometry)
   compute_py <- .get_compute_py()
 
@@ -301,7 +320,8 @@ run_embeddings <- function(input_file,
     tol_window           = as.integer(tol_window),
     device               = device,
     geometry             = geometry,
-    radius               = radius
+    radius               = radius,
+    compute_group        = compute_group
   )
 
   list(
@@ -359,6 +379,13 @@ run_embeddings <- function(input_file,
 #'   including why this roughly doubles training time.
 #' @param radius Radius of the sphere used when \code{geometry = "sphere"}.
 #'   Ignored when \code{geometry = "euclidean"}.  Default \code{1}.
+#' @param compute_group Logical. If \code{TRUE} (default), also fit a
+#'   group-level embedding across all workers' pooled trials, returned as
+#'   \code{group}. If \code{FALSE}, skip it entirely and only fit the
+#'   per-worker embeddings -- faster when the group embedding isn't
+#'   needed. \code{group} is \code{NULL} in that case, and neither
+#'   \code{embeddings_group.csv} nor a \code{"group"} row of
+#'   \code{history}/\code{embeddings.csv} is written.
 #'
 #' @return A named list with three elements:
 #' \describe{
@@ -366,9 +393,11 @@ run_embeddings <- function(input_file,
 #'     participant.  Each matrix has one row per item (with item names as row
 #'     names) and \code{d} columns (\code{dim_0}, \code{dim_1}, …).}
 #'   \item{\code{group}}{Numeric matrix of the group-level embedding, with
-#'     item names as row names and \code{d} columns.}
-#'   \item{\code{history}}{Data frame with one row per worker (plus \code{"group"})
-#'     containing training diagnostics: \code{worker_id}, \code{lowest_loss},
+#'     item names as row names and \code{d} columns -- or \code{NULL} if
+#'     \code{compute_group = FALSE}.}
+#'   \item{\code{history}}{Data frame with one row per worker (plus
+#'     \code{"group"}, unless \code{compute_group = FALSE}) containing
+#'     training diagnostics: \code{worker_id}, \code{lowest_loss},
 #'     \code{epoch}, \code{counter_from_last_update},
 #'     \code{n_train_triplets}, \code{n_test_triplets}.}
 #' }
@@ -394,6 +423,16 @@ run_embeddings <- function(input_file,
 #'
 #' # Training diagnostics
 #' results$history
+#'
+#' # Only need per-participant embeddings? Skip the group fit entirely:
+#' results_ind_only <- run_embeddings_from_list(
+#'   triplet_list  = icon_triplets,
+#'   output_dir    = "embeddings_output",
+#'   d             = 3L,
+#'   max_epochs    = 50000L,
+#'   compute_group = FALSE
+#' )
+#' results_ind_only$group  # NULL
 #' }
 run_embeddings_from_list <- function(triplet_list,
                                      output_dir,
@@ -404,7 +443,8 @@ run_embeddings_from_list <- function(triplet_list,
                                      seed       = 222L,
                                      device     = NULL,
                                      geometry   = c("euclidean", "sphere"),
-                                     radius     = 1) {
+                                     radius     = 1,
+                                     compute_group = TRUE) {
   geometry <- match.arg(geometry)
   # Collect all item names across all participants and sort them.
   # numeric = TRUE compares embedded numbers by value (e.g. "deg2" before
@@ -449,7 +489,8 @@ run_embeddings_from_list <- function(triplet_list,
     seed                 = seed,
     device               = device,
     geometry             = geometry,
-    radius               = radius
+    radius               = radius,
+    compute_group        = compute_group
   )
 
   emb_df <- result$embeddings
@@ -466,9 +507,12 @@ run_embeddings_from_list <- function(triplet_list,
     m
   })
 
-  group_sub <- emb_df[emb_df$worker_id == "group", ]
-  group_mat <- as.matrix(group_sub[, dim_cols])
-  row.names(group_mat) <- group_sub$item
+  group_mat <- NULL
+  if (compute_group) {
+    group_sub <- emb_df[emb_df$worker_id == "group", ]
+    group_mat <- as.matrix(group_sub[, dim_cols])
+    row.names(group_mat) <- group_sub$item
+  }
 
   list(
     individual = ind_list,
