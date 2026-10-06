@@ -63,7 +63,8 @@ by <code><a href="get.combined.html">get.combined</a></code> — rather than rea
 <span>  seed <span class="op">=</span> <span class="fl">222L</span>,</span>
 <span>  device <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  geometry <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"euclidean"</span>, <span class="st">"sphere"</span><span class="op">)</span>,</span>
-<span>  radius <span class="op">=</span> <span class="fl">1</span></span>
+<span>  radius <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  compute_group <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -123,6 +124,16 @@ including why this roughly doubles training time.</p></dd>
 <dd><p>Radius of the sphere used when <code>geometry = "sphere"</code>.
 Ignored when <code>geometry = "euclidean"</code>.  Default <code>1</code>.</p></dd>
 
+
+<dt id="arg-compute-group">compute_group<a class="anchor" aria-label="anchor" href="#arg-compute-group"></a></dt>
+<dd><p>Logical. If <code>TRUE</code> (default), also fit a
+group-level embedding across all workers' pooled trials, returned as
+<code>group</code>. If <code>FALSE</code>, skip it entirely and only fit the
+per-worker embeddings – faster when the group embedding isn't
+needed. <code>group</code> is <code>NULL</code> in that case, and neither
+<code>embeddings_group.csv</code> nor a <code>"group"</code> row of
+<code>history</code>/<code>embeddings.csv</code> is written.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -133,11 +144,13 @@ names) and <code>d</code> columns (<code>dim_0</code>, <code>dim_1</code>, …).
 
 <dt><code>group</code></dt>
 <dd><p>Numeric matrix of the group-level embedding, with
-item names as row names and <code>d</code> columns.</p></dd>
+item names as row names and <code>d</code> columns – or <code>NULL</code> if
+<code>compute_group = FALSE</code>.</p></dd>
 
 <dt><code>history</code></dt>
-<dd><p>Data frame with one row per worker (plus <code>"group"</code>)
-containing training diagnostics: <code>worker_id</code>, <code>lowest_loss</code>,
+<dd><p>Data frame with one row per worker (plus
+<code>"group"</code>, unless <code>compute_group = FALSE</code>) containing
+training diagnostics: <code>worker_id</code>, <code>lowest_loss</code>,
 <code>epoch</code>, <code>counter_from_last_update</code>,
 <code>n_train_triplets</code>, <code>n_test_triplets</code>.</p></dd>
 
@@ -189,6 +202,16 @@ unchanged.</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Training diagnostics</span></span></span>
 <span class="r-in"><span><span class="va">results</span><span class="op">$</span><span class="va">history</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Only need per-participant embeddings? Skip the group fit entirely:</span></span></span>
+<span class="r-in"><span><span class="va">results_ind_only</span> <span class="op">&lt;-</span> <span class="fu">run_embeddings_from_list</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  triplet_list  <span class="op">=</span> <span class="va">icon_triplets</span>,</span></span>
+<span class="r-in"><span>  output_dir    <span class="op">=</span> <span class="st">"embeddings_output"</span>,</span></span>
+<span class="r-in"><span>  d             <span class="op">=</span> <span class="fl">3L</span>,</span></span>
+<span class="r-in"><span>  max_epochs    <span class="op">=</span> <span class="fl">50000L</span>,</span></span>
+<span class="r-in"><span>  compute_group <span class="op">=</span> <span class="cn">FALSE</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">results_ind_only</span><span class="op">$</span><span class="va">group</span>  <span class="co"># NULL</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>

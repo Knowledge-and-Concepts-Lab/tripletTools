@@ -20,7 +20,8 @@ run_embeddings_from_list(
   seed = 222L,
   device = NULL,
   geometry = c("euclidean", "sphere"),
-  radius = 1
+  radius = 1,
+  compute_group = TRUE
 )
 ```
 
@@ -79,6 +80,15 @@ run_embeddings_from_list(
   Radius of the sphere used when `geometry = "sphere"`. Ignored when
   `geometry = "euclidean"`. Default `1`.
 
+- compute_group:
+
+  Logical. If `TRUE` (default), also fit a group-level embedding across
+  all workers' pooled trials, returned as `group`. If `FALSE`, skip it
+  entirely and only fit the per-worker embeddings – faster when the
+  group embedding isn't needed. `group` is `NULL` in that case, and
+  neither `embeddings_group.csv` nor a `"group"` row of
+  `history`/`embeddings.csv` is written.
+
 ## Value
 
 A named list with three elements:
@@ -92,13 +102,14 @@ A named list with three elements:
 - `group`:
 
   Numeric matrix of the group-level embedding, with item names as row
-  names and `d` columns.
+  names and `d` columns – or `NULL` if `compute_group = FALSE`.
 
 - `history`:
 
-  Data frame with one row per worker (plus `"group"`) containing
-  training diagnostics: `worker_id`, `lowest_loss`, `epoch`,
-  `counter_from_last_update`, `n_train_triplets`, `n_test_triplets`.
+  Data frame with one row per worker (plus `"group"`, unless
+  `compute_group = FALSE`) containing training diagnostics: `worker_id`,
+  `lowest_loss`, `epoch`, `counter_from_last_update`,
+  `n_train_triplets`, `n_test_triplets`.
 
 ## Details
 
@@ -141,5 +152,15 @@ head(results$individual[[1]])
 
 # Training diagnostics
 results$history
+
+# Only need per-participant embeddings? Skip the group fit entirely:
+results_ind_only <- run_embeddings_from_list(
+  triplet_list  = icon_triplets,
+  output_dir    = "embeddings_output",
+  d             = 3L,
+  max_epochs    = 50000L,
+  compute_group = FALSE
+)
+results_ind_only$group  # NULL
 } # }
 ```

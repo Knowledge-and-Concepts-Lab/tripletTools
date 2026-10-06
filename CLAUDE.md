@@ -133,7 +133,7 @@ Current version: **0.2.0**. Package URL:
 | [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md) | R/setup_python_env.R | One-time conda env creation |
 | [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) | R/train_embedding.R | Low-level: fit one embedding from matrices |
 | [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) | R/run_embeddings.R | Group embedding from triplet list |
-| [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) | R/run_embeddings.R | Per-participant + group embeddings |
+| [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) | R/run_embeddings.R | Per-participant (+ optional group, via `compute_group`) embeddings |
 | [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md) | R/run_embeddings.R | Lower-level CSV-based pipeline; [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) calls this internally (writes a temp pre-indexed CSV, then calls it) – [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) does *not*, it calls [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) directly instead |
 | [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) | R/estimate_dimensionality.R | Grid search over d with random restarts |
 | [`matrix_rank()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/matrix_rank.md) | R/matrix_rank.R | Numerical rank of a (centered) matrix via SVD |
@@ -1518,6 +1518,32 @@ back to the returned matrices.
     built from its output used a color/label vector in that same row
     order – these are separate things to check, and only the rendered
     figure actually catches the latter.
+- **[`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)/[`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)
+  gained a `compute_group` argument (default `TRUE`, preserving prior
+  behavior)** letting a caller skip the group-level embedding entirely
+  when only the per-participant ones are needed. Threaded through all
+  three layers of the pipeline:
+  `inst/python/compute_embeddings.py::process_all_workers()` gained the
+  actual `compute_group` parameter and now wraps its whole “Group-level
+  embedding across all workers” block (including the
+  `embeddings_group.csv` write and the `"group"`
+  `model_history`/`embeddings` row) in `if compute_group:` rather than
+  running it unconditionally;
+  [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md) (R)
+  passes the flag straight through to that Python call;
+  [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) (R)
+  passes it through again and, when `FALSE`, sets `group = NULL`
+  directly rather than trying to extract a `"group"` row that was never
+  written (which would otherwise silently produce a zero-row matrix
+  instead of a clear `NULL`). Verified live, not just by reading the
+  code: ran the real Python backend (available in this dev environment)
+  with `compute_group = FALSE` and confirmed from the actual training
+  log that “Processing group-level embedding across all workers…” never
+  printed for that run, while it did for an otherwise-identical default
+  (`compute_group = TRUE`) run just before and after it in the same test
+  session. New regression test (`test-run_embeddings_from_list.R`)
+  checks `res$group` is `NULL`, no `"group"` row in `res$history`, and
+  `embeddings_group.csv` isn’t written to `output_dir`.
 - **[`plot_pics()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.md)
   fixed to preserve each image’s own native pixel aspect ratio, instead
   of stretching it to match the plotting surface’s.** Root cause: the

@@ -20,7 +20,8 @@ run_embeddings(
   seed = 222L,
   device = NULL,
   geometry = c("euclidean", "sphere"),
-  radius = 1
+  radius = 1,
+  compute_group = TRUE
 )
 ```
 
@@ -83,15 +84,25 @@ run_embeddings(
   Radius of the sphere used when `geometry = "sphere"`. Ignored when
   `geometry = "euclidean"`. Default `1`.
 
+- compute_group:
+
+  Logical. If `TRUE` (default), also fit a group-level embedding across
+  all workers' pooled trials. If `FALSE`, skip it entirely and only fit
+  the per-worker embeddings – faster when the group embedding isn't
+  needed. `embeddings_group.csv` is not written in that case, and
+  neither the returned `history` nor `embeddings` data frame has a
+  `"group"` row.
+
 ## Value
 
 A named list with two elements:
 
 - `history`:
 
-  Data frame with one row per worker (plus one for the group model)
-  containing: `worker_id`, `lowest_loss`, `epoch`,
-  `counter_from_last_update`, `n_train_triplets`, `n_test_triplets`.
+  Data frame with one row per worker (plus one for the group model,
+  unless `compute_group = FALSE`) containing: `worker_id`,
+  `lowest_loss`, `epoch`, `counter_from_last_update`,
+  `n_train_triplets`, `n_test_triplets`.
 
 - `embeddings`:
 
@@ -162,5 +173,15 @@ results <- run_embeddings(
 
 head(results$history)
 head(results$embeddings)
+
+# Skip the group embedding when only the per-worker ones are needed
+results_ind_only <- run_embeddings(
+  input_file           = "triplets.csv",
+  additional_data_file = "item_labels.csv",
+  output_dir           = "embeddings_output",
+  d                    = 5L,
+  max_epochs           = 50000L,
+  compute_group        = FALSE
+)
 } # }
 ```
