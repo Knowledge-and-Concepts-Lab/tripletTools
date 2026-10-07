@@ -58,7 +58,12 @@ run_embeddings_from_list(
 
 - seed:
 
-  Integer random seed for reproducibility. Default `222`.
+  Integer random seed. Default `222`. Each participant's embedding is
+  fit with its own deterministic `random_state` derived from `seed` (and
+  that participant's position among the unique `worker_id`s), and the
+  group embedding (if computed) with another `seed`-derived value – so
+  re-running with the same `seed` and the same `triplet_list` reproduces
+  identical embeddings.
 
 - device:
 

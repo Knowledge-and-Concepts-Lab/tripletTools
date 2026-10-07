@@ -52,7 +52,13 @@ run_group_embedding_from_list(
 
 - seed:
 
-  Integer random seed for reproducibility. Default `222`.
+  Integer random seed. Default `222`. Controls both the R-level
+  train/test shuffling fallback (via
+  [`set.seed`](https://rdrr.io/r/base/Random.html)) and the embedding
+  fit's own `random_state` (passed to
+  [`train_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)),
+  so re-running with the same `seed` and the same `triplet_list`
+  reproduces an identical embedding.
 
 - device:
 

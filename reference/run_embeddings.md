@@ -62,7 +62,12 @@ run_embeddings(
 
 - seed:
 
-  Integer random seed for reproducibility. Default `222`.
+  Integer random seed. Default `222`. Each worker's embedding is fit
+  with its own deterministic `random_state` derived from `seed` (and
+  that worker's position among the unique `worker_id`s in `input_file`),
+  and the group embedding (if computed) with another `seed`-derived
+  value – so re-running with the same `seed` and the same `input_file`
+  reproduces identical embeddings.
 
 - device:
 

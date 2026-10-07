@@ -100,7 +100,11 @@ Default <code>10000</code>.</p></dd>
 
 
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
-<dd><p>Integer random seed for reproducibility.  Default <code>222</code>.</p></dd>
+<dd><p>Integer random seed.  Default <code>222</code>.  Controls both the
+R-level train/test shuffling fallback (via <code><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></code>) and
+the embedding fit's own <code>random_state</code> (passed to
+<code><a href="train_embedding.html">train_embedding</a></code>), so re-running with the same <code>seed</code>
+and the same <code>triplet_list</code> reproduces an identical embedding.</p></dd>
 
 
 <dt id="arg-device">device<a class="anchor" aria-label="anchor" href="#arg-device"></a></dt>

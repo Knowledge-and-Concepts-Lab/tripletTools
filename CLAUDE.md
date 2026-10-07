@@ -1544,6 +1544,93 @@ back to the returned matrices.
   session. New regression test (`test-run_embeddings_from_list.R`)
   checks `res$group` is `NULL`, no `"group"` row in `res$history`, and
   `embeddings_group.csv` isn’t written to `output_dir`.
+- **Real, pre-existing bug found and fixed: `seed` never actually
+  controlled individual/group embedding fits in
+  [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)/[`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)/[`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md).**
+  Surfaced when the user reported that a real dataset fit with
+  `compute_group = FALSE` came out “much worse” than a prior run, and
+  asked for the recently-revised code to be double-checked before
+  spending a long re-fit to isolate the cause. Diff inspection first
+  ruled out `compute_group` itself: the per-worker fitting loop in
+  `process_all_workers()` is byte-for-byte unchanged by that commit, and
+  the (now-optional) group fit always runs strictly *after* the entire
+  per-worker loop finishes, so it cannot feed back into individual fits
+  either way. Confirmed this empirically too, not just by reading the
+  diff – a quick synthetic-data check showed `compute_group = TRUE` vs
+  `FALSE` gave *different* individual embeddings even with the same
+  `seed`, which led to the real root cause: a control test with
+  **identical** arguments (same `compute_group`, same `seed`) on two
+  separate calls *also* gave different embeddings. Traced directly:
+  `train_embedding_model()` only seeds `numpy`/`torch` when its own
+  `random_state` argument is non-`None`
+  (`if random_state is not None: np.random.seed(...); torch.manual_seed(...)`),
+  but `process_all_workers()`’s per-worker loop and group-fitting block
+  never passed `random_state` at all – always `None`. Meanwhile
+  [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)’s
+  R-level `seed` argument only called `random$seed(as.integer(seed))`,
+  seeding **Python’s built-in `random` module**, which
+  `train_embedding_model()` never reads (confirmed `random` is imported
+  in `compute_embeddings.py` but never actually called anywhere in the
+  file). So `seed` was a complete no-op for fit reproducibility the
+  whole time – two calls with identical arguments could, and did,
+  produce meaningfully different embeddings purely from uncontrolled
+  weight initialization, independent of any data or code change. The
+  exact same gap existed in the sibling function
+  [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md):
+  it called `set.seed(seed)` (R-level only) but never passed
+  `random_state` to its own
+  [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
+  call either, even though
+  [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
+  already supports `random_state` correctly (confirmed by checking that
+  function’s own tests, which explicitly reproduce embeddings via it) –
+  fixed by following that exact already-working pattern, rather than
+  inventing a new one.
+  - Fix, threaded through properly rather than patched at one layer:
+    `process_all_workers()` (Python) gained a `seed=None` parameter;
+    each worker now gets `random_state = seed + worker_index` (0-based
+    position among `df['worker_id'].unique()`, stable since the input
+    CSV’s row order comes directly from `triplet_list`’s own R list
+    order) and the group fit (if computed) gets
+    `seed + len(unique_worker_ids)` – one past the last worker index,
+    guaranteed collision-free.
+    [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md) (R)
+    now passes `seed = as.integer(seed)` through to
+    `process_all_workers()` and no longer calls the dead
+    `random$seed()`/`reticulate::import("random")` lines at all.
+    [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
+    now passes `random_state = as.integer(seed)` to its
+    [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
+    call (its pre-existing `set.seed(seed)` is left in place, since that
+    still legitimately controls the R-level
+    [`sample()`](https://rdrr.io/r/base/sample.html) shuffle used in its
+    70/30 train/test fallback path).
+  - Verified live, not just by reading the fix: re-ran the exact control
+    test that exposed the bug (identical arguments, two separate calls)
+    and confirmed [`identical()`](https://rdrr.io/r/base/identical.html)
+    now holds for every participant’s embedding *and* the group
+    embedding; confirmed a *different* seed still gives a different
+    embedding (not a degenerate always-the-same-output bug); re-ran the
+    `compute_group = TRUE` vs `FALSE` comparison with the fix in place
+    and confirmed individual embeddings are now
+    [`identical()`](https://rdrr.io/r/base/identical.html) regardless of
+    the flag, closing the loop on the user’s original report. The
+    duplicate-training-curve evidence is visible directly in the
+    test-run log (`[early stop]` loss/accuracy trajectories repeating
+    verbatim across two “same seed” calls). New regression tests in
+    `test-run_embeddings_from_list.R` and
+    `test-run_group_embedding_from_list.R` lock all of this down; the
+    latter’s existing `norm_penalty` test had its own comment
+    documenting the then-known “runs aren’t reproducible enough to
+    compare” limitation, now stale and removed.
+  - Open question the user’s original report leaves unresolved: whether
+    their perceived “much worse” embeddings were *entirely* explained by
+    this pre-existing non-determinism, or whether their own acknowledged
+    test/validation-trial treatment changes also contributed. With
+    `seed` now actually working, re-running their real dataset with a
+    fixed `seed` (with and without their data changes) would cleanly
+    separate the two – not yet done, since it requires their real,
+    slow-to-fit dataset.
 - **[`plot_pics()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.md)
   fixed to preserve each image’s own native pixel aspect ratio, instead
   of stretching it to match the plotting surface’s.** Root cause: the
