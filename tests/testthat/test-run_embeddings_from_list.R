@@ -51,6 +51,62 @@ test_that("individual embeddings have no bogus NA rows with numeric-looking work
   expect_false(any(apply(res$group, 1, function(r) all(is.na(r)))))
 })
 
+test_that("same seed reproduces identical individual and group embeddings", {
+  # Regression test for a real bug: seed never actually controlled numpy/
+  # torch's random_state for the Python fits (only Python's unused built-in
+  # random module), so two calls with identical arguments -- including the
+  # same seed -- produced different embeddings. Confirmed directly before
+  # this fix: two back-to-back calls below with identical arguments gave
+  # FALSE for every participant.
+  trips <- make_fake_triplet_list(n_participants = 3L, n_items = 8L, n_trials = 60L, seed = 7L)
+
+  res_a <- run_embeddings_from_list(
+    trips, tempfile("seed_a_"),
+    d = 2L, max_epochs = 30L, tol_window = 15L, seed = 99L
+  )
+  res_b <- run_embeddings_from_list(
+    trips, tempfile("seed_b_"),
+    d = 2L, max_epochs = 30L, tol_window = 15L, seed = 99L
+  )
+
+  for (nm in names(res_a$individual)) {
+    expect_identical(res_a$individual[[nm]], res_b$individual[[nm]])
+  }
+  expect_identical(res_a$group, res_b$group)
+})
+
+test_that("a different seed gives a different embedding (not a degenerate fixed point)", {
+  trips <- make_fake_triplet_list(n_participants = 2L, n_items = 8L, n_trials = 60L, seed = 8L)
+
+  res_a <- run_embeddings_from_list(
+    trips, tempfile("seed_diff_a_"),
+    d = 2L, max_epochs = 30L, tol_window = 15L, seed = 1L
+  )
+  res_b <- run_embeddings_from_list(
+    trips, tempfile("seed_diff_b_"),
+    d = 2L, max_epochs = 30L, tol_window = 15L, seed = 2L
+  )
+
+  expect_false(identical(res_a$individual[[1]], res_b$individual[[1]]))
+})
+
+test_that("the compute_group flag no longer perturbs individual embeddings (same seed)", {
+  trips <- make_fake_triplet_list(n_participants = 3L, n_items = 8L, n_trials = 60L, seed = 9L)
+
+  res_true <- run_embeddings_from_list(
+    trips, tempfile("cg_rep_true_"),
+    d = 2L, max_epochs = 30L, tol_window = 15L, seed = 42L, compute_group = TRUE
+  )
+  res_false <- run_embeddings_from_list(
+    trips, tempfile("cg_rep_false_"),
+    d = 2L, max_epochs = 30L, tol_window = 15L, seed = 42L, compute_group = FALSE
+  )
+
+  for (nm in names(res_true$individual)) {
+    expect_identical(res_true$individual[[nm]], res_false$individual[[nm]])
+  }
+})
+
 test_that("compute_group = FALSE skips the group embedding entirely", {
   trips <- make_fake_triplet_list(n_participants = 3L, n_items = 5L, n_trials = 30L, seed = 3L)
   out_dir <- tempfile("run_embeddings_no_group_")

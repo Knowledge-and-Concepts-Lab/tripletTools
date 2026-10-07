@@ -63,14 +63,29 @@ test_that("warm_start validates row names against item names", {
 })
 
 test_that("norm_penalty is accepted and forwarded without error", {
-  # run_group_embedding_from_list() does not currently expose random_state,
-  # so runs aren't reproducible enough to compare byte-for-byte against a
-  # norm_penalty = 0 baseline here (see train_embedding()'s own tests for
-  # that determinism check) -- this just confirms the argument threads
-  # through to a valid result.
   grp <- run_group_embedding_from_list(trips, d = 2L, max_epochs = 20L,
                                         tol_window = 10L, seed = 1L,
                                         norm_penalty = 5)
   expect_equal(ncol(grp$embedding), 2L)
   expect_equal(sort(rownames(grp$embedding)), all_item_names)
+})
+
+test_that("same seed reproduces an identical embedding", {
+  # Regression test for a real bug: seed was only passed to set.seed()
+  # (R-level), never to train_embedding()'s own random_state, so two calls
+  # with identical arguments -- including the same seed -- produced
+  # different embeddings. Confirmed this would have failed before the fix.
+  grp_a <- run_group_embedding_from_list(trips, d = 2L, max_epochs = 20L,
+                                          tol_window = 10L, seed = 5L)
+  grp_b <- run_group_embedding_from_list(trips, d = 2L, max_epochs = 20L,
+                                          tol_window = 10L, seed = 5L)
+  expect_identical(grp_a$embedding, grp_b$embedding)
+})
+
+test_that("a different seed gives a different embedding (not a degenerate fixed point)", {
+  grp_a <- run_group_embedding_from_list(trips, d = 2L, max_epochs = 20L,
+                                          tol_window = 10L, seed = 1L)
+  grp_b <- run_group_embedding_from_list(trips, d = 2L, max_epochs = 20L,
+                                          tol_window = 10L, seed = 2L)
+  expect_false(identical(grp_a$embedding, grp_b$embedding))
 })

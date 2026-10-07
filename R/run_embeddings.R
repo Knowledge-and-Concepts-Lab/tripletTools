@@ -25,7 +25,11 @@
 #' @param tolerance Loss tolerance for early stopping.  Default \code{1e-4}.
 #' @param tol_window Epochs without improvement before early stopping triggers.
 #'   Default \code{10000}.
-#' @param seed Integer random seed for reproducibility.  Default \code{222}.
+#' @param seed Integer random seed.  Default \code{222}.  Controls both the
+#'   R-level train/test shuffling fallback (via \code{\link{set.seed}}) and
+#'   the embedding fit's own \code{random_state} (passed to
+#'   \code{\link{train_embedding}}), so re-running with the same \code{seed}
+#'   and the same \code{triplet_list} reproduces an identical embedding.
 #' @param device PyTorch device string, or \code{NULL} (default) to
 #'   auto-select: CUDA GPU if available, then Apple MPS, then CPU.
 #'   Pass \code{"cpu"} to force CPU even on a GPU machine.
@@ -174,7 +178,8 @@ run_group_embedding_from_list <- function(triplet_list,
     geometry     = geometry,
     radius       = radius,
     warm_start   = warm_start_mat,
-    norm_penalty = norm_penalty
+    norm_penalty = norm_penalty,
+    random_state = as.integer(seed)
   )
 
   colnames(out$embedding) <- paste0("dim_", seq_len(ncol(out$embedding)) - 1L)
@@ -235,7 +240,13 @@ run_group_embedding_from_list <- function(triplet_list,
 #' @param tolerance Loss tolerance for early stopping.  Default \code{1e-4}.
 #' @param tol_window Epochs without improvement before early stopping triggers.
 #'   Default \code{10000}.
-#' @param seed Integer random seed for reproducibility.  Default \code{222}.
+#' @param seed Integer random seed. Default \code{222}. Each worker's
+#'   embedding is fit with its own deterministic \code{random_state}
+#'   derived from \code{seed} (and that worker's position among the unique
+#'   \code{worker_id}s in \code{input_file}), and the group embedding (if
+#'   computed) with another \code{seed}-derived value -- so re-running with
+#'   the same \code{seed} and the same \code{input_file} reproduces
+#'   identical embeddings.
 #' @param device PyTorch device string, or \code{NULL} (default) to
 #'   auto-select: CUDA GPU if available, then Apple MPS, then CPU.
 #'   Pass \code{"cpu"} to force CPU even on a GPU machine.
@@ -307,9 +318,6 @@ run_embeddings <- function(input_file,
   geometry <- match.arg(geometry)
   compute_py <- .get_compute_py()
 
-  random <- reticulate::import("random")
-  random$seed(as.integer(seed))
-
   result <- compute_py$process_all_workers(
     input_file           = input_file,
     additional_data_file = additional_data_file,
@@ -321,7 +329,8 @@ run_embeddings <- function(input_file,
     device               = device,
     geometry             = geometry,
     radius               = radius,
-    compute_group        = compute_group
+    compute_group        = compute_group,
+    seed                 = as.integer(seed)
   )
 
   list(
@@ -367,7 +376,13 @@ run_embeddings <- function(input_file,
 #' @param tolerance Loss tolerance for early stopping.  Default \code{1e-4}.
 #' @param tol_window Epochs without improvement before early stopping triggers.
 #'   Default \code{10000}.
-#' @param seed Integer random seed for reproducibility.  Default \code{222}.
+#' @param seed Integer random seed. Default \code{222}. Each participant's
+#'   embedding is fit with its own deterministic \code{random_state}
+#'   derived from \code{seed} (and that participant's position among the
+#'   unique \code{worker_id}s), and the group embedding (if computed) with
+#'   another \code{seed}-derived value -- so re-running with the same
+#'   \code{seed} and the same \code{triplet_list} reproduces identical
+#'   embeddings.
 #' @param device PyTorch device string, or \code{NULL} (default) to
 #'   auto-select: CUDA GPU if available, then Apple MPS, then CPU.
 #'   Pass \code{"cpu"} to force CPU even on a GPU machine.

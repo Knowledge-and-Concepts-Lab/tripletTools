@@ -288,7 +288,7 @@ def train_embedding_model(X_train, X_test, d=5, max_epochs=50_000, tolerance=1e-
 
 def process_all_workers(input_file, additional_data_file, output_dir,
                         d=5, max_epochs=50_000, tolerance=1e-4, tol_window=10_000, device=None,
-                        geometry="euclidean", radius=1.0, compute_group=True):
+                        geometry="euclidean", radius=1.0, compute_group=True, seed=None):
     """
     Process triplets for all workers from a single CSV file and append additional data.
 
@@ -310,6 +310,13 @@ def process_all_workers(input_file, additional_data_file, output_dir,
                    when the group embedding isn't needed. embeddings_group.csv
                    is not written in that case, and the returned/written
                    history and embeddings tables have no "group" row.
+    seed: if given (default None), each worker's embedding is fit with its own
+          deterministic random_state (seed + that worker's position in
+          df['worker_id'].unique()), and the group embedding (if computed)
+          with seed + the number of workers -- so re-running with the same
+          seed and the same input reproduces identical embeddings. If None,
+          every fit uses an unseeded (non-reproducible) random_state, as
+          this function always did before this parameter existed.
 
     Output files written to output_dir:
         model_history.csv       -- training history per worker (and group, if computed)
@@ -326,7 +333,9 @@ def process_all_workers(input_file, additional_data_file, output_dir,
     model_history = []
     all_embeddings = []
 
-    for worker_id in df['worker_id'].unique():
+    unique_worker_ids = df['worker_id'].unique()
+
+    for worker_index, worker_id in enumerate(unique_worker_ids):
         print(f"Processing worker_id: {worker_id}")
 
         worker_df = df[df['worker_id'] == worker_id]
@@ -341,10 +350,12 @@ def process_all_workers(input_file, additional_data_file, output_dir,
         X_train = train_data[["head", "winner", "loser"]].to_numpy()
         X_test  = test_data[["head",  "winner", "loser"]].to_numpy()
 
+        worker_random_state = None if seed is None else seed + worker_index
+
         embedding, loss, epoch, counter, _ = train_embedding_model(
             X_train, X_test, d=d, max_epochs=max_epochs,
             tolerance=tolerance, tol_window=tol_window, device=device,
-            geometry=geometry, radius=radius,
+            geometry=geometry, radius=radius, random_state=worker_random_state,
         )
 
         emb_df = pd.DataFrame(embedding, columns=[f'dim_{i}' for i in range(embedding.shape[1])])
@@ -395,10 +406,12 @@ def process_all_workers(input_file, additional_data_file, output_dir,
             X_train_group = group_train[["head", "winner", "loser"]].to_numpy()
             X_test_group  = group_test[["head",  "winner", "loser"]].to_numpy()
 
+            group_random_state = None if seed is None else seed + len(unique_worker_ids)
+
             emb_group, loss_group, epoch_group, counter_group, _ = train_embedding_model(
                 X_train_group, X_test_group, d=d, max_epochs=max_epochs,
                 tolerance=tolerance, tol_window=tol_window, device=device,
-                geometry=geometry, radius=radius,
+                geometry=geometry, radius=radius, random_state=group_random_state,
             )
 
             emb_group_df = pd.DataFrame(emb_group, columns=[f'dim_{i}' for i in range(emb_group.shape[1])])

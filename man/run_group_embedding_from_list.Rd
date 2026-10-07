@@ -33,7 +33,11 @@ columns \code{Center}, \code{Left}, \code{Right}, \code{Answer},
 \item{tol_window}{Epochs without improvement before early stopping triggers.
 Default \code{10000}.}
 
-\item{seed}{Integer random seed for reproducibility.  Default \code{222}.}
+\item{seed}{Integer random seed.  Default \code{222}.  Controls both the
+R-level train/test shuffling fallback (via \code{\link{set.seed}}) and
+the embedding fit's own \code{random_state} (passed to
+\code{\link{train_embedding}}), so re-running with the same \code{seed}
+and the same \code{triplet_list} reproduces an identical embedding.}
 
 \item{device}{PyTorch device string, or \code{NULL} (default) to
 auto-select: CUDA GPU if available, then Apple MPS, then CPU.

@@ -39,7 +39,13 @@ saved.  Created automatically if it does not already exist.}
 \item{tol_window}{Epochs without improvement before early stopping triggers.
 Default \code{10000}.}
 
-\item{seed}{Integer random seed for reproducibility.  Default \code{222}.}
+\item{seed}{Integer random seed. Default \code{222}. Each worker's
+embedding is fit with its own deterministic \code{random_state}
+derived from \code{seed} (and that worker's position among the unique
+\code{worker_id}s in \code{input_file}), and the group embedding (if
+computed) with another \code{seed}-derived value -- so re-running with
+the same \code{seed} and the same \code{input_file} reproduces
+identical embeddings.}
 
 \item{device}{PyTorch device string, or \code{NULL} (default) to
 auto-select: CUDA GPU if available, then Apple MPS, then CPU.
