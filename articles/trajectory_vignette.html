@@ -100,6 +100,14 @@ variation</li>
 <li>
 <code><a href="../reference/plot_3d_trajectory.html">plot_3d_trajectory()</a></code>/<code><a href="../reference/plot_2d_trajectory.html">plot_2d_trajectory()</a></code>
 – visualizing how the representation changes along that axis</li>
+<li>
+<code><a href="../reference/test_dominant_dimension.html">test_dominant_dimension()</a></code> – a direct statistical test
+for a single dominant axis, where Horn’s parallel analysis is known to
+be conservative</li>
+<li>
+<code><a href="../reference/loo_trajectory_accuracy.html">loo_trajectory_accuracy()</a></code> – testing whether manifold
+position predicts held-out judgments, without the data leakage a naive
+version of this test would have</li>
 </ul>
 <p>The dataset is bundled with the package as
 <code>color_triplets</code> (raw judgments),
@@ -211,42 +219,42 @@ instead.</p>
 dimensions of variation exist among participants’ embeddings (as opposed
 to how many dimensions the color embeddings themselves have):</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/estimate_intrinsic_dimension.html">estimate_intrinsic_dimension</a></span><span class="op">(</span><span class="va">repdist</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/estimate_intrinsic_dimension.html">estimate_intrinsic_dimension</a></span><span class="op">(</span><span class="va">repdist</span>, seed <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Observed vs. permutation-null eigenvalues (kept = observed &gt; threshold):</span></span>
 <span><span class="co">#&gt;    dim observed threshold  kept</span></span>
-<span><span class="co">#&gt; 1    1   0.0410    0.0563 FALSE</span></span>
-<span><span class="co">#&gt; 2    2   0.0213    0.0380 FALSE</span></span>
-<span><span class="co">#&gt; 3    3   0.0180    0.0322 FALSE</span></span>
-<span><span class="co">#&gt; 4    4   0.0154    0.0282 FALSE</span></span>
-<span><span class="co">#&gt; 5    5   0.0143    0.0250 FALSE</span></span>
-<span><span class="co">#&gt; 6    6   0.0140    0.0227 FALSE</span></span>
-<span><span class="co">#&gt; 7    7   0.0128    0.0208 FALSE</span></span>
-<span><span class="co">#&gt; 8    8   0.0122    0.0192 FALSE</span></span>
-<span><span class="co">#&gt; 9    9   0.0116    0.0175 FALSE</span></span>
-<span><span class="co">#&gt; 10  10   0.0114    0.0163 FALSE</span></span>
-<span><span class="co">#&gt; 11  11   0.0110    0.0149 FALSE</span></span>
-<span><span class="co">#&gt; 12  12   0.0108    0.0138 FALSE</span></span>
-<span><span class="co">#&gt; 13  13   0.0105    0.0127 FALSE</span></span>
-<span><span class="co">#&gt; 14  14   0.0100    0.0118 FALSE</span></span>
+<span><span class="co">#&gt; 1    1   0.0410    0.0556 FALSE</span></span>
+<span><span class="co">#&gt; 2    2   0.0213    0.0382 FALSE</span></span>
+<span><span class="co">#&gt; 3    3   0.0180    0.0323 FALSE</span></span>
+<span><span class="co">#&gt; 4    4   0.0154    0.0283 FALSE</span></span>
+<span><span class="co">#&gt; 5    5   0.0143    0.0253 FALSE</span></span>
+<span><span class="co">#&gt; 6    6   0.0140    0.0229 FALSE</span></span>
+<span><span class="co">#&gt; 7    7   0.0128    0.0212 FALSE</span></span>
+<span><span class="co">#&gt; 8    8   0.0122    0.0193 FALSE</span></span>
+<span><span class="co">#&gt; 9    9   0.0116    0.0176 FALSE</span></span>
+<span><span class="co">#&gt; 10  10   0.0114    0.0161 FALSE</span></span>
+<span><span class="co">#&gt; 11  11   0.0110    0.0148 FALSE</span></span>
+<span><span class="co">#&gt; 12  12   0.0108    0.0136 FALSE</span></span>
+<span><span class="co">#&gt; 13  13   0.0105    0.0126 FALSE</span></span>
+<span><span class="co">#&gt; 14  14   0.0100    0.0116 FALSE</span></span>
 <span><span class="co">#&gt; 15  15   0.0098    0.0107 FALSE</span></span>
-<span><span class="co">#&gt; 16  16   0.0094    0.0099 FALSE</span></span>
+<span><span class="co">#&gt; 16  16   0.0094    0.0098 FALSE</span></span>
 <span><span class="co">#&gt; 17  17   0.0091    0.0090  TRUE</span></span>
-<span><span class="co">#&gt; 18  18   0.0089    0.0082  TRUE</span></span>
+<span><span class="co">#&gt; 18  18   0.0089    0.0083  TRUE</span></span>
 <span><span class="co">#&gt; 19  19   0.0088    0.0075  TRUE</span></span>
-<span><span class="co">#&gt; 20  20   0.0086    0.0068  TRUE</span></span>
-<span><span class="co">#&gt; 21  21   0.0082    0.0062  TRUE</span></span>
-<span><span class="co">#&gt; 22  22   0.0077    0.0056  TRUE</span></span>
+<span><span class="co">#&gt; 20  20   0.0086    0.0069  TRUE</span></span>
+<span><span class="co">#&gt; 21  21   0.0082    0.0063  TRUE</span></span>
+<span><span class="co">#&gt; 22  22   0.0077    0.0057  TRUE</span></span>
 <span><span class="co">#&gt; 23  23   0.0075    0.0051  TRUE</span></span>
-<span><span class="co">#&gt; 24  24   0.0074    0.0046  TRUE</span></span>
+<span><span class="co">#&gt; 24  24   0.0074    0.0047  TRUE</span></span>
 <span><span class="co">#&gt; 25  25   0.0070    0.0042  TRUE</span></span>
-<span><span class="co">#&gt; 26  26   0.0070    0.0038  TRUE</span></span>
+<span><span class="co">#&gt; 26  26   0.0070    0.0037  TRUE</span></span>
 <span><span class="co">#&gt; 27  27   0.0068    0.0034  TRUE</span></span>
 <span><span class="co">#&gt; 28  28   0.0064    0.0030  TRUE</span></span>
 <span><span class="co">#&gt; 29  29   0.0063    0.0026  TRUE</span></span>
 <span><span class="co">#&gt; 30  30   0.0061    0.0023  TRUE</span></span>
 <span><span class="co">#&gt; 31  31   0.0058    0.0020  TRUE</span></span>
 <span><span class="co">#&gt; 32  32   0.0055    0.0017  TRUE</span></span>
-<span><span class="co">#&gt; 33  33   0.0051    0.0015  TRUE</span></span>
+<span><span class="co">#&gt; 33  33   0.0051    0.0014  TRUE</span></span>
 <span><span class="co">#&gt; 34  34   0.0049    0.0012  TRUE</span></span>
 <span><span class="co">#&gt; 35  35   0.0046    0.0010  TRUE</span></span>
 <span><span class="co">#&gt; 36  36   0.0045    0.0008  TRUE</span></span>
@@ -260,18 +268,29 @@ to how many dimensions the color embeddings themselves have):</p>
 <span><span class="co">#&gt; 44  44   0.0029    0.0000  TRUE</span></span>
 <span><span class="co">#&gt; Note: not even the leading dimension exceeded its permutation threshold; k forced to the minimum of 1 rather than 0.</span></span>
 <span><span class="co">#&gt; This is likely a false negative rather than a genuine absence of structure: the leading eigenvalue (0.041) is about 4.9x the typical size of the rest (0.00829), suggesting one real dominant dimension. Horn's parallel analysis is known to be conservative for exactly this case: when nearly all the real signal is concentrated in a single factor, the permutation null preserves each column's own variance (only scrambling which participant has which value), so the null's own top eigenvalue ends up built largely from that same dominant variance -- the leading dimension effectively has to 'beat a shuffled version of itself,' a bar that's unusually hard to clear regardless of how strong the true signal is.</span></span>
-<span><span class="co">#&gt; Simulation-based dominance test (direct, not heuristic -- see ?test_dominant_dimension): p-value = 0.0005. This directly supports a genuine dominant leading dimension, rather than inferring it indirectly from dominance_ratio alone.</span></span>
+<span><span class="co">#&gt; Simulation-based dominance test (direct, not heuristic -- see ?test_dominant_dimension): p-value = 0.001. This directly supports a genuine dominant leading dimension, rather than inferring it indirectly from dominance_ratio alone.</span></span>
 <span><span class="co">#&gt; -&gt; estimated intrinsic dimension: 1</span></span></code></pre></div>
-<p>This comes back “forced to 1” – but with the leading eigenvalue
-several times the size of the rest, which is exactly the known
-false-negative pattern documented for this function (see
-<code><a href="../reference/estimate_intrinsic_dimension.html">?estimate_intrinsic_dimension</a></code>): when nearly all the real
-signal sits in one dominant dimension, Horn’s parallel analysis has to
-beat a shuffled version of that same dominant variance, which is an
-unusually hard bar to clear. Combined with the non-significant Hopkins
-result above (no evidence of multiple discrete components either), this
-is good evidence for one real, continuous dimension of individual
-variation – not zero dimensions of structure.</p>
+<p>This comes back “forced to 1” – Horn’s parallel analysis has to beat
+a shuffled version of the leading dimension’s own (already dominant)
+variance, which is an unusually hard bar to clear, and is a known
+false-negative pattern for exactly this case (see
+<code><a href="../reference/estimate_intrinsic_dimension.html">?estimate_intrinsic_dimension</a></code>). But two further pieces of
+evidence point the same direction: the leading eigenvalue is about 5x
+the typical size of the rest, and – more directly –
+<code><a href="../reference/test_dominant_dimension.html">test_dominant_dimension()</a></code>’s simulation-based significance
+test (run automatically above, since <code>test_dominance = TRUE</code>
+by default) rejects the no-structure null outright (p = 0.001). Unlike
+the eigenvalue-magnitude comparison Horn’s test makes, this test
+compares a scale-invariant statistic (proportion of variance explained)
+against a null simulated at equal variance across candidate dimensions,
+which sidesteps the “beat a shuffled version of itself” problem – see
+<code><a href="../reference/test_dominant_dimension.html">?test_dominant_dimension</a></code> for why, and for a worked example
+where this same test does <em>not</em> reach significance despite a
+similarly large eigenvalue ratio (smaller sample sizes have less power
+to detect the same effect size). Combined with the non-significant
+Hopkins result above (no evidence of multiple discrete components
+either), this is solid evidence for one real, continuous dimension of
+individual variation – not zero dimensions of structure.</p>
 <p><code><a href="https://rdrr.io/r/stats/cmdscale.html" class="external-link">cmdscale()</a></code> gives each participant’s own position along
 that one dimension:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
@@ -348,43 +367,71 @@ shown here, since these embeddings are 3-D).</p>
 <p>If this axis reflects a real difference in how participants represent
 color, then each participant’s own held-out judgments should be better
 predicted by the embedding from <em>their</em> end of the manifold than
-by the embedding from the opposite end. <code><a href="../reference/get.hoacc.html">get.hoacc()</a></code> gives,
-for one embedding, the proportion of a participant’s held-out validation
-trials it predicts correctly:</p>
+by the embedding from the opposite end.</p>
+<p>It’s tempting to test this by reusing the <code>traj</code> object
+already computed above: for each participant, evaluate
+<code><a href="../reference/get.hoacc.html">get.hoacc()</a></code> at the query point nearest their own position,
+and see whether that beats the opposite end. <strong>This approach has a
+real, confirmed data-leakage problem, and should not be used.</strong>
+<code><a href="../reference/smooth_embedding_trajectory.html">smooth_embedding_trajectory()</a></code>’s kernel weighting gives no
+participant’s weight at a query point ever exactly zero, so every
+participant’s own already-fitted embedding contributes – with real
+weight – to the very query-point embeddings later evaluated against
+their own held-out trials. A participant’s own embedding unsurprisingly
+predicts their own behavior reasonably well regardless of whether any
+real shared structure exists at all, so this setup cannot distinguish
+“real structure shared with actual neighbors” from “trivial
+self-prediction via self-contribution to the averaged embedding.” This
+was not a hypothetical concern: on synthetic data built from
+participants with fully independent, unrelated true embeddings (zero
+real shared structure, by construction), this naive approach produced a
+strong, “significant”-looking crossover (R<sup>2</sup> = 0.27, p =
+0.003) purely from this mechanism (see
+<code><a href="../reference/smooth_embedding_trajectory.html">?smooth_embedding_trajectory</a></code>’s own warning section, and
+<code><a href="../reference/loo_trajectory_accuracy.html">?loo_trajectory_accuracy</a></code> for the full story).</p>
+<p><code><a href="../reference/loo_trajectory_accuracy.html">loo_trajectory_accuracy()</a></code> does this correctly: for every
+participant, it drops them entirely – from the distance matrix before
+<code><a href="https://rdrr.io/r/stats/cmdscale.html" class="external-link">cmdscale()</a></code> computes the axis, and from the embedding list
+before the trajectory is refit on the remaining participants – and only
+then evaluates their held-out trials against the resulting, fully
+out-of-sample trajectory.</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">color_triplets</span><span class="op">)</span></span>
-<span><span class="va">acc</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="cn">NA</span>, <span class="va">n</span>, <span class="fl">2</span><span class="op">)</span></span>
-<span><span class="kw">for</span> <span class="op">(</span><span class="va">i</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
-<span>  <span class="va">acc</span><span class="op">[</span><span class="va">i</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.hoacc.html">get.hoacc</a></span><span class="op">(</span><span class="va">traj</span><span class="op">$</span><span class="va">embeddings</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span>,  <span class="va">color_triplets</span><span class="op">[[</span><span class="va">i</span><span class="op">]</span><span class="op">]</span>, trialtype <span class="op">=</span> <span class="st">"validation"</span><span class="op">)</span></span>
-<span>  <span class="va">acc</span><span class="op">[</span><span class="va">i</span>, <span class="fl">2</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.hoacc.html">get.hoacc</a></span><span class="op">(</span><span class="va">traj</span><span class="op">$</span><span class="va">embeddings</span><span class="op">[[</span><span class="fl">16</span><span class="op">]</span><span class="op">]</span>, <span class="va">color_triplets</span><span class="op">[[</span><span class="va">i</span><span class="op">]</span><span class="op">]</span>, trialtype <span class="op">=</span> <span class="st">"validation"</span><span class="op">)</span></span>
-<span><span class="op">}</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="va">loo_res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/loo_trajectory_accuracy.html">loo_trajectory_accuracy</a></span><span class="op">(</span><span class="va">repdist</span>, <span class="va">color_emb_ind</span>, <span class="va">color_triplets</span>, n_query <span class="op">=</span> <span class="fl">16</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">.5</span>, type <span class="op">=</span> <span class="st">"n"</span>, xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">pos</span><span class="op">)</span>, ylim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">acc</span><span class="op">)</span> <span class="op">-</span> <span class="fl">.05</span>, <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">acc</span><span class="op">)</span> <span class="op">+</span> <span class="fl">.05</span><span class="op">)</span>,</span>
+<code class="sourceCode R"><span><span class="va">fsp</span> <span class="op">&lt;-</span> <span class="va">loo_res</span><span class="op">$</span><span class="va">full_sample_position</span></span>
+<span><span class="va">acc</span> <span class="op">&lt;-</span> <span class="va">loo_res</span><span class="op">$</span><span class="va">accuracy</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">.5</span>, type <span class="op">=</span> <span class="st">"n"</span>, xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">fsp</span><span class="op">)</span>, ylim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">acc</span><span class="op">)</span> <span class="op">-</span> <span class="fl">.05</span>, <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">acc</span><span class="op">)</span> <span class="op">+</span> <span class="fl">.05</span><span class="op">)</span>,</span>
 <span>     xlab <span class="op">=</span> <span class="st">"Manifold position"</span>, ylab <span class="op">=</span> <span class="st">"Accuracy on held-out validation trials"</span><span class="op">)</span></span>
-<span><span class="kw">for</span> <span class="op">(</span><span class="va">i</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/graphics/lines.html" class="external-link">lines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">pos</span><span class="op">[</span><span class="va">i</span><span class="op">]</span>, <span class="va">pos</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">acc</span><span class="op">[</span><span class="va">i</span>, <span class="fl">1</span><span class="op">]</span>, <span class="va">acc</span><span class="op">[</span><span class="va">i</span>, <span class="fl">2</span><span class="op">]</span><span class="op">)</span>, col <span class="op">=</span> <span class="st">"gray"</span><span class="op">)</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">i</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_along</a></span><span class="op">(</span><span class="va">fsp</span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/graphics/lines.html" class="external-link">lines</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">fsp</span><span class="op">[</span><span class="va">i</span><span class="op">]</span>, <span class="va">fsp</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">acc</span><span class="op">[</span><span class="va">i</span>, <span class="fl">1</span><span class="op">]</span>, <span class="va">acc</span><span class="op">[</span><span class="va">i</span>, <span class="fl">16</span><span class="op">]</span><span class="op">)</span>, col <span class="op">=</span> <span class="st">"gray"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/points.html" class="external-link">points</a></span><span class="op">(</span><span class="va">pos</span>, <span class="va">acc</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span>, pch <span class="op">=</span> <span class="fl">16</span>, col <span class="op">=</span> <span class="st">"steelblue"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">acc</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">~</span> <span class="va">pos</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span><span class="op">)</span>, col <span class="op">=</span> <span class="st">"steelblue"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/points.html" class="external-link">points</a></span><span class="op">(</span><span class="va">fsp</span>, <span class="va">acc</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span>, pch <span class="op">=</span> <span class="fl">16</span>, col <span class="op">=</span> <span class="st">"steelblue"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">acc</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">~</span> <span class="va">fsp</span><span class="op">)</span>, col <span class="op">=</span> <span class="st">"steelblue"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/points.html" class="external-link">points</a></span><span class="op">(</span><span class="va">pos</span>, <span class="va">acc</span><span class="op">[</span>, <span class="fl">2</span><span class="op">]</span>, pch <span class="op">=</span> <span class="fl">16</span>, col <span class="op">=</span> <span class="st">"firebrick"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">acc</span><span class="op">[</span>, <span class="fl">2</span><span class="op">]</span> <span class="op">~</span> <span class="va">pos</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span><span class="op">)</span>, col <span class="op">=</span> <span class="st">"firebrick"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/points.html" class="external-link">points</a></span><span class="op">(</span><span class="va">fsp</span>, <span class="va">acc</span><span class="op">[</span>, <span class="fl">16</span><span class="op">]</span>, pch <span class="op">=</span> <span class="fl">16</span>, col <span class="op">=</span> <span class="st">"firebrick"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">acc</span><span class="op">[</span>, <span class="fl">16</span><span class="op">]</span> <span class="op">~</span> <span class="va">fsp</span><span class="op">)</span>, col <span class="op">=</span> <span class="st">"firebrick"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/abline.html" class="external-link">abline</a></span><span class="op">(</span>h <span class="op">=</span> <span class="fl">.5</span>, lty <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/legend.html" class="external-link">legend</a></span><span class="op">(</span><span class="st">"bottomleft"</span>, legend <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Embedding at left end"</span>, <span class="st">"Embedding at right end"</span><span class="op">)</span>,</span>
 <span>       col <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"steelblue"</span>, <span class="st">"firebrick"</span><span class="op">)</span>, pch <span class="op">=</span> <span class="fl">16</span>, bty <span class="op">=</span> <span class="st">"n"</span><span class="op">)</span></span></code></pre></div>
 <div class="figure">
-<img src="trajectory_vignette_files/figure-html/crossover-plot-1.png" class="r-plt" alt="Held-out prediction accuracy from the two end-of-manifold embeddings, plotted against each participant's own manifold position." width="672"><p class="caption">
-Held-out prediction accuracy from the two end-of-manifold embeddings,
-plotted against each participant’s own manifold position.
+<img src="trajectory_vignette_files/figure-html/crossover-plot-1.png" class="r-plt" alt="Leave-one-out held-out prediction accuracy from the two end-of-manifold embeddings, plotted against each participant's own (full-sample) manifold position." width="672"><p class="caption">
+Leave-one-out held-out prediction accuracy from the two end-of-manifold
+embeddings, plotted against each participant’s own (full-sample)
+manifold position.
 </p>
 </div>
-<p>A clean crossover: the left-end embedding predicts best for
+<p>The crossover survives: the left-end embedding predicts best for
 participants near the left end of the manifold, the right-end embedding
 predicts best for everyone else, and which one wins tracks manifold
-position almost perfectly (R<sup>2</sup> = 0.7, from a simple linear
-regression of the accuracy difference on position). This is a genuine,
-strong individual-differences effect – in a domain (color similarity)
-where that kind of heterogeneity might not be expected at all.</p>
+position almost perfectly (R<sup>2</sup> = 0.62, from a simple linear
+regression of the accuracy difference on position – barely smaller than
+what the leakage-prone naive version would have reported). This is a
+genuine, strong individual-differences effect – in a domain (color
+similarity) where that kind of heterogeneity might not be expected at
+all – and unlike the naive version, this result is actually trustworthy:
+it was computed with no participant ever contributing to the embedding
+used to predict them.</p>
 </div>
 <div class="section level2">
 <h2 id="summary">Summary<a class="anchor" aria-label="anchor" href="#summary"></a>
@@ -411,7 +458,7 @@ where that kind of heterogeneity might not be expected at all.</p>
 <td>Is there a real, continuous axis of individual variation?</td>
 <td>
 <code><a href="../reference/estimate_intrinsic_dimension.html">estimate_intrinsic_dimension()</a></code>,
-<code><a href="https://rdrr.io/r/stats/cmdscale.html" class="external-link">cmdscale()</a></code>
+<code><a href="../reference/test_dominant_dimension.html">test_dominant_dimension()</a></code>, <code><a href="https://rdrr.io/r/stats/cmdscale.html" class="external-link">cmdscale()</a></code>
 </td>
 </tr>
 <tr class="even">
@@ -430,7 +477,10 @@ where that kind of heterogeneity might not be expected at all.</p>
 </tr>
 <tr class="even">
 <td>Does manifold position predict individual judgments?</td>
-<td><code><a href="../reference/get.hoacc.html">get.hoacc()</a></code></td>
+<td>
+<code><a href="../reference/loo_trajectory_accuracy.html">loo_trajectory_accuracy()</a></code> (not <code><a href="../reference/get.hoacc.html">get.hoacc()</a></code>
+on <code><a href="../reference/smooth_embedding_trajectory.html">smooth_embedding_trajectory()</a></code>’s output directly – see
+above)</td>
 </tr>
 </tbody>
 </table>

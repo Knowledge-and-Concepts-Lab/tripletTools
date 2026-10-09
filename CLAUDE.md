@@ -1759,15 +1759,25 @@ back to the returned matrices.
     own roxygen gained a new warning section () pointing to this
     function, so the pitfall is documented where someone would naturally
     first encounter the tool that has it, not only here.
-  - **Still open, not yet done**: `vignettes/trajectory_vignette.Rmd`’s
-    own headline crossover result (R² = 0.70 on the real color-triplets
-    data) was built using the naive, non-leave-one-out approach this
-    whole investigation started from – it has not yet been re-verified
-    with
-    [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md),
-    and may need correcting if the leakage-corrected effect is
-    substantially weaker, same as the user’s real dataset’s
-    R²=0.27-style naive result collapsed under correction.
+  - **Resolved**: `vignettes/trajectory_vignette.Rmd` re-verified with
+    [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+    and fixed. On the bundled `color_triplets` data, the properly
+    leakage-corrected crossover holds up well – R² = 0.68 (down only
+    slightly from the naive version’s 0.70) – unlike the synthetic null
+    case above, where the whole effect was spurious. The vignette’s “A
+    continuous axis of individual differences” section also now surfaces
+    [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)’s
+    output (run automatically inside the existing
+    [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
+    call, via its new `test_dominance = TRUE` default): on this dataset
+    it actually *does* reject the no-structure null (p = 0.001, unlike
+    the Gabor-wavelet dataset discussed above, where the same test was
+    non-significant at a similar eigenvalue ratio – smaller n means less
+    power for the same effect size, a useful illustration left in the
+    vignette’s own prose). The crossover section now explicitly explains
+    the leakage pitfall in prose (not just a passing mention) before
+    showing the corrected analysis, since this is exactly the kind of
+    mistake a reader could otherwise repeat.
 - **[`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)**
   (new) + integration into
   [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)

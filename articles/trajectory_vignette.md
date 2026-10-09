@@ -29,6 +29,12 @@ color to a reference patch, with no further instruction about what
   axis of individual variation
 - [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md)/[`plot_2d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_2d_trajectory.md)
   – visualizing how the representation changes along that axis
+- [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+  – a direct statistical test for a single dominant axis, where Horn’s
+  parallel analysis is known to be conservative
+- [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+  – testing whether manifold position predicts held-out judgments,
+  without the data leakage a naive version of this test would have
 
 The dataset is bundled with the package as `color_triplets` (raw
 judgments), `color_emb_ind`/`color_emb_group` (precomputed 3-D
@@ -158,42 +164,42 @@ themselves have):
 
 ``` r
 
-estimate_intrinsic_dimension(repdist)
+estimate_intrinsic_dimension(repdist, seed = 3)
 #> Observed vs. permutation-null eigenvalues (kept = observed > threshold):
 #>    dim observed threshold  kept
-#> 1    1   0.0410    0.0563 FALSE
-#> 2    2   0.0213    0.0380 FALSE
-#> 3    3   0.0180    0.0322 FALSE
-#> 4    4   0.0154    0.0282 FALSE
-#> 5    5   0.0143    0.0250 FALSE
-#> 6    6   0.0140    0.0227 FALSE
-#> 7    7   0.0128    0.0208 FALSE
-#> 8    8   0.0122    0.0192 FALSE
-#> 9    9   0.0116    0.0175 FALSE
-#> 10  10   0.0114    0.0163 FALSE
-#> 11  11   0.0110    0.0149 FALSE
-#> 12  12   0.0108    0.0138 FALSE
-#> 13  13   0.0105    0.0127 FALSE
-#> 14  14   0.0100    0.0118 FALSE
+#> 1    1   0.0410    0.0556 FALSE
+#> 2    2   0.0213    0.0382 FALSE
+#> 3    3   0.0180    0.0323 FALSE
+#> 4    4   0.0154    0.0283 FALSE
+#> 5    5   0.0143    0.0253 FALSE
+#> 6    6   0.0140    0.0229 FALSE
+#> 7    7   0.0128    0.0212 FALSE
+#> 8    8   0.0122    0.0193 FALSE
+#> 9    9   0.0116    0.0176 FALSE
+#> 10  10   0.0114    0.0161 FALSE
+#> 11  11   0.0110    0.0148 FALSE
+#> 12  12   0.0108    0.0136 FALSE
+#> 13  13   0.0105    0.0126 FALSE
+#> 14  14   0.0100    0.0116 FALSE
 #> 15  15   0.0098    0.0107 FALSE
-#> 16  16   0.0094    0.0099 FALSE
+#> 16  16   0.0094    0.0098 FALSE
 #> 17  17   0.0091    0.0090  TRUE
-#> 18  18   0.0089    0.0082  TRUE
+#> 18  18   0.0089    0.0083  TRUE
 #> 19  19   0.0088    0.0075  TRUE
-#> 20  20   0.0086    0.0068  TRUE
-#> 21  21   0.0082    0.0062  TRUE
-#> 22  22   0.0077    0.0056  TRUE
+#> 20  20   0.0086    0.0069  TRUE
+#> 21  21   0.0082    0.0063  TRUE
+#> 22  22   0.0077    0.0057  TRUE
 #> 23  23   0.0075    0.0051  TRUE
-#> 24  24   0.0074    0.0046  TRUE
+#> 24  24   0.0074    0.0047  TRUE
 #> 25  25   0.0070    0.0042  TRUE
-#> 26  26   0.0070    0.0038  TRUE
+#> 26  26   0.0070    0.0037  TRUE
 #> 27  27   0.0068    0.0034  TRUE
 #> 28  28   0.0064    0.0030  TRUE
 #> 29  29   0.0063    0.0026  TRUE
 #> 30  30   0.0061    0.0023  TRUE
 #> 31  31   0.0058    0.0020  TRUE
 #> 32  32   0.0055    0.0017  TRUE
-#> 33  33   0.0051    0.0015  TRUE
+#> 33  33   0.0051    0.0014  TRUE
 #> 34  34   0.0049    0.0012  TRUE
 #> 35  35   0.0046    0.0010  TRUE
 #> 36  36   0.0045    0.0008  TRUE
@@ -207,19 +213,32 @@ estimate_intrinsic_dimension(repdist)
 #> 44  44   0.0029    0.0000  TRUE
 #> Note: not even the leading dimension exceeded its permutation threshold; k forced to the minimum of 1 rather than 0.
 #> This is likely a false negative rather than a genuine absence of structure: the leading eigenvalue (0.041) is about 4.9x the typical size of the rest (0.00829), suggesting one real dominant dimension. Horn's parallel analysis is known to be conservative for exactly this case: when nearly all the real signal is concentrated in a single factor, the permutation null preserves each column's own variance (only scrambling which participant has which value), so the null's own top eigenvalue ends up built largely from that same dominant variance -- the leading dimension effectively has to 'beat a shuffled version of itself,' a bar that's unusually hard to clear regardless of how strong the true signal is.
-#> Simulation-based dominance test (direct, not heuristic -- see ?test_dominant_dimension): p-value = 0.0005. This directly supports a genuine dominant leading dimension, rather than inferring it indirectly from dominance_ratio alone.
+#> Simulation-based dominance test (direct, not heuristic -- see ?test_dominant_dimension): p-value = 0.001. This directly supports a genuine dominant leading dimension, rather than inferring it indirectly from dominance_ratio alone.
 #> -> estimated intrinsic dimension: 1
 ```
 
-This comes back “forced to 1” – but with the leading eigenvalue several
-times the size of the rest, which is exactly the known false-negative
-pattern documented for this function (see
-[`?estimate_intrinsic_dimension`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)):
-when nearly all the real signal sits in one dominant dimension, Horn’s
-parallel analysis has to beat a shuffled version of that same dominant
-variance, which is an unusually hard bar to clear. Combined with the
+This comes back “forced to 1” – Horn’s parallel analysis has to beat a
+shuffled version of the leading dimension’s own (already dominant)
+variance, which is an unusually hard bar to clear, and is a known
+false-negative pattern for exactly this case (see
+[`?estimate_intrinsic_dimension`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)).
+But two further pieces of evidence point the same direction: the leading
+eigenvalue is about 5x the typical size of the rest, and – more directly
+–
+[`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)’s
+simulation-based significance test (run automatically above, since
+`test_dominance = TRUE` by default) rejects the no-structure null
+outright (p = 0.001). Unlike the eigenvalue-magnitude comparison Horn’s
+test makes, this test compares a scale-invariant statistic (proportion
+of variance explained) against a null simulated at equal variance across
+candidate dimensions, which sidesteps the “beat a shuffled version of
+itself” problem – see
+[`?test_dominant_dimension`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+for why, and for a worked example where this same test does *not* reach
+significance despite a similarly large eigenvalue ratio (smaller sample
+sizes have less power to detect the same effect size). Combined with the
 non-significant Hopkins result above (no evidence of multiple discrete
-components either), this is good evidence for one real, continuous
+components either), this is solid evidence for one real, continuous
 dimension of individual variation – not zero dimensions of structure.
 
 [`cmdscale()`](https://rdrr.io/r/stats/cmdscale.html) gives each
@@ -317,51 +336,85 @@ If this axis reflects a real difference in how participants represent
 color, then each participant’s own held-out judgments should be better
 predicted by the embedding from *their* end of the manifold than by the
 embedding from the opposite end.
+
+It’s tempting to test this by reusing the `traj` object already computed
+above: for each participant, evaluate
 [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)
-gives, for one embedding, the proportion of a participant’s held-out
-validation trials it predicts correctly:
+at the query point nearest their own position, and see whether that
+beats the opposite end. **This approach has a real, confirmed
+data-leakage problem, and should not be used.**
+[`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)’s
+kernel weighting gives no participant’s weight at a query point ever
+exactly zero, so every participant’s own already-fitted embedding
+contributes – with real weight – to the very query-point embeddings
+later evaluated against their own held-out trials. A participant’s own
+embedding unsurprisingly predicts their own behavior reasonably well
+regardless of whether any real shared structure exists at all, so this
+setup cannot distinguish “real structure shared with actual neighbors”
+from “trivial self-prediction via self-contribution to the averaged
+embedding.” This was not a hypothetical concern: on synthetic data built
+from participants with fully independent, unrelated true embeddings
+(zero real shared structure, by construction), this naive approach
+produced a strong, “significant”-looking crossover (R² = 0.27, p =
+0.003) purely from this mechanism (see
+[`?smooth_embedding_trajectory`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)’s
+own warning section, and
+[`?loo_trajectory_accuracy`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+for the full story).
+
+[`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+does this correctly: for every participant, it drops them entirely –
+from the distance matrix before
+[`cmdscale()`](https://rdrr.io/r/stats/cmdscale.html) computes the axis,
+and from the embedding list before the trajectory is refit on the
+remaining participants – and only then evaluates their held-out trials
+against the resulting, fully out-of-sample trajectory.
 
 ``` r
 
-n <- length(color_triplets)
-acc <- matrix(NA, n, 2)
-for (i in seq_len(n)) {
-  acc[i, 1] <- get.hoacc(traj$embeddings[[1]],  color_triplets[[i]], trialtype = "validation")
-  acc[i, 2] <- get.hoacc(traj$embeddings[[16]], color_triplets[[i]], trialtype = "validation")
-}
+loo_res <- loo_trajectory_accuracy(repdist, color_emb_ind, color_triplets, n_query = 16, verbose = FALSE)
 ```
 
 ``` r
 
-plot(0, .5, type = "n", xlim = range(pos), ylim = c(min(acc) - .05, max(acc) + .05),
+fsp <- loo_res$full_sample_position
+acc <- loo_res$accuracy
+
+plot(0, .5, type = "n", xlim = range(fsp), ylim = c(min(acc) - .05, max(acc) + .05),
      xlab = "Manifold position", ylab = "Accuracy on held-out validation trials")
-for (i in seq_len(n)) lines(c(pos[i], pos[i]), c(acc[i, 1], acc[i, 2]), col = "gray")
+for (i in seq_along(fsp)) lines(c(fsp[i], fsp[i]), c(acc[i, 1], acc[i, 16]), col = "gray")
 
-points(pos, acc[, 1], pch = 16, col = "steelblue")
-abline(lm(acc[, 1] ~ pos[, 1]), col = "steelblue")
+points(fsp, acc[, 1], pch = 16, col = "steelblue")
+abline(lm(acc[, 1] ~ fsp), col = "steelblue")
 
-points(pos, acc[, 2], pch = 16, col = "firebrick")
-abline(lm(acc[, 2] ~ pos[, 1]), col = "firebrick")
+points(fsp, acc[, 16], pch = 16, col = "firebrick")
+abline(lm(acc[, 16] ~ fsp), col = "firebrick")
 
 abline(h = .5, lty = 2)
 legend("bottomleft", legend = c("Embedding at left end", "Embedding at right end"),
        col = c("steelblue", "firebrick"), pch = 16, bty = "n")
 ```
 
-![Held-out prediction accuracy from the two end-of-manifold embeddings,
-plotted against each participant's own manifold
+![Leave-one-out held-out prediction accuracy from the two
+end-of-manifold embeddings, plotted against each participant's own
+(full-sample) manifold
 position.](trajectory_vignette_files/figure-html/crossover-plot-1.png)
 
-Held-out prediction accuracy from the two end-of-manifold embeddings,
-plotted against each participant’s own manifold position.
+Leave-one-out held-out prediction accuracy from the two end-of-manifold
+embeddings, plotted against each participant’s own (full-sample)
+manifold position.
 
-A clean crossover: the left-end embedding predicts best for participants
-near the left end of the manifold, the right-end embedding predicts best
-for everyone else, and which one wins tracks manifold position almost
-perfectly (R² = 0.7, from a simple linear regression of the accuracy
-difference on position). This is a genuine, strong
-individual-differences effect – in a domain (color similarity) where
-that kind of heterogeneity might not be expected at all.
+The crossover survives: the left-end embedding predicts best for
+participants near the left end of the manifold, the right-end embedding
+predicts best for everyone else, and which one wins tracks manifold
+position almost perfectly (R² = 0.62, from a simple linear regression of
+the accuracy difference on position – barely smaller than what the
+leakage-prone naive version would have reported). This is a genuine,
+strong individual-differences effect – in a domain (color similarity)
+where that kind of heterogeneity might not be expected at all – and
+unlike the naive version, this result is actually trustworthy: it was
+computed with no participant ever contributing to the embedding used to
+predict them.
 
 ## Summary
 
@@ -369,10 +422,10 @@ that kind of heterogeneity might not be expected at all.
 |----|----|
 | Does the embedding recover a known reference space? | [`vegan::procrustes()`](https://vegandevs.github.io/vegan/reference/procrustes.html) |
 | Is there discrete cluster structure across participants? | [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md) |
-| Is there a real, continuous axis of individual variation? | [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md), [`cmdscale()`](https://rdrr.io/r/stats/cmdscale.html) |
+| Is there a real, continuous axis of individual variation? | [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md), [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md), [`cmdscale()`](https://rdrr.io/r/stats/cmdscale.html) |
 | How does representation change smoothly along that axis? | [`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md), [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) |
 | How do I visualize that change? | [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md), [`plot_2d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_2d_trajectory.md) |
-| Does manifold position predict individual judgments? | [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md) |
+| Does manifold position predict individual judgments? | [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md) (not [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md) on [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)’s output directly – see above) |
 
 See
 [`vignette("tripletTools")`](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/tripletTools.md)
