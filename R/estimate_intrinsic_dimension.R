@@ -15,8 +15,19 @@
 #' @param threshold_quantile Numeric in (0, 1). A dimension is retained
 #'   only if its observed eigenvalue exceeds this quantile of the
 #'   permutation-null eigenvalues at the same rank. Default 0.95.
-#' @param seed Integer or \code{NULL}. Random seed for the permutations.
+#' @param seed Integer or \code{NULL}. Random seed for the permutations
+#'   (and for \code{\link{test_dominant_dimension}}'s simulations, when
+#'   \code{test_dominance = TRUE}).
 #'   Default \code{NULL} leaves the global random state untouched.
+#' @param test_dominance Logical. Also run
+#'   \code{\link{test_dominant_dimension}} on the leading (rank-1)
+#'   dimension -- a simulation-based test that directly targets \emph{A
+#'   known weakness for a single dominant dimension} below, rather than
+#'   relying on the \code{dominance_ratio} heuristic alone. Default
+#'   \code{TRUE}.
+#' @param n_simulations Integer. Null datasets simulated for
+#'   \code{\link{test_dominant_dimension}} when \code{test_dominance =
+#'   TRUE}. Default 2000. Ignored otherwise.
 #' @param verbose Logical. Print an interpretive summary? Default \code{TRUE}.
 #'
 #' @section Method:
@@ -72,7 +83,10 @@
 #' spells out which case applies when \code{forced_to_one} is \code{TRUE}.
 #' Corroborating evidence independent of this test (e.g. a reproducible
 #' \code{hclust} split, or \code{\link{test_for_clusters}}'s BIC) is the
-#' most reliable way to resolve the ambiguity.
+#' most reliable way to resolve the ambiguity -- as is this function's own
+#' \code{dominance_p_value} (see below), which targets this exact weakness
+#' directly via \code{\link{test_dominant_dimension}} rather than relying
+#' on the \code{dominance_ratio} heuristic alone.
 #'
 #' @return A list with elements:
 #' \describe{
@@ -91,6 +105,10 @@
 #'     above about 3) alongside \code{forced_to_one = TRUE} suggests the
 #'     floor is likely masking a real dominant dimension rather than
 #'     reflecting an honest absence of structure (see above).}
+#'   \item{\code{dominance_p_value}}{\code{NA} unless \code{test_dominance =
+#'     TRUE}. The p-value from \code{\link{test_dominant_dimension}} for
+#'     the leading dimension -- a direct, simulation-based significance
+#'     test, complementing \code{dominance_ratio}.}
 #' }
 #'
 #' @importFrom stats cmdscale cov quantile as.dist
@@ -104,6 +122,7 @@
 #' }
 estimate_intrinsic_dimension <- function(dist_mat, n_permutations = 200,
                                           threshold_quantile = 0.95, seed = NULL,
+                                          test_dominance = TRUE, n_simulations = 2000,
                                           verbose = TRUE) {
   d <- stats::as.dist(dist_mat)
   n <- attr(d, "Size")
@@ -175,6 +194,14 @@ estimate_intrinsic_dimension <- function(dist_mat, n_permutations = 200,
   # honest absence of it.
   dominance_ratio <- if (k_candidate > 1) real_eig[1] / mean(real_eig[-1]) else NA_real_
 
+  dominance_p_value <- NA_real_
+  if (test_dominance && k_candidate > 1) {
+    dominance_test <- test_dominant_dimension(
+      dist_mat, rank = 1, n_simulations = n_simulations, seed = seed, verbose = FALSE
+    )
+    dominance_p_value <- dominance_test$p_value
+  }
+
   if (verbose) {
     cat("Observed vs. permutation-null eigenvalues (kept = observed > threshold):\n")
     print(data.frame(
@@ -198,11 +225,10 @@ estimate_intrinsic_dimension <- function(dist_mat, n_permutations = 200,
             "value), so the null's own top eigenvalue ends up built largely from that",
             "same dominant variance -- the leading dimension effectively has to 'beat a",
             "shuffled version of itself,' a bar that's unusually hard to clear regardless",
-            "of how strong the true signal is. Corroborate with independent evidence",
-            "(e.g. a reproducible hclust split, or test_for_clusters()'s BIC) before",
-            "concluding there's no real structure here.\n"
+            "of how strong the true signal is.%s\n"
           ),
-          real_eig[1], dominance_ratio, mean(real_eig[-1])
+          real_eig[1], dominance_ratio, mean(real_eig[-1]),
+          if (test_dominance) "" else " Corroborate with independent evidence (e.g. a reproducible hclust split, or test_for_clusters()'s BIC) before concluding there's no real structure here."
         ))
       } else {
         cat("No leading dimension stood out as dominant enough to suggest this is just",
@@ -210,6 +236,20 @@ estimate_intrinsic_dimension <- function(dist_mat, n_permutations = 200,
             "documentation) -- here, k = 1 is closer to a genuine floor default than a",
             "likely-real detection, and the data may have little detectable",
             "multivariate structure.\n")
+      }
+      if (test_dominance && !is.na(dominance_p_value)) {
+        cat(sprintf(
+          paste(
+            "Simulation-based dominance test (direct, not heuristic -- see",
+            "?test_dominant_dimension): p-value = %.4g.%s\n"
+          ),
+          dominance_p_value,
+          if (dominance_p_value < 0.05) {
+            " This directly supports a genuine dominant leading dimension, rather than inferring it indirectly from dominance_ratio alone."
+          } else {
+            " This does not support rejecting the no-structure null; treat k = 1 here as a floor default, not a confirmed detection."
+          }
+        ))
       }
     }
     cat(sprintf("-> estimated intrinsic dimension: %d\n", k))
@@ -221,6 +261,7 @@ estimate_intrinsic_dimension <- function(dist_mat, n_permutations = 200,
     null_threshold = null_threshold,
     n_permutations = n_permutations,
     forced_to_one = forced_to_one,
-    dominance_ratio = dominance_ratio
+    dominance_ratio = dominance_ratio,
+    dominance_p_value = dominance_p_value
   ))
 }

@@ -105,6 +105,28 @@ test_that("forced_to_one + a large dominance_ratio flags a likely dominant-facto
   expect_true(res$forced_to_one)
   expect_equal(res$k, 1)
   expect_gt(res$dominance_ratio, 3)
+  # test_dominance = TRUE (the default): the simulation-based test should
+  # also flag this as a likely real dominant dimension, not just the
+  # dominance_ratio heuristic.
+  expect_lt(res$dominance_p_value, 0.05)
+})
+
+test_that("dominance_p_value is NA when test_dominance = FALSE", {
+  set.seed(1)
+  dom <- rnorm(20, sd = 5)
+  noise <- matrix(rnorm(20 * 6, sd = 1), 20, 6)
+  X <- cbind(dom, noise)
+  res <- estimate_intrinsic_dimension(dist(X), n_permutations = 50, test_dominance = FALSE,
+                                       seed = 1, verbose = FALSE)
+  expect_true(is.na(res$dominance_p_value))
+})
+
+test_that("dominance_p_value is not significant on pure noise", {
+  set.seed(1)
+  X <- matrix(runif(20 * 6), nrow = 20)
+  res <- estimate_intrinsic_dimension(dist(X), n_permutations = 50, n_simulations = 500,
+                                       seed = 1, verbose = FALSE)
+  expect_gt(res$dominance_p_value, 0.05)
 })
 
 test_that("dominance_ratio is NA when there's only one candidate dimension", {

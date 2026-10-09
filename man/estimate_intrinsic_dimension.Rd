@@ -9,6 +9,8 @@ estimate_intrinsic_dimension(
   n_permutations = 200,
   threshold_quantile = 0.95,
   seed = NULL,
+  test_dominance = TRUE,
+  n_simulations = 2000,
   verbose = TRUE
 )
 }
@@ -23,8 +25,21 @@ used to build the reference distribution at each rank. Default 200.}
 only if its observed eigenvalue exceeds this quantile of the
 permutation-null eigenvalues at the same rank. Default 0.95.}
 
-\item{seed}{Integer or \code{NULL}. Random seed for the permutations.
+\item{seed}{Integer or \code{NULL}. Random seed for the permutations
+(and for \code{\link{test_dominant_dimension}}'s simulations, when
+\code{test_dominance = TRUE}).
 Default \code{NULL} leaves the global random state untouched.}
+
+\item{test_dominance}{Logical. Also run
+\code{\link{test_dominant_dimension}} on the leading (rank-1)
+dimension -- a simulation-based test that directly targets \emph{A
+known weakness for a single dominant dimension} below, rather than
+relying on the \code{dominance_ratio} heuristic alone. Default
+\code{TRUE}.}
+
+\item{n_simulations}{Integer. Null datasets simulated for
+\code{\link{test_dominant_dimension}} when \code{test_dominance =
+  TRUE}. Default 2000. Ignored otherwise.}
 
 \item{verbose}{Logical. Print an interpretive summary? Default \code{TRUE}.}
 }
@@ -46,6 +61,10 @@ divided by the mean of the rest -- a large value (rule of thumb:
 above about 3) alongside \code{forced_to_one = TRUE} suggests the
 floor is likely masking a real dominant dimension rather than
 reflecting an honest absence of structure (see above).}
+\item{\code{dominance_p_value}}{\code{NA} unless \code{test_dominance =
+    TRUE}. The p-value from \code{\link{test_dominant_dimension}} for
+the leading dimension -- a direct, simulation-based significance
+test, complementing \code{dominance_ratio}.}
 }
 }
 \description{
@@ -113,7 +132,10 @@ genuine absence of detectable structure," and \code{verbose} output
 spells out which case applies when \code{forced_to_one} is \code{TRUE}.
 Corroborating evidence independent of this test (e.g. a reproducible
 \code{hclust} split, or \code{\link{test_for_clusters}}'s BIC) is the
-most reliable way to resolve the ambiguity.
+most reliable way to resolve the ambiguity -- as is this function's own
+\code{dominance_p_value} (see below), which targets this exact weakness
+directly via \code{\link{test_dominant_dimension}} rather than relying
+on the \code{dominance_ratio} heuristic alone.
 }
 
 \examples{
