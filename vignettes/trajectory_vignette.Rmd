@@ -25,6 +25,8 @@ This vignette walks through that alternative using a real dataset: triplet simil
 - `generalized_procrustes()` -- aligning many embeddings into one shared consensus frame
 - `smooth_embedding_trajectory()` -- a kernel-weighted average embedding at points along a continuous 1-D axis of individual variation
 - `plot_3d_trajectory()`/`plot_2d_trajectory()` -- visualizing how the representation changes along that axis
+- `test_dominant_dimension()` -- a direct statistical test for a single dominant axis, where Horn's parallel analysis is known to be conservative
+- `loo_trajectory_accuracy()` -- testing whether manifold position predicts held-out judgments, without the data leakage a naive version of this test would have
 
 The dataset is bundled with the package as `color_triplets` (raw judgments), `color_emb_ind`/`color_emb_group` (precomputed 3-D embeddings, fit the same way as in `vignette("embedding_vignette")`), and `color_lab` (the patches' own CIE LAB coordinates, for comparison).
 
@@ -90,10 +92,10 @@ The Hopkins statistic is non-significant and the BIC search prefers a single com
 `estimate_intrinsic_dimension()` asks how many real dimensions of variation exist among participants' embeddings (as opposed to how many dimensions the color embeddings themselves have):
 
 ```{r intrinsic-dim}
-estimate_intrinsic_dimension(repdist)
+estimate_intrinsic_dimension(repdist, seed = 3)
 ```
 
-This comes back "forced to 1" -- but with the leading eigenvalue several times the size of the rest, which is exactly the known false-negative pattern documented for this function (see `?estimate_intrinsic_dimension`): when nearly all the real signal sits in one dominant dimension, Horn's parallel analysis has to beat a shuffled version of that same dominant variance, which is an unusually hard bar to clear. Combined with the non-significant Hopkins result above (no evidence of multiple discrete components either), this is good evidence for one real, continuous dimension of individual variation -- not zero dimensions of structure.
+This comes back "forced to 1" -- Horn's parallel analysis has to beat a shuffled version of the leading dimension's own (already dominant) variance, which is an unusually hard bar to clear, and is a known false-negative pattern for exactly this case (see `?estimate_intrinsic_dimension`). But two further pieces of evidence point the same direction: the leading eigenvalue is about 5x the typical size of the rest, and -- more directly -- `test_dominant_dimension()`'s simulation-based significance test (run automatically above, since `test_dominance = TRUE` by default) rejects the no-structure null outright (p = 0.001). Unlike the eigenvalue-magnitude comparison Horn's test makes, this test compares a scale-invariant statistic (proportion of variance explained) against a null simulated at equal variance across candidate dimensions, which sidesteps the "beat a shuffled version of itself" problem -- see `?test_dominant_dimension` for why, and for a worked example where this same test does *not* reach significance despite a similarly large eigenvalue ratio (smaller sample sizes have less power to detect the same effect size). Combined with the non-significant Hopkins result above (no evidence of multiple discrete components either), this is solid evidence for one real, continuous dimension of individual variation -- not zero dimensions of structure.
 
 `cmdscale()` gives each participant's own position along that one dimension:
 
@@ -134,34 +136,36 @@ The shift is striking: at one end of the manifold the patches collapse toward a 
 
 ## Does manifold position predict individual judgments?
 
-If this axis reflects a real difference in how participants represent color, then each participant's own held-out judgments should be better predicted by the embedding from *their* end of the manifold than by the embedding from the opposite end. `get.hoacc()` gives, for one embedding, the proportion of a participant's held-out validation trials it predicts correctly:
+If this axis reflects a real difference in how participants represent color, then each participant's own held-out judgments should be better predicted by the embedding from *their* end of the manifold than by the embedding from the opposite end.
 
-```{r crossover-compute}
-n <- length(color_triplets)
-acc <- matrix(NA, n, 2)
-for (i in seq_len(n)) {
-  acc[i, 1] <- get.hoacc(traj$embeddings[[1]],  color_triplets[[i]], trialtype = "validation")
-  acc[i, 2] <- get.hoacc(traj$embeddings[[16]], color_triplets[[i]], trialtype = "validation")
-}
+It's tempting to test this by reusing the `traj` object already computed above: for each participant, evaluate `get.hoacc()` at the query point nearest their own position, and see whether that beats the opposite end. **This approach has a real, confirmed data-leakage problem, and should not be used.** `smooth_embedding_trajectory()`'s kernel weighting gives no participant's weight at a query point ever exactly zero, so every participant's own already-fitted embedding contributes -- with real weight -- to the very query-point embeddings later evaluated against their own held-out trials. A participant's own embedding unsurprisingly predicts their own behavior reasonably well regardless of whether any real shared structure exists at all, so this setup cannot distinguish "real structure shared with actual neighbors" from "trivial self-prediction via self-contribution to the averaged embedding." This was not a hypothetical concern: on synthetic data built from participants with fully independent, unrelated true embeddings (zero real shared structure, by construction), this naive approach produced a strong, "significant"-looking crossover (R<sup>2</sup> = 0.27, p = 0.003) purely from this mechanism (see `?smooth_embedding_trajectory`'s own warning section, and `?loo_trajectory_accuracy` for the full story).
+
+`loo_trajectory_accuracy()` does this correctly: for every participant, it drops them entirely -- from the distance matrix before `cmdscale()` computes the axis, and from the embedding list before the trajectory is refit on the remaining participants -- and only then evaluates their held-out trials against the resulting, fully out-of-sample trajectory.
+
+```{r loo-compute}
+loo_res <- loo_trajectory_accuracy(repdist, color_emb_ind, color_triplets, n_query = 16, verbose = FALSE)
 ```
 
-```{r crossover-plot, fig.width = 7, fig.height = 6, fig.cap="Held-out prediction accuracy from the two end-of-manifold embeddings, plotted against each participant's own manifold position."}
-plot(0, .5, type = "n", xlim = range(pos), ylim = c(min(acc) - .05, max(acc) + .05),
+```{r crossover-plot, fig.width = 7, fig.height = 6, fig.cap="Leave-one-out held-out prediction accuracy from the two end-of-manifold embeddings, plotted against each participant's own (full-sample) manifold position."}
+fsp <- loo_res$full_sample_position
+acc <- loo_res$accuracy
+
+plot(0, .5, type = "n", xlim = range(fsp), ylim = c(min(acc) - .05, max(acc) + .05),
      xlab = "Manifold position", ylab = "Accuracy on held-out validation trials")
-for (i in seq_len(n)) lines(c(pos[i], pos[i]), c(acc[i, 1], acc[i, 2]), col = "gray")
+for (i in seq_along(fsp)) lines(c(fsp[i], fsp[i]), c(acc[i, 1], acc[i, 16]), col = "gray")
 
-points(pos, acc[, 1], pch = 16, col = "steelblue")
-abline(lm(acc[, 1] ~ pos[, 1]), col = "steelblue")
+points(fsp, acc[, 1], pch = 16, col = "steelblue")
+abline(lm(acc[, 1] ~ fsp), col = "steelblue")
 
-points(pos, acc[, 2], pch = 16, col = "firebrick")
-abline(lm(acc[, 2] ~ pos[, 1]), col = "firebrick")
+points(fsp, acc[, 16], pch = 16, col = "firebrick")
+abline(lm(acc[, 16] ~ fsp), col = "firebrick")
 
 abline(h = .5, lty = 2)
 legend("bottomleft", legend = c("Embedding at left end", "Embedding at right end"),
        col = c("steelblue", "firebrick"), pch = 16, bty = "n")
 ```
 
-A clean crossover: the left-end embedding predicts best for participants near the left end of the manifold, the right-end embedding predicts best for everyone else, and which one wins tracks manifold position almost perfectly (R<sup>2</sup> = `r round(summary(lm(I(acc[,1]-acc[,2]) ~ pos[,1]))$r.squared, 2)`, from a simple linear regression of the accuracy difference on position). This is a genuine, strong individual-differences effect -- in a domain (color similarity) where that kind of heterogeneity might not be expected at all.
+The crossover survives: the left-end embedding predicts best for participants near the left end of the manifold, the right-end embedding predicts best for everyone else, and which one wins tracks manifold position almost perfectly (R<sup>2</sup> = `r round(summary(lm(I(acc[,1]-acc[,16]) ~ fsp))$r.squared, 2)`, from a simple linear regression of the accuracy difference on position -- barely smaller than what the leakage-prone naive version would have reported). This is a genuine, strong individual-differences effect -- in a domain (color similarity) where that kind of heterogeneity might not be expected at all -- and unlike the naive version, this result is actually trustworthy: it was computed with no participant ever contributing to the embedding used to predict them.
 
 ## Summary
 
@@ -169,9 +173,9 @@ A clean crossover: the left-end embedding predicts best for participants near th
 |---|---|
 | Does the embedding recover a known reference space? | `vegan::procrustes()` |
 | Is there discrete cluster structure across participants? | `test_for_clusters()` |
-| Is there a real, continuous axis of individual variation? | `estimate_intrinsic_dimension()`, `cmdscale()` |
+| Is there a real, continuous axis of individual variation? | `estimate_intrinsic_dimension()`, `test_dominant_dimension()`, `cmdscale()` |
 | How does representation change smoothly along that axis? | `generalized_procrustes()`, `smooth_embedding_trajectory()` |
 | How do I visualize that change? | `plot_3d_trajectory()`, `plot_2d_trajectory()` |
-| Does manifold position predict individual judgments? | `get.hoacc()` |
+| Does manifold position predict individual judgments? | `loo_trajectory_accuracy()` (not `get.hoacc()` on `smooth_embedding_trajectory()`'s output directly -- see above) |
 
 See `vignette("tripletTools")` for the discrete-clustering alternative (`test_for_clusters()`, `test_cluster_stability()`, hierarchical clustering), and `vignette("comparing_embeddings_vignette")` for more on Procrustes alignment and classifier-based evaluation.
