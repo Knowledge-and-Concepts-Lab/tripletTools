@@ -17,6 +17,8 @@ estimate_intrinsic_dimension(
   n_permutations = 200,
   threshold_quantile = 0.95,
   seed = NULL,
+  test_dominance = TRUE,
+  n_simulations = 2000,
   verbose = TRUE
 )
 ```
@@ -42,8 +44,25 @@ estimate_intrinsic_dimension(
 
 - seed:
 
-  Integer or `NULL`. Random seed for the permutations. Default `NULL`
-  leaves the global random state untouched.
+  Integer or `NULL`. Random seed for the permutations (and for
+  [`test_dominant_dimension`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)'s
+  simulations, when `test_dominance = TRUE`). Default `NULL` leaves the
+  global random state untouched.
+
+- test_dominance:
+
+  Logical. Also run
+  [`test_dominant_dimension`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+  on the leading (rank-1) dimension – a simulation-based test that
+  directly targets *A known weakness for a single dominant dimension*
+  below, rather than relying on the `dominance_ratio` heuristic alone.
+  Default `TRUE`.
+
+- n_simulations:
+
+  Integer. Null datasets simulated for
+  [`test_dominant_dimension`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+  when `test_dominance = TRUE`. Default 2000. Ignored otherwise.
 
 - verbose:
 
@@ -83,6 +102,13 @@ A list with elements:
   value (rule of thumb: above about 3) alongside `forced_to_one = TRUE`
   suggests the floor is likely masking a real dominant dimension rather
   than reflecting an honest absence of structure (see above).
+
+- `dominance_p_value`:
+
+  `NA` unless `test_dominance = TRUE`. The p-value from
+  [`test_dominant_dimension`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+  for the leading dimension – a direct, simulation-based significance
+  test, complementing `dominance_ratio`.
 
 ## Method
 
@@ -141,7 +167,11 @@ detectable structure," and `verbose` output spells out which case
 applies when `forced_to_one` is `TRUE`. Corroborating evidence
 independent of this test (e.g. a reproducible `hclust` split, or
 [`test_for_clusters`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)'s
-BIC) is the most reliable way to resolve the ambiguity.
+BIC) is the most reliable way to resolve the ambiguity – as is this
+function's own `dominance_p_value` (see below), which targets this exact
+weakness directly via
+[`test_dominant_dimension`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+rather than relying on the `dominance_ratio` heuristic alone.
 
 ## Examples
 

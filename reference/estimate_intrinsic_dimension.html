@@ -70,6 +70,8 @@ when it isn't supplied directly.</p>
 <span>  n_permutations <span class="op">=</span> <span class="fl">200</span>,</span>
 <span>  threshold_quantile <span class="op">=</span> <span class="fl">0.95</span>,</span>
 <span>  seed <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  test_dominance <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  n_simulations <span class="op">=</span> <span class="fl">2000</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -95,8 +97,25 @@ permutation-null eigenvalues at the same rank. Default 0.95.</p></dd>
 
 
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
-<dd><p>Integer or <code>NULL</code>. Random seed for the permutations.
+<dd><p>Integer or <code>NULL</code>. Random seed for the permutations
+(and for <code><a href="test_dominant_dimension.html">test_dominant_dimension</a></code>'s simulations, when
+<code>test_dominance = TRUE</code>).
 Default <code>NULL</code> leaves the global random state untouched.</p></dd>
+
+
+<dt id="arg-test-dominance">test_dominance<a class="anchor" aria-label="anchor" href="#arg-test-dominance"></a></dt>
+<dd><p>Logical. Also run
+<code><a href="test_dominant_dimension.html">test_dominant_dimension</a></code> on the leading (rank-1)
+dimension – a simulation-based test that directly targets <em>A
+known weakness for a single dominant dimension</em> below, rather than
+relying on the <code>dominance_ratio</code> heuristic alone. Default
+<code>TRUE</code>.</p></dd>
+
+
+<dt id="arg-n-simulations">n_simulations<a class="anchor" aria-label="anchor" href="#arg-n-simulations"></a></dt>
+<dd><p>Integer. Null datasets simulated for
+<code><a href="test_dominant_dimension.html">test_dominant_dimension</a></code> when <code>test_dominance =
+  TRUE</code>. Default 2000. Ignored otherwise.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
@@ -131,6 +150,12 @@ divided by the mean of the rest – a large value (rule of thumb:
 above about 3) alongside <code>forced_to_one = TRUE</code> suggests the
 floor is likely masking a real dominant dimension rather than
 reflecting an honest absence of structure (see above).</p></dd>
+
+<dt><code>dominance_p_value</code></dt>
+<dd><p><code>NA</code> unless <code>test_dominance =
+    TRUE</code>. The p-value from <code><a href="test_dominant_dimension.html">test_dominant_dimension</a></code> for
+the leading dimension – a direct, simulation-based significance
+test, complementing <code>dominance_ratio</code>.</p></dd>
 
 
 </dl></div>
@@ -192,7 +217,10 @@ genuine absence of detectable structure," and <code>verbose</code> output
 spells out which case applies when <code>forced_to_one</code> is <code>TRUE</code>.
 Corroborating evidence independent of this test (e.g. a reproducible
 <code>hclust</code> split, or <code><a href="test_for_clusters.html">test_for_clusters</a></code>'s BIC) is the
-most reliable way to resolve the ambiguity.</p>
+most reliable way to resolve the ambiguity – as is this function's own
+<code>dominance_p_value</code> (see below), which targets this exact weakness
+directly via <code><a href="test_dominant_dimension.html">test_dominant_dimension</a></code> rather than relying
+on the <code>dominance_ratio</code> heuristic alone.</p>
     </div>
 
     <div class="section level2">

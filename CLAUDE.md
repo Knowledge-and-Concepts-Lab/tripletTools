@@ -147,7 +147,8 @@ Current version: **0.2.0**. Package URL:
 | [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md) | R/group_difference_test.R | Permutation test for whether two participant groups’ embeddings differ reliably; local (small-scale) companion to `inst/condor/condor_group_diff_workflow.py` |
 | [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md) | R/find_discrepant_items.R | Ranks items by how much their distance-to-others profile differs between two embeddings; alignment-free alternative to per-item Procrustes residuals |
 | [`reduce_embedding_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/reduce_embedding_dimension.md) | R/reduce_embedding_dimension.R | Reduces an embedding fit at a generously high `d` to the lowest dimension (via PCA) that preserves most of its variance, and reports triplet-prediction accuracy before/after |
-| [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md) | R/estimate_intrinsic_dimension.R | Horn’s parallel analysis on the cMDS decomposition of a distance matrix (e.g. from [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)) — estimates how many dimensions carry real, permutation-irreducible structure vs. noise. Used by [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)’s `k_use` when not supplied directly |
+| [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md) | R/estimate_intrinsic_dimension.R | Horn’s parallel analysis on the cMDS decomposition of a distance matrix (e.g. from [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)) — estimates how many dimensions carry real, permutation-irreducible structure vs. noise. Used by [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)’s `k_use` when not supplied directly. Also runs [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md) on the leading dimension by default (`test_dominance = TRUE`) |
+| [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md) | R/test_dominant_dimension.R | Simulation-based (not permutation-based) significance test for whether one cMDS dimension’s share of variance exceeds a no-true-structure null — specifically targets the single-dominant-axis case [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)’s own permutation test is conservative for |
 | [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md) | R/test_for_clusters.R | Hopkins statistic (is there cluster structure at all?) + `mclust` BIC comparison (how many clusters?) on a participant distance matrix; also returns `model_name`/`classification` — the winning BIC model’s covariance-structure type and its own MAP hard assignment, for comparing against a separate hierarchical-clustering-based partition |
 | [`test_cluster_stability()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_cluster_stability.md) | R/test_cluster_stability.R | Resampling (subsample-without-replacement) stability check for a chosen `hclust`+`cutree(k)` partition: refits on random participant subsets and compares each back to the full-data partition via Adjusted Rand Index, plus a per-participant co-clustering stability score |
 | [`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md) | R/generalized_procrustes.R | Iterative GPA (Gower, 1975): aligns *every* embedding in a list into one shared consensus frame simultaneously, unlike [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)’s pairwise-only alignment. Prerequisite for [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) |
@@ -1692,6 +1693,77 @@ back to the returned matrices.
   [`round()`](https://rdrr.io/r/base/Round.html)’s exact behavior at a
   non-round `test_prop * n_random`; the `test_prop ∈ {0, 1}` extremes; a
   zero-random-trials participant not erroring).
+- **[`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)**
+  (new) + integration into
+  [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
+  (new `dominance_p_value`, `test_dominance`/`n_simulations` args) – a
+  direct, simulation-based statistical test for exactly the weakness
+  [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)’s
+  own docs already flagged (Horn’s PA conservatism at rank 1, previously
+  only hinted at via the `dominance_ratio` heuristic). Motivated by the
+  user noticing the same pattern across several real datasets:
+  `forced_to_one = TRUE` with a clearly dominant leading eigenvalue (4x+
+  the rest), wanting something more statistically justified than a ratio
+  heuristic.
+  - **Two earlier designs were tried and both failed real validation,
+    not shipped**: (1) bootstrap-eigenvector-stability (Jackson 1993;
+    Peres-Neto, Jackson & Somers 2003/2005 – genuine precedent, verified
+    via search, for testing PCA axis stability under bootstrap
+    resampling) – failed because
+    [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)’s
+    `coords` come from
+    [`cmdscale()`](https://rdrr.io/r/stats/cmdscale.html), which is
+    *already* orthogonal by construction, so re-eigendecomposing
+    bootstrap-resampled copies of it just rediscovers whichever column
+    has the most variance regardless of whether that dominance is real
+    or sampling noise; three variants (direct, correlation-standardized,
+    full cmdscale-refit-per-bootstrap-draw) were tried and all three
+    gave statistically indistinguishable “stability” for genuine
+    synthetic structure vs. pure noise in controlled tests. (2) The
+    literal asymptotic Tracy-Widom distribution (Johnstone 2001;
+    Patterson, Price & Reich 2006) – ruled out before implementing, via
+    a literature check confirming its accuracy is well documented to
+    degrade “when either the sample size or dimension is not too large”
+    – exactly this package’s regime (participant counts in the tens, not
+    thousands).
+  - **What actually worked, found by going back to Horn’s own original
+    1965 parallel-analysis proposal** (simulated random data) rather
+    than the permutation variant of Buja & Eyuboglu (1992) that
+    [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
+    already implements – but with two modifications that were
+    *necessary*, confirmed by testing, not assumed: simulating the null
+    at **equal** variance across candidate dimensions (not matched to
+    the observed data’s own per-dimension variances, which is what both
+    Horn’s original method and permutation do, and is exactly what
+    reintroduces the “beat a shuffled/simulated version of itself”
+    problem for a dominant first axis), and testing the
+    **scale-invariant proportion of variance explained** by the
+    dimension in question rather than raw eigenvalue magnitude (needed
+    since the observed data and a unit-variance null simulation aren’t
+    otherwise on comparable scales). This is a specific combination this
+    package arrived at via testing, not a direct implementation of any
+    one cited paper’s exact method – documented as such in the
+    function’s own roxygen rather than overclaiming precedent.
+  - **Validated directly before shipping** (own `@section Validation`,
+    and locked into the test suite): Type I error close to nominal at n
+    = 6, 20, and 30 (observed false-positive rates 4.7-8.7% at alpha =
+    0.05/0.10); correctly non-significant for pure noise and a weak
+    (variance ratio 2) synthetic dominant dimension; correctly
+    significant from ratio \>= 5 at both n = 6 and n = 30. On the real
+    `icon_emb_ind` data (n = 6, `dominance_ratio` 5.64), gives p = 0.38
+    – an honest “can’t distinguish from noise at this sample size”
+    rather than a false positive, illustrating that a large
+    `dominance_ratio` alone is not sufficient evidence at very small n.
+  - [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
+    calls
+    [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+    directly (rank 1) rather than inlining/sharing loop state with its
+    own permutation test, since the new test’s simulation is entirely
+    independent of Horn’s permutation null – simpler and no real
+    efficiency cost. `test_dominance = TRUE` is the new default
+    (backward-compatible return shape: existing callers just get one new
+    always-present `dominance_p_value` field, `NA` when
+    `test_dominance = FALSE`).
 - **The pkgdown GitHub Actions build broke on push, right after
   `trajectory_vignette.Rmd` was committed** – found via the GitHub
   Actions REST API (not the HTML page – `gh` CLI isn’t installed here)

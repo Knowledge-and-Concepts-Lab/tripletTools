@@ -149,6 +149,9 @@
 - [`test_cluster_stability()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_cluster_stability.md)
   : Test how stable a hierarchical-clustering partition is under
   resampling
+- [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+  : Test whether a classical-MDS dimension reflects real structure via
+  simulation
 - [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)
   : Test whether embeddings show any cluster structure at all
 - [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
