@@ -251,6 +251,20 @@ plot_3d_trajectory <- function(traj, pos = NULL, loc,
 #' @param traj The full return value of
 #'   \code{\link{smooth_embedding_trajectory}}. Each embedding must have
 #'   exactly 2 columns (use \code{\link{plot_3d_trajectory}} for 3-D ones).
+#' @param mar Numeric vector of length 4 (bottom, left, top, right), passed
+#'   to \code{\link[graphics]{par}} for the duration of this plot (restored
+#'   on exit). Default \code{c(6, 4, 2, 2)} leaves enough room in the
+#'   bottom margin for the \code{effective_n} density strip, which is drawn
+#'   with \code{xpd = TRUE} (clipped to the figure region, not the plot
+#'   region) -- shrinking \code{mar} below what the strip needs will clip
+#'   it. Unlike \code{\link{plot_3d_trajectory}}, where \code{mar} is just
+#'   one more \code{\link[scatterplot3d]{scatterplot3d}} argument reachable
+#'   through \code{...}, base \code{\link[graphics]{plot}} has no \code{mar}
+#'   argument of its own for \code{...} to reach -- this function needs its
+#'   own explicit parameter to let margin be set per call (rather than only
+#'   via an external \code{par(mar = ...)}, which this function's own
+#'   internal margin-setting would otherwise capture and overwrite for the
+#'   duration of the call, restoring it again only once the call returns).
 #' @param ... Additional arguments passed to \code{\link[graphics]{plot}},
 #'   overriding this function's own defaults for any name also used
 #'   internally (e.g. \code{asp}, \code{main}) -- same mechanism as
@@ -277,7 +291,7 @@ plot_3d_trajectory <- function(traj, pos = NULL, loc,
 #' }
 plot_2d_trajectory <- function(traj, pos = NULL, loc,
                                 pcols = NULL, bcols = NULL, pch = NULL,
-                                cex.symbols = 1, ...) {
+                                cex.symbols = 1, mar = c(6, 4, 2, 2), ...) {
   validate_traj_loc(traj, loc)
   if (ncol(traj$embeddings[[1]]) != 2) {
     stop("traj$embeddings must have exactly 2 columns -- plot_2d_trajectory() is for 2-D embeddings only.")
@@ -292,12 +306,12 @@ plot_2d_trajectory <- function(traj, pos = NULL, loc,
   if (is.null(bcols)) bcols <- pcols
   if (is.null(pch)) pch <- 21
 
-  # A bit more room in the bottom margin than plot()'s own default leaves,
-  # so the density strip (drawn via xpd = TRUE, i.e. clipped to the figure
-  # region rather than the plot region) has somewhere to actually render,
-  # not get clipped at the figure boundary. Restored on exit so this
-  # doesn't leak into the caller's later plots.
-  old_par <- graphics::par(mar = c(6, 4, 2, 2))
+  # mar defaults to a bit more room in the bottom margin than plot()'s own
+  # default leaves, so the density strip (drawn via xpd = TRUE, i.e.
+  # clipped to the figure region rather than the plot region) has somewhere
+  # to actually render, not get clipped at the figure boundary. Restored on
+  # exit so this doesn't leak into the caller's later plots.
+  old_par <- graphics::par(mar = mar)
   on.exit(graphics::par(old_par), add = TRUE)
 
   tmp <- traj$embeddings[[loc]]

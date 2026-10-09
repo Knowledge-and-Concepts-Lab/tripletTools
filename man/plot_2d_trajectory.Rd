@@ -12,6 +12,7 @@ plot_2d_trajectory(
   bcols = NULL,
   pch = NULL,
   cex.symbols = 1,
+  mar = c(6, 4, 2, 2),
   ...
 )
 }
@@ -46,6 +47,21 @@ filled circle with a separately-colorable border, matching the
 \code{pcols}/\code{bcols} split).}
 
 \item{cex.symbols}{Point size. Default \code{1}.}
+
+\item{mar}{Numeric vector of length 4 (bottom, left, top, right), passed
+to \code{\link[graphics]{par}} for the duration of this plot (restored
+on exit). Default \code{c(6, 4, 2, 2)} leaves enough room in the
+bottom margin for the \code{effective_n} density strip, which is drawn
+with \code{xpd = TRUE} (clipped to the figure region, not the plot
+region) -- shrinking \code{mar} below what the strip needs will clip
+it. Unlike \code{\link{plot_3d_trajectory}}, where \code{mar} is just
+one more \code{\link[scatterplot3d]{scatterplot3d}} argument reachable
+through \code{...}, base \code{\link[graphics]{plot}} has no \code{mar}
+argument of its own for \code{...} to reach -- this function needs its
+own explicit parameter to let margin be set per call (rather than only
+via an external \code{par(mar = ...)}, which this function's own
+internal margin-setting would otherwise capture and overwrite for the
+duration of the call, restoring it again only once the call returns).}
 
 \item{...}{Additional arguments passed to \code{\link[graphics]{plot}},
 overriding this function's own defaults for any name also used
