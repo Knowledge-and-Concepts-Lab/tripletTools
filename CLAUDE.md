@@ -152,7 +152,8 @@ Current version: **0.2.0**. Package URL:
 | [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md) | R/test_for_clusters.R | Hopkins statistic (is there cluster structure at all?) + `mclust` BIC comparison (how many clusters?) on a participant distance matrix; also returns `model_name`/`classification` — the winning BIC model’s covariance-structure type and its own MAP hard assignment, for comparing against a separate hierarchical-clustering-based partition |
 | [`test_cluster_stability()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_cluster_stability.md) | R/test_cluster_stability.R | Resampling (subsample-without-replacement) stability check for a chosen `hclust`+`cutree(k)` partition: refits on random participant subsets and compares each back to the full-data partition via Adjusted Rand Index, plus a per-participant co-clustering stability score |
 | [`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md) | R/generalized_procrustes.R | Iterative GPA (Gower, 1975): aligns *every* embedding in a list into one shared consensus frame simultaneously, unlike [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)’s pairwise-only alignment. Prerequisite for [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) |
-| [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) | R/smooth_embedding_trajectory.R | Kernel-weighted (Gaussian/Epanechnikov) average embedding at a grid of query points along a 1-D latent participant axis (e.g. `cmdscale(get.rep.dist(elist), k=1)`) — a continuous alternative to binning participants and averaging each bin separately. Returns Kish’s effective sample size per query point to flag boundary regions where the average is driven by only one or two participants |
+| [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) | R/smooth_embedding_trajectory.R | Kernel-weighted (Gaussian/Epanechnikov) average embedding at a grid of query points along a 1-D latent participant axis (e.g. `cmdscale(get.rep.dist(elist), k=1)`) — a continuous alternative to binning participants and averaging each bin separately. Returns Kish’s effective sample size per query point to flag boundary regions where the average is driven by only one or two participants. **Not safe for per-participant held-out prediction without [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)** — see that function |
+| [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md) | R/loo_trajectory_accuracy.R | Leave-one-out-corrected version of the “does the trajectory predict held-out judgments” workflow — fully excludes each participant (including from the 1-D axis itself) before computing the trajectory evaluated against them, fixing a real, confirmed data-leakage pitfall in the naive version of this analysis |
 | [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md) | R/plot_3d_trajectory.R | 3-D scatterplot of one query point of a [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) result (`scatterplot3d`, Suggests-only), with an `effective_n` strip along the bottom, a red marker at the query point shown, and (optional) small black dots marking real participants’ own positions along the same strip |
 | [`plot_2d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_2d_trajectory.md) | R/plot_3d_trajectory.R | Same as [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md) (same argument conventions, same bottom strip/marker/dots) but for 2-D embeddings, built on base [`graphics::plot()`](https://rdrr.io/r/graphics/plot.default.html) instead of `scatterplot3d` – no extra dependency |
 
@@ -1693,6 +1694,80 @@ back to the returned matrices.
   [`round()`](https://rdrr.io/r/base/Round.html)’s exact behavior at a
   non-round `test_prop * n_random`; the `test_prop ∈ {0, 1}` extremes; a
   zero-random-trials participant not erroring).
+- **[`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)**
+  (new) – fixes a second, independently real data-leakage bug in the
+  [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)
+  prediction workflow, found by the user noticing an apparent
+  contradiction:
+  [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+  gave a non-significant p (~0.1) on a real dataset where PC1 explained
+  only ~9% of variance (dominance_ratio ~2, matched almost exactly to
+  this function’s own validated “weak, correctly-not-detected” synthetic
+  case), yet the user’s own crossover-prediction analysis
+  (left-end/right-end smoothed embeddings predicting held-out judgments)
+  showed a strong, clean crossover – which the user read as evidence
+  [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+  was underpowered/wrong.
+  - **Root cause, confirmed empirically rather than argued
+    theoretically**:
+    [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)’s
+    kernel weighting gives “no participant’s weight ever exactly zero”
+    (its own pre-existing docs) – so a participant near the left end of
+    the manifold contributes, with real weight, to the very left-end
+    smoothed embedding later evaluated against *their own* held-out
+    judgments. A participant’s own fitted embedding unsurprisingly
+    predicts their own behavior better than a random other participant’s
+    would, regardless of whether any genuine cross-participant structure
+    exists at all – so the crossover test as commonly used (compute the
+    trajectory once on everyone, then evaluate each participant against
+    their nearest query point) cannot distinguish “real shared structure
+    with actual neighbors” from “trivial self-contribution.”
+    Demonstrated directly: a synthetic dataset of participants with
+    fully independent, unrelated true embeddings (zero real structure,
+    by construction) produced a strong, “significant”-looking crossover
+    (R-squared 0.27, p = 0.003) under the naive approach – collapsing to
+    non-significance (R-squared 0.06, p = 0.18) once each participant
+    was excluded from just the smoothing step, and to near-zero
+    (R-squared 0.004, p = 0.80) once fully excluded, including from the
+    1-D axis computation itself (the stricter version this function
+    implements).
+  - **What it does**: for every participant, drops them entirely (from
+    `dist_mat` before `cmdscale` computes the 1-D axis, and from `elist`
+    before
+    [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)
+    refits the trajectory on the remaining n-1), then evaluates their
+    held-out trials (`trialtype`, typically `"validation"`) against
+    every one of `n_query` query points along that fully out-of-sample
+    trajectory – giving an `n` x `n_query` accuracy matrix per
+    participant, rather than one number per participant at whichever
+    single query point happened to be nearest them. Returns
+    `query_points` and `effective_n` per participant too (these shift
+    slightly participant to participant, since each leave-one-out fit
+    spans a slightly different (n-1)-participant range), plus
+    `full_sample_position` (each participant’s position from the *full*,
+    non-leave-one-out sample) for context/plotting only – never used in
+    any prediction.
+  - [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)’s
+    pairwise distances were confirmed (read directly, not assumed) to
+    depend only on the two participants in each cell – so subsetting the
+    already-computed `dist_mat` per left-out participant is exactly
+    equivalent to recomputing
+    [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)
+    from scratch on the remaining participants, no expensive distance
+    recomputation needed.
+  - [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)’s
+    own roxygen gained a new warning section () pointing to this
+    function, so the pitfall is documented where someone would naturally
+    first encounter the tool that has it, not only here.
+  - **Still open, not yet done**: `vignettes/trajectory_vignette.Rmd`’s
+    own headline crossover result (R² = 0.70 on the real color-triplets
+    data) was built using the naive, non-leave-one-out approach this
+    whole investigation started from – it has not yet been re-verified
+    with
+    [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md),
+    and may need correcting if the leakage-corrected effect is
+    substantially weaker, same as the user’s real dataset’s
+    R²=0.27-style naive result collapsed under correction.
 - **[`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)**
   (new) + integration into
   [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)

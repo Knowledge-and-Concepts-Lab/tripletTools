@@ -78,6 +78,9 @@
   : Face and Place icon pictures
 - [`icon_triplets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_triplets.md)
   : Triplet data for 32 icons of faces and places
+- [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+  : Leave-one-out prediction accuracy along a smoothed embedding
+  trajectory
 - [`make.tripnames()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.tripnames.md)
   : Make triplet names
 - [`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md)

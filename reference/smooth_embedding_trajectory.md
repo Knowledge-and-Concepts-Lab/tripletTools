@@ -136,6 +136,24 @@ starting point, not a guarantee – compare a couple of bandwidths, and
 cross-check any interesting local feature (e.g. a reversal near one end)
 against `effective_n` before trusting it (see below).
 
+## Not for per-participant held-out prediction, without correction
+
+This function is for visualizing/summarizing how the *group*
+representation changes along the axis. It is **not** safe, on its own,
+for testing whether the representation at a point near a specific
+participant predicts *that participant's* held-out judgments better than
+a distant point does: every query point's average has *no participant's
+weight ever exactly zero* (see below), so the embedding being evaluated
+against a participant partially consists of that participant's own
+already-fitted embedding – a real, confirmed data-leakage pitfall
+(demonstrated on synthetic data with zero true shared structure: this
+produced a strong, "significant"-looking crossover pattern, R-squared
+0.27, p = 0.003, purely from this mechanism). For that specific use
+case, use
+[`loo_trajectory_accuracy`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+instead, which fully excludes each participant – including from the 1-D
+axis itself – before computing the trajectory evaluated against them.
+
 ## Interpreting effective_n
 
 At each query point, participants are weighted by a smooth kernel
