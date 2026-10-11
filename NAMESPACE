@@ -3,6 +3,7 @@
 export(align.embeddings)
 export(assign_sample_alg)
 export(assign_sample_sets)
+export(assign_validation_from_frequency)
 export(estimate_dimensionality)
 export(estimate_intrinsic_dimension)
 export(estimate_learning_curve)
