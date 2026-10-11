@@ -54,8 +54,17 @@ make.tripnames <- function(tripdat){
   ##Main function
 
   opts <- as.matrix(tripdat[c("Left","Right")]) #Option items on each triplet
+  # Coerce to character *in place* (preserving dim) before gsub(). When Left/
+  # Right are numeric (e.g. integer item indices rather than string codes),
+  # as.matrix() above produces a numeric matrix; gsub() requires character
+  # input and would otherwise coerce it via as.character(), which silently
+  # drops the matrix's dim attribute (flattening it to a plain vector) and
+  # breaks every downstream use of dim(opts) -- confirmed directly to be the
+  # exact cause of a real "1:nitems : argument of length 0" error on a
+  # numeric-item dataset.
+  mode(opts) <- "character"
   opts <- gsub(" ","",opts) #Remove any spaces
-  cent <- gsub(" ","",tripdat$Center) #Center item on each triplet, spaced removed
+  cent <- gsub(" ","",as.character(tripdat$Center)) #Center item on each triplet, spaced removed
   nitems <- dim(opts)[1] #Total number of items
 
   #Put two options in a consistent order for all triplets (numeric-aware,
