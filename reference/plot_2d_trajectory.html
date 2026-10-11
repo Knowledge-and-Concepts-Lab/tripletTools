@@ -70,6 +70,7 @@ dots marking real participants' own positions along the same axis.</p>
 <span>  bcols <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  pch <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  cex.symbols <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">6</span>, <span class="fl">4</span>, <span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -119,6 +120,23 @@ filled circle with a separately-colorable border, matching the
 
 <dt id="arg-cex-symbols">cex.symbols<a class="anchor" aria-label="anchor" href="#arg-cex-symbols"></a></dt>
 <dd><p>Point size. Default <code>1</code>.</p></dd>
+
+
+<dt id="arg-mar">mar<a class="anchor" aria-label="anchor" href="#arg-mar"></a></dt>
+<dd><p>Numeric vector of length 4 (bottom, left, top, right), passed
+to <code><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></code> for the duration of this plot (restored
+on exit). Default <code>c(6, 4, 2, 2)</code> leaves enough room in the
+bottom margin for the <code>effective_n</code> density strip, which is drawn
+with <code>xpd = TRUE</code> (clipped to the figure region, not the plot
+region) – shrinking <code>mar</code> below what the strip needs will clip
+it. Unlike <code><a href="plot_3d_trajectory.html">plot_3d_trajectory</a></code>, where <code>mar</code> is just
+one more <code><a href="https://rdrr.io/pkg/scatterplot3d/man/scatterplot3d.html" class="external-link">scatterplot3d</a></code> argument reachable
+through <code>...</code>, base <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></code> has no <code>mar</code>
+argument of its own for <code>...</code> to reach – this function needs its
+own explicit parameter to let margin be set per call (rather than only
+via an external <code>par(mar = ...)</code>, which this function's own
+internal margin-setting would otherwise capture and overwrite for the
+duration of the call, restoring it again only once the call returns).</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>

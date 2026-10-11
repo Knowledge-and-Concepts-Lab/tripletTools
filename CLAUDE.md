@@ -1759,25 +1759,14 @@ back to the returned matrices.
     own roxygen gained a new warning section () pointing to this
     function, so the pitfall is documented where someone would naturally
     first encounter the tool that has it, not only here.
-  - **Resolved**: `vignettes/trajectory_vignette.Rmd` re-verified with
+  - **Resolved** (numbers below superseded two bullets down, once the
+    bundled `color_emb_ind` data itself turned out to be stale):
+    `vignettes/trajectory_vignette.Rmd` re-verified with
     [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
-    and fixed. On the bundled `color_triplets` data, the properly
-    leakage-corrected crossover holds up well – R² = 0.68 (down only
-    slightly from the naive version’s 0.70) – unlike the synthetic null
-    case above, where the whole effect was spurious. The vignette’s “A
-    continuous axis of individual differences” section also now surfaces
-    [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)’s
-    output (run automatically inside the existing
-    [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
-    call, via its new `test_dominance = TRUE` default): on this dataset
-    it actually *does* reject the no-structure null (p = 0.001, unlike
-    the Gabor-wavelet dataset discussed above, where the same test was
-    non-significant at a similar eigenvalue ratio – smaller n means less
-    power for the same effect size, a useful illustration left in the
-    vignette’s own prose). The crossover section now explicitly explains
-    the leakage pitfall in prose (not just a passing mention) before
-    showing the corrected analysis, since this is exactly the kind of
-    mistake a reader could otherwise repeat.
+    and fixed. The crossover section now explicitly explains the leakage
+    pitfall in prose (not just a passing mention) before showing the
+    corrected analysis, since this is exactly the kind of mistake a
+    reader could otherwise repeat.
 - **[`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)**
   (new) + integration into
   [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
@@ -1849,6 +1838,122 @@ back to the returned matrices.
     (backward-compatible return shape: existing callers just get one new
     always-present `dominance_p_value` field, `NA` when
     `test_dominance = FALSE`).
+- **Real data-quality bug in the bundled `color_emb_ind` dataset: it was
+  fit with validation trials leaking into training, making every
+  [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)/[`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+  number already shipped in `trajectory_vignette.Rmd` wrong.** Surfaced
+  when the user ran `test_dominant_dimension(p1rd)` in their own,
+  independently-refit notebook (`ColorTriplets/Color_analysis.Rmd`) and
+  got p ≈ 0.09, sharply different from the vignette’s reported p =
+  0.001. The user’s own diagnosis: “I think in the older version the
+  validation trials had been included when fitting embeddings… I
+  recomputed everything after setting validation trials to ‘holdout’.”
+  Confirmed precisely rather than taken on faith, three ways: (1)
+  `table(sampleAlg, sampleSet)` on the bundled `color_triplets.csv`
+  showed all 3864 validation trials at `sampleSet = "train"` –
+  consistent with, though not proof of, leakage at fit time (triplets
+  CSVs always show this regardless of holdout status, since
+  [`set_validation_behavior()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/set_validation_behavior.md)’s
+  `"holdout"` setting is applied in-memory and never written back to
+  disk – the real question is always what `sampleSet` was *at fit time*,
+  not what the raw CSV shows); (2) direct `md5sum` comparison of the
+  bundled `inst/extdata/color_embeddings_individual.csv` against the
+  user’s current live refit showed genuinely different hashes and
+  different coordinate values for the same worker/item cells; (3) the
+  decisive check – the user’s `fitdata_p1_3d.csv` (per-fit training/test
+  triplet counts) showed `n_train_triplets = 29459` for every individual
+  fit, which is exactly the random-trials-only count with the 3864
+  validation trials excluded (not 29459+3864 = 33323, which is what
+  leakage would produce) – confirming the user’s *current* files are the
+  methodologically correct, holdout-respecting fits.
+  - **Scope was narrower than it first looked.** `md5sum` comparison of
+    all three raw inputs showed the bundled **group embedding**
+    (`color_embeddings_group.csv`) and the bundled **raw triplets**
+    (`color_triplets.csv`) are byte-identical to the user’s current live
+    files – only the **individual embeddings**
+    (`color_embeddings_individual.csv`) were stale. (The group
+    embedding’s `n_train_triplets = 29459` in the same
+    `fitdata_p1_3d.csv` independently confirms it too was already fit
+    correctly, despite its file timestamp looking slightly older than
+    the individual-embeddings refit – timestamps on their own would have
+    been misleading here; the fit-stats count is what actually settles
+    it.) So only `color_emb_ind`/`data/color_emb_ind.rda` needed
+    re-bundling, not `color_emb_group` or `color_triplets`.
+  - Fixed by copying the user’s current
+    `ColorTriplets/embeddings/p1_3d_ind.csv` over
+    `inst/extdata/color_embeddings_individual.csv` and re-running
+    `data-raw/color_embeddings.R`’s individual-embedding block to
+    regenerate `data/color_emb_ind.rda`. No R/ code changed – this was
+    purely a stale-data problem, confirmed by the full test suite (540
+    tests) passing unchanged before and after (no test depends on
+    `color_emb_ind`’s specific values).
+  - `vignettes/trajectory_vignette.Rmd` recomputed end-to-end against
+    the corrected data and rewritten to match, not just patched with new
+    numbers:
+    [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)’s
+    Hopkins statistic is now *significant* (p = 0.021, was
+    non-significant before) while BIC still prefers `best_g = 1` –
+    re-framed in prose as exactly the signature a continuous
+    (non-discrete) axis should leave on Hopkins, rather than
+    contradicting the “no discrete subgroups” conclusion.
+    [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+    now gives p = 0.096 (not 0.001) on this dataset – i.e. the color
+    dataset is now itself the “dominance test doesn’t reach
+    significance” case, matching what the user’s own notebook found.
+    [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)’s
+    crossover R² is 0.638 (not 0.676) but remains highly significant (p
+    = 2.9e-12) and visually clean (re-rendered and inspected directly,
+    not assumed). This produced a better, more honest narrative arc than
+    the stale version had: the vignette now explicitly uses its own
+    [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
+    non-result as the motivating tension the leave-one-out behavioral
+    analysis resolves (“a p-value of 0.096 on the geometry alone is not
+    a confident detection… the decisive evidence comes from asking that
+    geometry to actually predict something”), rather than reporting two
+    independently-significant results that happened to agree. Verified
+    via full
+    [`rmarkdown::render()`](https://pkgs.rstudio.com/rmarkdown/reference/render.html)
+    (27 chunks, no errors) with the rendered crossover figure visually
+    inspected.
+  - General lesson distinct from the icon_emb_group rownames fix earlier
+    in this file: that was a *format* bug caught by code inspection;
+    this was a *fit-correctness* bug that could only be caught by
+    comparing shipped data against an independently-refit version and
+    checking per-fit training counts – a reminder that bundled
+    “precomputed” data objects can silently drift out of sync with the
+    pipeline code/conventions that produced them, with no test or lint
+    able to catch it automatically.
+- **[`plot_2d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_2d_trajectory.md)
+  gained an explicit `mar` parameter, fixing a real “can’t control plot
+  margins” report.** The user found the function left a lot of
+  whitespace around each panel and was “immune” to `par(mar = ...)`,
+  whether set externally beforehand or passed through `...`. Root cause:
+  unlike
+  [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md)
+  (where `mar` is just one more
+  [`scatterplot3d::scatterplot3d()`](https://rdrr.io/pkg/scatterplot3d/man/scatterplot3d.html)
+  argument, already reachable through the existing `...`/`modifyList`
+  mechanism),
+  [`plot_2d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_2d_trajectory.md)
+  set its margin via a hardcoded internal
+  `graphics::par(mar = c(6, 4, 2, 2))` call, entirely outside that
+  mechanism – `...` only ever reached
+  [`graphics::plot()`](https://rdrr.io/r/graphics/plot.default.html)
+  (which has no `mar` argument of its own to receive it), and any
+  external `par(mar = ...)` the caller had already set was captured and
+  overwritten by that same hardcoded call for the duration of the
+  function (then correctly restored afterward via the existing
+  [`on.exit()`](https://rdrr.io/r/base/on.exit.html) – so it wasn’t a
+  restore bug, the margin was just never settable in the first place).
+  Fixed by promoting the hardcoded value to an explicit
+  `mar = c(6, 4, 2, 2)` parameter (same default, so existing callers are
+  unaffected) used directly in that
+  [`par()`](https://rdrr.io/r/graphics/par.html) call. Verified
+  visually, not just by reading the fix: rendered a real 4x4 grid of
+  panels with the default `mar` (showing the reported excess whitespace)
+  against the same grid with `mar = c(2.5, 1, 1, 1)` (packing tightly,
+  with the `effective_n` density strip and red marker still rendering
+  correctly, not clipped).
 - **The pkgdown GitHub Actions build broke on push, right after
   `trajectory_vignette.Rmd` was committed** – found via the GitHub
   Actions REST API (not the HTML page – `gh` CLI isn’t installed here)

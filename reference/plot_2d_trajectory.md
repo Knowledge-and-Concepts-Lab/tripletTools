@@ -20,6 +20,7 @@ plot_2d_trajectory(
   bcols = NULL,
   pch = NULL,
   cex.symbols = 1,
+  mar = c(6, 4, 2, 2),
   ...
 )
 ```
@@ -69,6 +70,25 @@ plot_2d_trajectory(
 - cex.symbols:
 
   Point size. Default `1`.
+
+- mar:
+
+  Numeric vector of length 4 (bottom, left, top, right), passed to
+  [`par`](https://rdrr.io/r/graphics/par.html) for the duration of this
+  plot (restored on exit). Default `c(6, 4, 2, 2)` leaves enough room in
+  the bottom margin for the `effective_n` density strip, which is drawn
+  with `xpd = TRUE` (clipped to the figure region, not the plot region)
+  – shrinking `mar` below what the strip needs will clip it. Unlike
+  [`plot_3d_trajectory`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md),
+  where `mar` is just one more
+  [`scatterplot3d`](https://rdrr.io/pkg/scatterplot3d/man/scatterplot3d.html)
+  argument reachable through `...`, base
+  [`plot`](https://rdrr.io/r/graphics/plot.default.html) has no `mar`
+  argument of its own for `...` to reach – this function needs its own
+  explicit parameter to let margin be set per call (rather than only via
+  an external `par(mar = ...)`, which this function's own internal
+  margin-setting would otherwise capture and overwrite for the duration
+  of the call, restoring it again only once the call returns).
 
 - ...:
 

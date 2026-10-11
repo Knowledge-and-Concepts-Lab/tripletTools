@@ -199,18 +199,22 @@ and, if so, how many clusters (BIC):</p>
 <span><span class="co">#&gt; Package 'mclust' version 6.1.3</span></span>
 <span><span class="co">#&gt; Type 'citation("mclust")' for citing this R package in publications.</span></span>
 <span><span class="co">#&gt; Dimensions used (k_use): 1</span></span>
-<span><span class="co">#&gt; Hopkins statistic: 0.525 (p = 0.3137 for H0: no clustering)</span></span>
-<span><span class="co">#&gt;   -&gt; no evidence of cluster structure beyond what's expected by chance</span></span>
+<span><span class="co">#&gt; Hopkins statistic: 0.605 (p = 0.02146 for H0: no clustering)</span></span>
+<span><span class="co">#&gt;   -&gt; evidence of cluster structure (more than one cluster likely)</span></span>
 <span><span class="co">#&gt; BIC by number of clusters (lower is better):</span></span>
-<span><span class="co">#&gt;   G=1   G=2   G=3   G=4   G=5 </span></span>
-<span><span class="co">#&gt; -9.71 -6.75 -7.30 -1.10  6.57 </span></span>
+<span><span class="co">#&gt;    G=1    G=2    G=3    G=4    G=5 </span></span>
+<span><span class="co">#&gt; -14.15 -10.38 -10.98  -6.53   0.57 </span></span>
 <span><span class="co">#&gt;   -&gt; best supported number of clusters: 1</span></span>
 <span><span class="co">#&gt;   -&gt; winning covariance model at G=1: X</span></span></code></pre></div>
-<p>The Hopkins statistic is non-significant and the BIC search prefers a
-single component (<code>best_g = 1</code>) – no evidence of discrete
-subgroups. That rules out the clustering approach used elsewhere in this
-package and motivates treating individual differences as continuous
-instead.</p>
+<p>The Hopkins statistic is significant (p = 0.021) – participants are
+not scattered as randomly as a uniform null would predict – but the BIC
+search still prefers a single component (<code>best_g = 1</code>) over
+any multi-cluster alternative. That combination – real structure, but no
+support for <em>discrete</em> subgroups – is exactly what a continuous
+axis of variation should look like: a departure from pure randomness
+without separable groups. It argues against the discrete-clustering
+approach used elsewhere in this package and motivates treating
+individual differences as continuous instead.</p>
 </div>
 <div class="section level2">
 <h2 id="a-continuous-axis-of-individual-differences">A continuous axis of individual differences<a class="anchor" aria-label="anchor" href="#a-continuous-axis-of-individual-differences"></a>
@@ -222,75 +226,77 @@ to how many dimensions the color embeddings themselves have):</p>
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/estimate_intrinsic_dimension.html">estimate_intrinsic_dimension</a></span><span class="op">(</span><span class="va">repdist</span>, seed <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Observed vs. permutation-null eigenvalues (kept = observed &gt; threshold):</span></span>
 <span><span class="co">#&gt;    dim observed threshold  kept</span></span>
-<span><span class="co">#&gt; 1    1   0.0410    0.0556 FALSE</span></span>
-<span><span class="co">#&gt; 2    2   0.0213    0.0382 FALSE</span></span>
-<span><span class="co">#&gt; 3    3   0.0180    0.0323 FALSE</span></span>
-<span><span class="co">#&gt; 4    4   0.0154    0.0283 FALSE</span></span>
-<span><span class="co">#&gt; 5    5   0.0143    0.0253 FALSE</span></span>
-<span><span class="co">#&gt; 6    6   0.0140    0.0229 FALSE</span></span>
-<span><span class="co">#&gt; 7    7   0.0128    0.0212 FALSE</span></span>
-<span><span class="co">#&gt; 8    8   0.0122    0.0193 FALSE</span></span>
-<span><span class="co">#&gt; 9    9   0.0116    0.0176 FALSE</span></span>
-<span><span class="co">#&gt; 10  10   0.0114    0.0161 FALSE</span></span>
-<span><span class="co">#&gt; 11  11   0.0110    0.0148 FALSE</span></span>
-<span><span class="co">#&gt; 12  12   0.0108    0.0136 FALSE</span></span>
-<span><span class="co">#&gt; 13  13   0.0105    0.0126 FALSE</span></span>
-<span><span class="co">#&gt; 14  14   0.0100    0.0116 FALSE</span></span>
-<span><span class="co">#&gt; 15  15   0.0098    0.0107 FALSE</span></span>
-<span><span class="co">#&gt; 16  16   0.0094    0.0098 FALSE</span></span>
-<span><span class="co">#&gt; 17  17   0.0091    0.0090  TRUE</span></span>
-<span><span class="co">#&gt; 18  18   0.0089    0.0083  TRUE</span></span>
-<span><span class="co">#&gt; 19  19   0.0088    0.0075  TRUE</span></span>
-<span><span class="co">#&gt; 20  20   0.0086    0.0069  TRUE</span></span>
-<span><span class="co">#&gt; 21  21   0.0082    0.0063  TRUE</span></span>
-<span><span class="co">#&gt; 22  22   0.0077    0.0057  TRUE</span></span>
-<span><span class="co">#&gt; 23  23   0.0075    0.0051  TRUE</span></span>
-<span><span class="co">#&gt; 24  24   0.0074    0.0047  TRUE</span></span>
-<span><span class="co">#&gt; 25  25   0.0070    0.0042  TRUE</span></span>
-<span><span class="co">#&gt; 26  26   0.0070    0.0037  TRUE</span></span>
-<span><span class="co">#&gt; 27  27   0.0068    0.0034  TRUE</span></span>
-<span><span class="co">#&gt; 28  28   0.0064    0.0030  TRUE</span></span>
-<span><span class="co">#&gt; 29  29   0.0063    0.0026  TRUE</span></span>
-<span><span class="co">#&gt; 30  30   0.0061    0.0023  TRUE</span></span>
-<span><span class="co">#&gt; 31  31   0.0058    0.0020  TRUE</span></span>
-<span><span class="co">#&gt; 32  32   0.0055    0.0017  TRUE</span></span>
-<span><span class="co">#&gt; 33  33   0.0051    0.0014  TRUE</span></span>
-<span><span class="co">#&gt; 34  34   0.0049    0.0012  TRUE</span></span>
-<span><span class="co">#&gt; 35  35   0.0046    0.0010  TRUE</span></span>
-<span><span class="co">#&gt; 36  36   0.0045    0.0008  TRUE</span></span>
-<span><span class="co">#&gt; 37  37   0.0041    0.0007  TRUE</span></span>
-<span><span class="co">#&gt; 38  38   0.0040    0.0005  TRUE</span></span>
-<span><span class="co">#&gt; 39  39   0.0038    0.0004  TRUE</span></span>
-<span><span class="co">#&gt; 40  40   0.0036    0.0003  TRUE</span></span>
-<span><span class="co">#&gt; 41  41   0.0034    0.0002  TRUE</span></span>
-<span><span class="co">#&gt; 42  42   0.0032    0.0001  TRUE</span></span>
-<span><span class="co">#&gt; 43  43   0.0031    0.0001  TRUE</span></span>
-<span><span class="co">#&gt; 44  44   0.0029    0.0000  TRUE</span></span>
+<span><span class="co">#&gt; 1    1   0.0373    0.0535 FALSE</span></span>
+<span><span class="co">#&gt; 2    2   0.0200    0.0377 FALSE</span></span>
+<span><span class="co">#&gt; 3    3   0.0184    0.0328 FALSE</span></span>
+<span><span class="co">#&gt; 4    4   0.0160    0.0294 FALSE</span></span>
+<span><span class="co">#&gt; 5    5   0.0145    0.0261 FALSE</span></span>
+<span><span class="co">#&gt; 6    6   0.0142    0.0237 FALSE</span></span>
+<span><span class="co">#&gt; 7    7   0.0125    0.0217 FALSE</span></span>
+<span><span class="co">#&gt; 8    8   0.0120    0.0199 FALSE</span></span>
+<span><span class="co">#&gt; 9    9   0.0118    0.0183 FALSE</span></span>
+<span><span class="co">#&gt; 10  10   0.0115    0.0170 FALSE</span></span>
+<span><span class="co">#&gt; 11  11   0.0111    0.0156 FALSE</span></span>
+<span><span class="co">#&gt; 12  12   0.0108    0.0145 FALSE</span></span>
+<span><span class="co">#&gt; 13  13   0.0107    0.0134 FALSE</span></span>
+<span><span class="co">#&gt; 14  14   0.0104    0.0122 FALSE</span></span>
+<span><span class="co">#&gt; 15  15   0.0101    0.0114 FALSE</span></span>
+<span><span class="co">#&gt; 16  16   0.0098    0.0105 FALSE</span></span>
+<span><span class="co">#&gt; 17  17   0.0096    0.0096  TRUE</span></span>
+<span><span class="co">#&gt; 18  18   0.0092    0.0089  TRUE</span></span>
+<span><span class="co">#&gt; 19  19   0.0090    0.0081  TRUE</span></span>
+<span><span class="co">#&gt; 20  20   0.0088    0.0074  TRUE</span></span>
+<span><span class="co">#&gt; 21  21   0.0085    0.0067  TRUE</span></span>
+<span><span class="co">#&gt; 22  22   0.0083    0.0061  TRUE</span></span>
+<span><span class="co">#&gt; 23  23   0.0080    0.0055  TRUE</span></span>
+<span><span class="co">#&gt; 24  24   0.0077    0.0050  TRUE</span></span>
+<span><span class="co">#&gt; 25  25   0.0075    0.0046  TRUE</span></span>
+<span><span class="co">#&gt; 26  26   0.0074    0.0041  TRUE</span></span>
+<span><span class="co">#&gt; 27  27   0.0071    0.0036  TRUE</span></span>
+<span><span class="co">#&gt; 28  28   0.0068    0.0032  TRUE</span></span>
+<span><span class="co">#&gt; 29  29   0.0066    0.0028  TRUE</span></span>
+<span><span class="co">#&gt; 30  30   0.0064    0.0025  TRUE</span></span>
+<span><span class="co">#&gt; 31  31   0.0063    0.0022  TRUE</span></span>
+<span><span class="co">#&gt; 32  32   0.0061    0.0019  TRUE</span></span>
+<span><span class="co">#&gt; 33  33   0.0060    0.0016  TRUE</span></span>
+<span><span class="co">#&gt; 34  34   0.0056    0.0013  TRUE</span></span>
+<span><span class="co">#&gt; 35  35   0.0054    0.0011  TRUE</span></span>
+<span><span class="co">#&gt; 36  36   0.0053    0.0009  TRUE</span></span>
+<span><span class="co">#&gt; 37  37   0.0050    0.0008  TRUE</span></span>
+<span><span class="co">#&gt; 38  38   0.0049    0.0006  TRUE</span></span>
+<span><span class="co">#&gt; 39  39   0.0047    0.0004  TRUE</span></span>
+<span><span class="co">#&gt; 40  40   0.0046    0.0003  TRUE</span></span>
+<span><span class="co">#&gt; 41  41   0.0044    0.0002  TRUE</span></span>
+<span><span class="co">#&gt; 42  42   0.0041    0.0001  TRUE</span></span>
+<span><span class="co">#&gt; 43  43   0.0039    0.0001  TRUE</span></span>
+<span><span class="co">#&gt; 44  44   0.0030    0.0000  TRUE</span></span>
 <span><span class="co">#&gt; Note: not even the leading dimension exceeded its permutation threshold; k forced to the minimum of 1 rather than 0.</span></span>
-<span><span class="co">#&gt; This is likely a false negative rather than a genuine absence of structure: the leading eigenvalue (0.041) is about 4.9x the typical size of the rest (0.00829), suggesting one real dominant dimension. Horn's parallel analysis is known to be conservative for exactly this case: when nearly all the real signal is concentrated in a single factor, the permutation null preserves each column's own variance (only scrambling which participant has which value), so the null's own top eigenvalue ends up built largely from that same dominant variance -- the leading dimension effectively has to 'beat a shuffled version of itself,' a bar that's unusually hard to clear regardless of how strong the true signal is.</span></span>
-<span><span class="co">#&gt; Simulation-based dominance test (direct, not heuristic -- see ?test_dominant_dimension): p-value = 0.001. This directly supports a genuine dominant leading dimension, rather than inferring it indirectly from dominance_ratio alone.</span></span>
+<span><span class="co">#&gt; This is likely a false negative rather than a genuine absence of structure: the leading eigenvalue (0.0373) is about 4.3x the typical size of the rest (0.0087), suggesting one real dominant dimension. Horn's parallel analysis is known to be conservative for exactly this case: when nearly all the real signal is concentrated in a single factor, the permutation null preserves each column's own variance (only scrambling which participant has which value), so the null's own top eigenvalue ends up built largely from that same dominant variance -- the leading dimension effectively has to 'beat a shuffled version of itself,' a bar that's unusually hard to clear regardless of how strong the true signal is.</span></span>
+<span><span class="co">#&gt; Simulation-based dominance test (direct, not heuristic -- see ?test_dominant_dimension): p-value = 0.0955. This does not support rejecting the no-structure null; treat k = 1 here as a floor default, not a confirmed detection.</span></span>
 <span><span class="co">#&gt; -&gt; estimated intrinsic dimension: 1</span></span></code></pre></div>
 <p>This comes back “forced to 1” – Horn’s parallel analysis has to beat
 a shuffled version of the leading dimension’s own (already dominant)
 variance, which is an unusually hard bar to clear, and is a known
 false-negative pattern for exactly this case (see
-<code><a href="../reference/estimate_intrinsic_dimension.html">?estimate_intrinsic_dimension</a></code>). But two further pieces of
-evidence point the same direction: the leading eigenvalue is about 5x
-the typical size of the rest, and – more directly –
-<code><a href="../reference/test_dominant_dimension.html">test_dominant_dimension()</a></code>’s simulation-based significance
-test (run automatically above, since <code>test_dominance = TRUE</code>
-by default) rejects the no-structure null outright (p = 0.001). Unlike
-the eigenvalue-magnitude comparison Horn’s test makes, this test
-compares a scale-invariant statistic (proportion of variance explained)
-against a null simulated at equal variance across candidate dimensions,
-which sidesteps the “beat a shuffled version of itself” problem – see
-<code><a href="../reference/test_dominant_dimension.html">?test_dominant_dimension</a></code> for why, and for a worked example
-where this same test does <em>not</em> reach significance despite a
-similarly large eigenvalue ratio (smaller sample sizes have less power
-to detect the same effect size). Combined with the non-significant
-Hopkins result above (no evidence of multiple discrete components
-either), this is solid evidence for one real, continuous dimension of
-individual variation – not zero dimensions of structure.</p>
+<code><a href="../reference/estimate_intrinsic_dimension.html">?estimate_intrinsic_dimension</a></code>). The leading eigenvalue is
+about 4x the typical size of the rest, consistent with one real dominant
+dimension – but <code><a href="../reference/test_dominant_dimension.html">test_dominant_dimension()</a></code>’s
+simulation-based test (run automatically above, since
+<code>test_dominance = TRUE</code> by default) does <em>not</em> reach
+significance here (p = 0.096). Unlike the eigenvalue-magnitude
+comparison Horn’s test makes, this test compares a scale-invariant
+statistic (proportion of variance explained) against a null simulated at
+equal variance across candidate dimensions, which sidesteps the “beat a
+shuffled version of itself” problem – see
+<code><a href="../reference/test_dominant_dimension.html">?test_dominant_dimension</a></code> for why. So on the distance
+matrix’s geometry alone, the evidence for one real continuous dimension
+is suggestive but not conclusive: a numerically large dominance ratio
+and a significant Hopkins statistic (above), but a dominance test that
+stops short of rejecting the no-structure null at this sample size (n =
+46). The decisive evidence doesn’t come from testing the geometry in
+isolation – it comes from asking that geometry to actually predict
+something, which is exactly what the leave-one-out analysis near the end
+of this vignette does.</p>
 <p><code><a href="https://rdrr.io/r/stats/cmdscale.html" class="external-link">cmdscale()</a></code> gives each participant’s own position along
 that one dimension:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
@@ -329,7 +335,7 @@ useful for flagging the boundary regions, which are necessarily driven
 by fewer people:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">traj</span><span class="op">$</span><span class="va">effective_n</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1]  3.529983 24.224764</span></span></code></pre></div>
+<span><span class="co">#&gt; [1]  4.660754 24.683819</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="visualizing-the-trajectory">Visualizing the trajectory<a class="anchor" aria-label="anchor" href="#visualizing-the-trajectory"></a>
@@ -424,7 +430,7 @@ manifold position.
 <p>The crossover survives: the left-end embedding predicts best for
 participants near the left end of the manifold, the right-end embedding
 predicts best for everyone else, and which one wins tracks manifold
-position almost perfectly (R<sup>2</sup> = 0.62, from a simple linear
+position almost perfectly (R<sup>2</sup> = 0.36, from a simple linear
 regression of the accuracy difference on position – barely smaller than
 what the leakage-prone naive version would have reported). This is a
 genuine, strong individual-differences effect – in a domain (color
@@ -432,6 +438,16 @@ similarity) where that kind of heterogeneity might not be expected at
 all – and unlike the naive version, this result is actually trustworthy:
 it was computed with no participant ever contributing to the embedding
 used to predict them.</p>
+<p>This is also the resolution of the loose end left by
+<code><a href="../reference/test_dominant_dimension.html">test_dominant_dimension()</a></code> above: a p-value of 0.096 on the
+distance matrix’s geometry alone is not, by itself, a confident
+detection of real structure. But a held-out behavioral prediction this
+strong (p &lt; 10<sup>-10</sup>) – built from a completely independent
+piece of evidence, and with every participant’s own embedding fully
+excluded from the model used to predict them – leaves little doubt that
+the axis is real. The two analyses are not contradictory; they’re
+answering different questions with different amounts of power, and only
+one of them puts the axis to an actual predictive test.</p>
 </div>
 <div class="section level2">
 <h2 id="summary">Summary<a class="anchor" aria-label="anchor" href="#summary"></a>
