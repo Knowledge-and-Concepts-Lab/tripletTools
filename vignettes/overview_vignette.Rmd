@@ -98,6 +98,12 @@ head(vmat$majority)
 
 The `pmaj` column shows the proportion of participants who agreed with the majority choice. Values near 1.0 indicate near-universal agreement; values near 0.5 indicate a closely split decision.
 
+`pmaj` alone can be misleading for a triplet only a handful of participants happened to judge -- `n` (how many participants judged it) and `nmaj` (how many of those agreed with the majority) let you check that directly, and `p`/`sig` turn it into a formal test: `p` is the one-sided binomial p-value for observing `nmaj` or more agreements out of `n` if participants were really just guessing (50/50, since each judgment is a forced choice between two options), and `sig` flags `p < 0.05`. A triplet with only one or two judgments can never reach significance no matter how those few judgments came out -- `icon_triplets`' own 20 triplets with just a single judgment each all have `p = 0.5`, while 11 of the 20 triplets with 5 judgments each reach significance:
+
+```{r vmat-sig}
+table(n = vmat$majority$n, sig = vmat$majority$sig)
+```
+
 ```{r vmat-hist, fig.cap="Distribution of inter-subject agreement on validation trials."}
 hist(vmat$majority$pmaj,
      breaks = 10,

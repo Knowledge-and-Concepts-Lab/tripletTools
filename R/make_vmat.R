@@ -10,8 +10,14 @@
 #' @returns Names list with two elements. `majority` is a data frame with one row
 #'   per validation triplet, with columns `triplet` (the unique triplet code from
 #'   `make.tripnames`), `majority` (the winning choice), `pmaj` (proportion of
-#'   participants who selected it), and `Center`/`Left`/`Right` (the triplet's
-#'   items, in the format `test.model` expects -- see Details). `bysbj` is a
+#'   participants who selected it), `n` (total number of judgments observed for
+#'   this triplet, pooled across all participants), `nmaj` (how many of those
+#'   `n` judgments agreed with `majority` -- so `pmaj = nmaj / n`), `p` (the
+#'   one-sided binomial test p-value for observing `nmaj` or more agreements
+#'   out of `n` under a chance-guessing null, i.e. `P(X >= nmaj)` for
+#'   `X ~ Binomial(n, 0.5)`; see Details for why 0.5), `sig` (`TRUE` if
+#'   `p < 0.05`), and `Center`/`Left`/`Right` (the triplet's items, in the
+#'   format `test.model` expects -- see Details). `bysbj` is a
 #'   matrix indicating, for each participant (rows) and validation triplet
 #'   (columns), the choice the participant made.
 #'
@@ -24,6 +30,20 @@
 #' directly to \code{\link{test.model}} (together with a fitted embedding) to
 #' get each validation triplet's predicted response as an added `ModPred`
 #' column, and compare that to the human majority vote in `majority`.
+#'
+#' `p`/`sig` test whether a triplet's observed level of agreement is more than
+#' would be expected from participants guessing at random between the two
+#' options -- a one-sided binomial test against `p = 0.5` (not the two
+#' options' own base rates, which need not be equal in general but are 0.5
+#' here specifically because each judgment is a forced choice between exactly
+#' two options, so pure guessing is 50/50 by construction). A triplet with
+#' only one or two judgments can therefore never reach significance
+#' (`nmaj <= 2` out of `n <= 2` has p-value >= 0.25) regardless of how
+#' consistent those few judgments happen to be -- `sig` is only a meaningful
+#' filter once `n` is large enough to distinguish real consistency from
+#' chance, so check `n`'s distribution (e.g. via \code{\link{find_frequent_triplets}}
+#' if this validation set was itself built post-hoc from it) rather than
+#' trusting `sig` blindly at very low `n`.
 #'
 #' Where a participant judged a particular validation triplet the entries of `bysbj`
 #' will indicate the proportion of times the participant's decision agreed with
@@ -80,13 +100,24 @@ make.vmat <- function(triplist){
   #Initialize dataframe for computing majority vote
   pmaj <- data.frame(triplet=trips,
                      majority=rep(NA, times = ntrips),
-                     pmaj=rep(NA, times = ntrips))
+                     pmaj=rep(NA, times = ntrips),
+                     n=rep(NA, times = ntrips),
+                     nmaj=rep(NA, times = ntrips))
 
   for(i in c(1: ntrips)){
     thisone <- table(resp[,i])
     pmaj[i,2] <- names(which.max(thisone)) #Winner
     pmaj[i,3] <- max(thisone)/sum(thisone) #proportion voting for winner
+    pmaj[i,4] <- sum(thisone) #n: total judgments observed for this triplet
+    pmaj[i,5] <- max(thisone) #nmaj: of those, how many agreed with the winner
   }
+
+  #One-sided binomial test against a 0.5 (pure-guessing) null -- see
+  #@details for why 0.5 specifically. Vectorized over all triplets at once
+  #rather than folded into the loop above, since it doesn't depend on
+  #anything per-triplet beyond n/nmaj, which are already computed.
+  pmaj$p <- stats::pbinom(pmaj$nmaj - 1, pmaj$n, 0.5, lower.tail = FALSE)
+  pmaj$sig <- pmaj$p < 0.05
 
   #Add Center/Left/Right columns so `majority` can be passed directly to
   #test.model(). Center and the *set* of two options are looked up from the

@@ -15,8 +15,14 @@ participant. Names should be participant identifiers, as returned by
 Names list with two elements. \code{majority} is a data frame with one row
 per validation triplet, with columns \code{triplet} (the unique triplet code from
 \code{make.tripnames}), \code{majority} (the winning choice), \code{pmaj} (proportion of
-participants who selected it), and \code{Center}/\code{Left}/\code{Right} (the triplet's
-items, in the format \code{test.model} expects -- see Details). \code{bysbj} is a
+participants who selected it), \code{n} (total number of judgments observed for
+this triplet, pooled across all participants), \code{nmaj} (how many of those
+\code{n} judgments agreed with \code{majority} -- so \code{pmaj = nmaj / n}), \code{p} (the
+one-sided binomial test p-value for observing \code{nmaj} or more agreements
+out of \code{n} under a chance-guessing null, i.e. \code{P(X >= nmaj)} for
+\code{X ~ Binomial(n, 0.5)}; see Details for why 0.5), \code{sig} (\code{TRUE} if
+\code{p < 0.05}), and \code{Center}/\code{Left}/\code{Right} (the triplet's items, in the
+format \code{test.model} expects -- see Details). \code{bysbj} is a
 matrix indicating, for each participant (rows) and validation triplet
 (columns), the choice the participant made.
 }
@@ -33,6 +39,20 @@ Because \code{majority} includes \code{Center}/\code{Left}/\code{Right} columns,
 directly to \code{\link{test.model}} (together with a fitted embedding) to
 get each validation triplet's predicted response as an added \code{ModPred}
 column, and compare that to the human majority vote in \code{majority}.
+
+\code{p}/\code{sig} test whether a triplet's observed level of agreement is more than
+would be expected from participants guessing at random between the two
+options -- a one-sided binomial test against \code{p = 0.5} (not the two
+options' own base rates, which need not be equal in general but are 0.5
+here specifically because each judgment is a forced choice between exactly
+two options, so pure guessing is 50/50 by construction). A triplet with
+only one or two judgments can therefore never reach significance
+(\code{nmaj <= 2} out of \code{n <= 2} has p-value >= 0.25) regardless of how
+consistent those few judgments happen to be -- \code{sig} is only a meaningful
+filter once \code{n} is large enough to distinguish real consistency from
+chance, so check \code{n}'s distribution (e.g. via \code{\link{find_frequent_triplets}}
+if this validation set was itself built post-hoc from it) rather than
+trusting \code{sig} blindly at very low \code{n}.
 
 Where a participant judged a particular validation triplet the entries of \code{bysbj}
 will indicate the proportion of times the participant's decision agreed with
