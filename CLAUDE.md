@@ -77,7 +77,22 @@ Current version: **0.2.0**. Package URL:
                                #                                   to select any noise model/alpha
                                #                                   (condor_recovery_fit.R,
                                #                                   recovery_sweep_params_template.yml,
-                               #                                   README_recovery_sweep.md)
+                               #                                   README_recovery_sweep.md).
+                               #                                   Companion tools, same directory:
+                               #                                   condor_recovery_sweep_aggregate_only.py
+                               #                                   (rerun just the final local aggregation
+                               #                                   step against an already-populated
+                               #                                   stage1_fit/), analyze_recovery_history.py
+                               #                                   (offline replay of the early-stopping rule
+                               #                                   against saved *_history.csv traces under
+                               #                                   different candidate tolerance/tol_window
+                               #                                   settings), condor_recovery_sweep_refit_capped.py
+                               #                                   (re-fit only the cells that hit the original
+                               #                                   run's epoch ceiling without genuinely
+                               #                                   converging, at a higher max_epochs, reusing
+                               #                                   the original stage0_simulate/ data and each
+                               #                                   cell's exact original fit_seed, then merge
+                               #                                   just those rows into results_long_refit.csv)
     vignettes/
       tripletTools.Rmd                  # "Get started" guide (name matches pkgname -- pkgdown auto-promotes it
                                          #   to a top-level navbar link instead of the Articles dropdown). Only
@@ -2003,3 +2018,81 @@ back to the returned matrices.
   before concluding the budget needs to grow to match** – the real fix
   here was one `<` becoming `< ... - tolerance`, not a bigger epoch
   budget.
+- \*\*Real production bug found after an actual 50-replicate/8-alpha
+  (3200-job) recovery-sweep deployment: 79% of `condor_recovery_fit.R`‘s
+  companion `*_history.csv` diagnostic files came back empty, uniformly
+  across every fitting alpha (79.2-79.8%), while every main result file
+  was intact.\*\* Root cause: `submit_jobs_with_retry()` (in
+  `condor_recovery_sweep_workflow.py`) only ever validated `output_col`
+  (the main result CSV) before deciding a job succeeded – the same
+  file-transfer-overload issue this function exists to catch (see the
+  `condor_group_diff_workflow.py` entry above) was still silently
+  destroying the history file specifically, just never detected or
+  retried, since nothing checked it. Fixed by adding an
+  `extra_outputs(job)` parameter (a function returning additional paths
+  that must also exist and be non-empty) and passing a lambda from
+  `run_fit_stage()` computing the history path via a new
+  `history_output_name()` helper (mirroring `condor_recovery_fit.R`’s
+  own `sub("\\.csv$", "_history.csv", ...)` naming) – a failing extra
+  output now retries the whole job, since a fresh `Rscript` run
+  regenerates both files together. Default behavior (no `extra_outputs`)
+  is unchanged, so the other three workflows’ own copies of this
+  function are unaffected – consistent with this directory’s
+  self-contained-per-workflow convention.
+  - **Used the surviving 21% of history files to investigate two
+    follow-up questions, each informative in a different way.** (1)
+    Among capped (non-converged) rows with a usable history file, the
+    patience counter was at a *median of only 28%* of `tol_window` when
+    training was cut off – most capped runs were not on the verge of
+    stopping, consistent with these being genuinely slow-converging fits
+    rather than ones that just missed the cutoff by a hair. A small
+    number of specific cells (gen alpha = 20 or Inf, crossed with
+    low-to-moderate fitting alphas) showed hundreds to 1000+ genuine
+    small improvements across the full 120000 epochs – a noisier, slower
+    convergence regime than lower-generating-alpha cells, with
+    gap-growth extrapolation projecting some of these would need
+    ~125000-151000 epochs to genuinely converge. (2) Replaying the exact
+    early-stopping rule against the same saved histories at a *larger*
+    tolerance (`analyze_recovery_history.py`, already in this directory)
+    showed **all** 144 previously-capped rows would have triggered
+    genuine early stopping well within the recorded 120000-epoch
+    trajectory at `tolerance=5e-4` or `1e-3` (median stop epoch 59580
+    / 38235) – but at a real cost: mean loss given up relative to the
+    best loss ever seen jumped from ~0.00005 (at the actual
+    `tolerance=1e-4`) to 0.006-0.018, a 100-400x increase, risking
+    reintroducing cross-cell quality differences via premature stopping
+    rather than via hitting the epoch cap. Decided against raising
+    tolerance sweep-wide for this reason: the point of the whole
+    exercise was making sure the matched-vs-mismatched comparison wasn’t
+    contaminated by some cells being less-converged than others, and a
+    looser tolerance doesn’t actually guarantee that, just changes the
+    mechanism.
+  - **`condor_recovery_sweep_refit_capped.py`** (new companion script, +
+    `test_condor_recovery_sweep_refit_capped.py`) – built instead, to
+    re-fit *only* the cells that hit a prior run’s epoch ceiling without
+    converging, at a higher `max_epochs`, rather than either leaving the
+    comparison contaminated or re-running the entire sweep. Infers which
+    cells were capped directly from the data (the largest `epoch` value
+    anywhere in `results_long.csv` is the original ceiling; any row at
+    or within one epoch of it counts as capped) rather than requiring
+    the old ceiling to be re-typed by hand. Reuses the original run’s
+    already-simulated `stage0_simulate/` ground truth/triplets as-is (no
+    resimulation) and re-derives each capped cell’s *exact* original
+    `fit_seed` from its (replicate, generating alpha, fitting alpha)
+    position using the identical formula `run_fit_stage()` itself uses
+    (confirmed identical via a regression test that runs both code paths
+    on the same synthetic config and compares the seed directly, not
+    just re-implements the formula and trusts it matches) – so a refit
+    cell retraces the same initialization/train-test split as its
+    original attempt, just given room to actually reach its stopping
+    criterion, making the result a legitimate like-for-like replacement
+    rather than a different sample. Writes to a new `stage_refit/`
+    directory and new
+    `results_long_refit.csv`/`error_matrix_mean_refit.csv`/`error_matrix_sd_refit.csv`
+    – every row from the original dataset, with just the
+    previously-capped ones replaced – leaving the original outputs
+    untouched for comparison/provenance. Considered (and rejected, see
+    above) re-running the whole sweep with a looser tolerance instead;
+    the targeted refit also costs less total compute, since it only
+    touches the ~21% of cells that actually needed it rather than
+    redoing everything.
