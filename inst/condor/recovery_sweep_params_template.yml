@@ -54,12 +54,15 @@ d: 3
 
 # The alpha continuum, used as BOTH the generating and fitting choice
 # model grid (every value is crossed with every other). Use `.inf` (not
-# `Inf`/`inf`) for YAML's infinity literal. Calibrated cost: at the
-# max_epochs/tol_window below, one fit took ~46 minutes locally, so with
-# n_replicates=20 the full 1280 fits is roughly 980 hours of total fitting
-# work -- entirely why this is a Condor job, not a local loop: with enough
-# execute slots running concurrently, wall-clock is however long the
-# slowest single fit takes, not the sum of all of them.
+# `Inf`/`inf`) for YAML's infinity literal. Per-fit cost varies a lot by
+# fitting alpha (see max_epochs below for why): low fitting-alpha cells
+# (the slowest) genuinely converge around 60000-90000 epochs locally,
+# taking roughly 40-70 minutes each, while higher fitting-alpha cells
+# converge faster and cost less. With n_replicates=20 that puts total
+# fitting work for the full 1280 fits in the very roughly 700-900 hour
+# range -- entirely why this is a Condor job, not a local loop: with
+# enough execute slots running concurrently, wall-clock is however long
+# the slowest single fit takes, not the sum of all of them.
 alphas: [0.1, 0.5, 1, 2, 5, 10, 20, .inf]
 
 # Triplets simulated per generating alpha (shared across all fitting
@@ -125,11 +128,22 @@ condor:
   # batch_size: 25
 
 # --- Embedding-fit settings ---------------------------------------------------
-# Applied to every one of the n_replicates * len(alphas)^2 fits. Calibrated
-# locally (15000/1500 still hit the epoch ceiling with test accuracy still
-# improving; 60000/3000 plateaus, ~46 min/fit on CPU) -- adjust if your
-# own calibration run on the execute nodes' hardware suggests otherwise.
-max_epochs: 60000
+# Applied to every one of the n_replicates * len(alphas)^2 fits. The
+# original 60000/3000 calibration (pre-0bc1af7) was run against a buggy
+# early-stopping check that never actually applied `tolerance`, so low
+# fitting-alpha (heavy-tailed) cells were frequently hitting the epoch
+# ceiling without ever genuinely converging -- see 0bc1af7's commit
+# message. Recalibrated locally after that fix, with the settings below:
+# fit_alpha=0.1 now genuinely early-stops at ~60750 epochs (confirming the
+# original ceiling was already close to right once the stopping rule
+# actually worked); fit_alpha=0.5 -- the slowest cell checked -- needs
+# ~89670. max_epochs raised to 120000 for headroom above the worst
+# observed case; higher fitting-alphas converge well under that already
+# (their epoch-ceiling hit rate in the original deployment ranged from
+# 63% at alpha=2 down to 4.4% at alpha=Inf, vs. 90%+ for alpha<=0.5), so
+# this mainly just gives the slow cells room to finish rather than
+# meaningfully raising the cost of the sweep as a whole.
+max_epochs: 120000
 tolerance: 1e-4
 tol_window: 3000
 device: cpu           # execute nodes in the general CHTC pool have no GPU
