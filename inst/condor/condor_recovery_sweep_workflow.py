@@ -102,6 +102,14 @@ def alpha_label(alpha):
     return "Inf" if math.isinf(alpha) else str(alpha)
 
 
+def history_output_name(output_name):
+    """Matches condor_recovery_fit.R's own
+    sub("\\.csv$", "_history.csv", opt$output) -- the companion
+    per-score_every-epoch training-trace file it writes alongside the
+    main single-row result."""
+    return output_name[:-len(".csv")] + "_history.csv"
+
+
 # ---------------------------------------------------------------------------
 # Stage 0: synthetic ground truth + per-generating-alpha triplet simulation
 # (stdlib only -- deliberately no numpy dependency, see module docstring)
@@ -306,11 +314,11 @@ def queue_from_block(varnames, rows):
 
 
 def submit_jobs_with_retry(stage_dir, jobs, output_col, build_and_submit, label,
-                            batch_size=None, max_retries=5):
-    """Submit `jobs`, verify every job's expected output file actually came
-    back, and resubmit just the ones that didn't -- up to `max_retries`
-    additional attempts -- before failing with a clear error naming exactly
-    which ones never produced valid output.
+                            batch_size=None, max_retries=5, extra_outputs=None):
+    """Submit `jobs`, verify every job's expected output file(s) actually
+    came back, and resubmit just the ones that didn't -- up to
+    `max_retries` additional attempts -- before failing with a clear error
+    naming exactly which ones never produced valid output.
 
     Ported from condor_group_diff_workflow.py (see that module's docstring
     for the production incident this guards against: jobs reporting a clean
@@ -326,13 +334,31 @@ def submit_jobs_with_retry(stage_dir, jobs, output_col, build_and_submit, label,
     submit file for exactly those jobs and block until they finish (i.e. an
     ordinary write_submit_file() + submit_and_wait() call).
 
+    `extra_outputs(job)`, if given, returns a list of additional Path
+    objects (besides the main `output_col` file) that must also exist and
+    be non-empty for the job to count as successful -- e.g.
+    condor_recovery_fit.R's companion "<output>_history.csv" diagnostic
+    file. Added after a real 3200-job deployment came back with 79% of
+    history files empty, uniformly across every fitting alpha, while every
+    main result file was intact: this function was only ever checking
+    `output_col`, so a transfer failure hitting the history file
+    specifically was never retried, silently discarding most of that run's
+    early-stopping diagnostics even though the actual recovery-error
+    results were never at risk.
+
     `batch_size`, if set, splits `jobs` into sequential chunks submitted (and
     retried) one at a time instead of all at once -- capping how many jobs
     can possibly finish in the same narrow window in the first place.
     Default `None` preserves the original single-submission behavior.
     """
-    def output_path(job):
-        return stage_dir / job[output_col]
+    def output_paths(job):
+        paths = [stage_dir / job[output_col]]
+        if extra_outputs is not None:
+            paths.extend(extra_outputs(job))
+        return paths
+
+    def is_bad(path):
+        return not path.exists() or path.stat().st_size == 0
 
     batches = [jobs] if not batch_size else [
         jobs[i:i + batch_size] for i in range(0, len(jobs), batch_size)
@@ -342,8 +368,7 @@ def submit_jobs_with_retry(stage_dir, jobs, output_col, build_and_submit, label,
         remaining = batch
         for attempt in range(1, max_retries + 2):
             build_and_submit(remaining)
-            missing = [j for j in remaining
-                       if not output_path(j).exists() or output_path(j).stat().st_size == 0]
+            missing = [j for j in remaining if any(is_bad(p) for p in output_paths(j))]
             if not missing:
                 break
             batch_note = f" (batch {batch_num}/{len(batches)})" if batch_size else ""
@@ -445,7 +470,8 @@ def run_fit_stage(work_dir, replicates, config, resources, container_image, batc
     submit_jobs_with_retry(stage_dir, jobs, output_col=4,
                             build_and_submit=build_and_submit,
                             label="Stage 1 (recovery fits)",
-                            batch_size=batch_size)
+                            batch_size=batch_size,
+                            extra_outputs=lambda j: [stage_dir / history_output_name(j[4])])
     return stage_dir, jobs
 
 

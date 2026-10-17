@@ -373,6 +373,62 @@ class TestSubmitJobsWithRetry(unittest.TestCase):
                                        label="test", batch_size=2)
             self.assertEqual(calls, [["0", "1"], ["2", "3"], ["4"]])
 
+    def test_extra_outputs_missing_triggers_retry_even_when_main_output_is_fine(self):
+        # Regression test for the real bug: a real 3200-job deployment came
+        # back with 79% of condor_recovery_fit.R's companion
+        # "<output>_history.csv" files empty -- uniformly across every
+        # fitting alpha -- while every main result file was intact, because
+        # this function only ever checked the main file. extra_outputs()
+        # must be checked too, and failing it must retry the whole job (a
+        # fresh Rscript run regenerates both files together).
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_dir = Path(tmp)
+            jobs = [("a", "out_a.csv")]
+            calls = []
+
+            def build_and_submit(jobs_subset):
+                calls.append(list(jobs_subset))
+                for _, out in jobs_subset:
+                    (stage_dir / out).write_text("data\n")  # main output: always fine
+                    hist = stage_dir / rs.history_output_name(out)
+                    # history file only comes back valid on the 2nd attempt
+                    if len(calls) >= 2:
+                        hist.write_text("epoch,test_loss\n0,0.5\n")
+                    else:
+                        hist.touch()  # 0 bytes -- simulates the transfer failure
+
+            rs.submit_jobs_with_retry(
+                stage_dir, jobs, output_col=1, build_and_submit=build_and_submit,
+                label="test",
+                extra_outputs=lambda j: [stage_dir / rs.history_output_name(j[1])],
+            )
+            self.assertEqual(len(calls), 2)  # retried despite the main file being fine every time
+            self.assertGreater((stage_dir / "out_a_history.csv").stat().st_size, 0)
+
+    def test_no_extra_outputs_check_when_not_provided(self):
+        # Default behavior (extra_outputs=None) must stay exactly as before
+        # -- an empty companion file (if any exists at all) is not checked.
+        with tempfile.TemporaryDirectory() as tmp:
+            stage_dir = Path(tmp)
+            jobs = [("a", "out_a.csv")]
+            calls = []
+
+            def build_and_submit(jobs_subset):
+                calls.append(list(jobs_subset))
+                for _, out in jobs_subset:
+                    (stage_dir / out).write_text("data\n")
+                    (stage_dir / rs.history_output_name(out)).touch()  # empty, but unchecked
+
+            rs.submit_jobs_with_retry(stage_dir, jobs, output_col=1,
+                                       build_and_submit=build_and_submit, label="test")
+            self.assertEqual(len(calls), 1)  # no retry -- only the main file was ever checked
+
+
+class TestHistoryOutputName(unittest.TestCase):
+    def test_matches_r_side_naming(self):
+        self.assertEqual(rs.history_output_name("result_rep0_gen1fit2.csv"),
+                          "result_rep0_gen1fit2_history.csv")
+
 
 if __name__ == "__main__":
     unittest.main()
