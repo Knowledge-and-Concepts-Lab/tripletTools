@@ -1978,3 +1978,28 @@ back to the returned matrices.
   `Repository layout` section were all updated for
   `trajectory_vignette.Rmd`, but `_pkgdown.yml` was missed; check all
   four together from now on whenever a vignette is added.
+- **Recalibrated `recovery_sweep_params_template.yml`’s `max_epochs`
+  after `0bc1af7`’s dead-tolerance fix (see that commit’s own message
+  for the bug itself).** The original 60000/3000 calibration had been
+  run against the *buggy* early-stopping check, so it wasn’t actually
+  measuring genuine convergence – rerunning the same two worst-offending
+  cells (`fit_alpha=0.1`/`0.5`, same ground-truth/triplet/fit seeds)
+  against the fixed code at the real deployed
+  `tol_window=3000`/`tolerance=1e-4` gave genuinely-converged stopping
+  points of ~60750 and ~89670 epochs respectively – both far below the
+  \>161000/200000+ the pre-fix bug had implied were needed, and close
+  enough to the original 60000 ceiling to confirm that ceiling was
+  already roughly right once the stopping rule actually worked.
+  `max_epochs` raised to 120000 (comfortable headroom above the observed
+  worst case) rather than anything near the pre-fix numbers; higher
+  fitting-alphas were already converging well under 60000 in the
+  original deployment (epoch-ceiling hit rate 63% at alpha=2 down to
+  4.4% at alpha=Inf, vs. 90%+ at alpha\<=0.5), so this mainly gives the
+  slow cells room to finish without meaningfully raising the sweep’s
+  total cost. General lesson: **when a single early-stopping/convergence
+  calibration run looks surprisingly bad (here: a fit needing 2-3x the
+  expected epochs, or never stopping at all), check whether the
+  stopping-rule code itself is doing what its own parameters claim
+  before concluding the budget needs to grow to match** – the real fix
+  here was one `<` becoming `< ... - tolerance`, not a bigger epoch
+  budget.
