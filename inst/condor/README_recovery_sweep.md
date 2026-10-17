@@ -117,9 +117,55 @@ Written to `output_dir` (default `condor_recovery_sweep_output/`, set in
 | `stage0_simulate/ground_truth_rep<r>.csv` | Replicate `r`'s synthetic ground-truth embedding (`item`, `dim_0`, `dim_1`, `dim_2`) |
 | `stage0_simulate/triplets_rep<r>_gen<alpha>.csv` | Replicate `r`'s simulated triplets (`head`, `winner`, `loser`, 0-based) for each generating alpha |
 | `stage1_fit/result_rep<r>_genNfitM.csv` | One (replicate, generating, fitting) combination's recovery error, loss, and stopping epoch |
+| `stage1_fit/result_rep<r>_genNfitM_history.csv` | That same fit's per-`score_every`-epoch training trace (epoch, train/test loss, train/test accuracy, norm ratio) — for diagnosing early-stopping behavior (see `analyze_recovery_history.py` below) without rerunning anything |
 | `results_long.csv` | Every fit's result, one row each (`replicate`, `gen_alpha`, `fit_alpha`, `recovery_error`, `loss`, `epoch`) — the right input for any real statistical comparison (e.g. a paired test between two fitting alphas for the same generating alpha, across replicates) |
 | `error_matrix_mean.csv` / `error_matrix_sd.csv` | `results_long.csv` pivoted into a generating-alpha x fitting-alpha grid of the mean/SD recovery error across replicates — a quick first look, not a substitute for looking at `results_long.csv` directly for anything you intend to report |
 | `run_manifest.txt` | Config path, alphas, `n_replicates`, `d`, container image, for provenance |
+
+## Companion tools
+
+Three scripts in this same directory work with an already-finished run's
+output, no Condor cluster needed for the first two:
+
+- **`condor_recovery_sweep_aggregate_only.py <params.yml>`** — reruns just
+  the final local aggregation step (`results_long.csv`/
+  `error_matrix_mean.csv`/`error_matrix_sd.csv`) against an already-populated
+  `stage1_fit/`, for when the original run's Stage 1 fits completed but the
+  driver itself crashed or was interrupted before aggregating.
+- **`analyze_recovery_history.py <stage1_fit_dir>`** — replays the exact
+  early-stopping comparison against every saved `*_history.csv` trace under
+  different candidate `(tolerance, tol_window)` settings, entirely offline.
+  Use this to check whether a laxer tolerance would have let
+  still-capped fits converge sooner (and at what cost to final loss) before
+  deciding whether `condor_recovery_sweep_refit_capped.py` is worth running,
+  or before choosing a `max_epochs` for it.
+- **`condor_recovery_sweep_refit_capped.py <params.yml> --max-epochs N`** —
+  re-fits *only* the cells that hit the original run's epoch ceiling without
+  genuinely converging (found automatically: the largest `epoch` value
+  anywhere in `results_long.csv` is taken as the original ceiling, and any
+  row at or within one epoch of it counts as capped), at a new, higher `N`.
+  This matters because comparing recovery error between cells where some
+  converged cleanly and others were simply cut off at the epoch cap is not a
+  fair comparison — and it's usually a small minority of cells (the
+  slowest-converging ones) that need the bigger budget, not the whole sweep.
+  Reuses the original run's already-simulated `stage0_simulate/` ground
+  truth/triplets directly (no resimulation) and re-derives each capped
+  cell's *exact* original `fit_seed` from its (replicate, generating alpha,
+  fitting alpha) position — the same deterministic formula
+  `run_fit_stage()` itself uses — so a refit cell traces the identical
+  initialization and train/test split as its original attempt, just given
+  more epochs to actually reach its stopping criterion, rather than being a
+  fresh, independently-seeded draw. That's what makes folding the result
+  back into the existing dataset a legitimate like-for-like comparison.
+  Writes to a new `stage_refit/` directory and new
+  `results_long_refit.csv`/`error_matrix_mean_refit.csv`/
+  `error_matrix_sd_refit.csv` files — every row from the original dataset,
+  with just the previously-capped ones replaced — leaving the original
+  `stage1_fit/`/`results_long.csv`/`error_matrix_*.csv` untouched for
+  comparison/provenance. `--max-epochs` must exceed the original ceiling,
+  and `<params.yml>` must be the same config used for the original run
+  (same `alphas`, `n_replicates`, `seed`, `output_dir`, `d`, etc.) — only
+  the epoch ceiling is meant to change.
 
 ## Troubleshooting
 
