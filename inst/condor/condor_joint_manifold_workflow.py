@@ -287,6 +287,82 @@ def prep_person_files(work_dir, worker_ids, item_index, triplet_rows_by_worker,
 
 
 # ---------------------------------------------------------------------------
+# Resume support
+# ---------------------------------------------------------------------------
+
+def write_id_list(path, ids):
+    path.write_text("\n".join(ids) + "\n")
+
+
+def read_id_list(path):
+    return [line for line in path.read_text().splitlines() if line]
+
+
+def check_or_record_ids(setup_dir, worker_ids, item_order):
+    """On a fresh run, records the exact worker_id order and item order this
+    run started with. On a resume (these files already exist), verifies the
+    CURRENT invocation's inputs produce the identical order -- person{i}.csv
+    everywhere in this workflow means "the i-th worker in THIS order," so a
+    silent mismatch here (e.g. the input CSVs were edited between runs)
+    would misattribute every position/embedding to the wrong participant
+    rather than fail loudly."""
+    worker_ids_path = setup_dir / "worker_ids.txt"
+    item_order_path = setup_dir / "item_order.txt"
+    if worker_ids_path.exists():
+        prior_workers = read_id_list(worker_ids_path)
+        if prior_workers != list(worker_ids):
+            sys.exit(f"{worker_ids_path} doesn't match the current worker_id list -- "
+                      "the input CSVs appear to have changed since this run started. "
+                      "Resuming from this output_dir would misattribute positions/embeddings "
+                      "to the wrong participants. Use --fresh, or point output_dir at a new location.")
+        prior_items = read_id_list(item_order_path)
+        if prior_items != list(item_order):
+            sys.exit(f"{item_order_path} doesn't match the current item order -- "
+                      "the embeddings input appears to have changed since this run started. "
+                      "Use --fresh, or point output_dir at a new location.")
+    else:
+        write_id_list(worker_ids_path, worker_ids)
+        write_id_list(item_order_path, item_order)
+
+
+def iteration_is_complete(iter_dir, n_people):
+    def ok(path):
+        return path.exists() and path.stat().st_size > 0
+    if not ok(iter_dir / "positions.csv") or not ok(iter_dir / "beta.csv"):
+        return False
+    embeddings_dir = iter_dir / "refit" / "embeddings"
+    return all(ok(embeddings_dir / f"person{i}.csv") for i in range(n_people))
+
+
+def find_resume_state(work_dir, n_outer, n_people, orig_dir):
+    """Scans iter1, iter2, ... for the longest complete PREFIX (an
+    incomplete or missing iteration, even if a LATER one looks complete
+    from some earlier abandoned attempt, stops the scan -- resuming must
+    continue from the first gap, not skip over it). Returns
+    (start_t, positions, beta0, beta1, warm_start_dir, old_positions_path)
+    -- start_t=1 with the fresh-start defaults if nothing is resumable."""
+    last_complete = 0
+    for t in range(1, n_outer + 1):
+        if iteration_is_complete(work_dir / f"iter{t}", n_people):
+            last_complete = t
+        else:
+            break
+
+    if last_complete == 0:
+        return 1, None, 0.0, 0.0, orig_dir, None
+
+    iter_dir = work_dir / f"iter{last_complete}"
+    with open(iter_dir / "positions.csv", newline="") as f:
+        positions = [float(r["position"]) for r in csv.DictReader(f)]
+    with open(iter_dir / "beta.csv", newline="") as f:
+        beta_row = next(csv.DictReader(f))
+    print(f"[condor_joint_manifold] Resuming after iteration {last_complete}/{n_outer} "
+          f"(beta0={float(beta_row['beta0']):.4f}, beta1={float(beta_row['beta1']):.4f})")
+    return (last_complete + 1, positions, float(beta_row["beta0"]), float(beta_row["beta1"]),
+            iter_dir / "refit" / "embeddings", iter_dir / "positions.csv")
+
+
+# ---------------------------------------------------------------------------
 # One outer iteration
 # ---------------------------------------------------------------------------
 
@@ -440,6 +516,10 @@ def main():
     parser.add_argument("triplet_data", type=Path)
     parser.add_argument("embeddings", type=Path)
     parser.add_argument("params", type=Path)
+    parser.add_argument("--fresh", action="store_true",
+                         help="Ignore any existing iter*/ state in output_dir and start over "
+                              "from iteration 1, instead of auto-resuming after the last "
+                              "complete iteration (the default).")
     args = parser.parse_args()
 
     for p in (args.triplet_data, args.embeddings, args.params):
@@ -498,14 +578,24 @@ def main():
     setup_dir, orig_dir, mats_dir, trials_dir = prep_person_files(
         work_dir, worker_ids, item_index, triplet_rows_by_worker, embedding_rows_by_worker, item_order
     )
+    check_or_record_ids(setup_dir, worker_ids, item_order)
 
-    positions = None
-    beta0, beta1 = 0.0, 0.0
-    warm_start_dir = orig_dir
-    old_positions_path = None
+    if args.fresh:
+        start_t, positions, beta0, beta1, warm_start_dir, old_positions_path = (
+            1, None, 0.0, 0.0, orig_dir, None
+        )
+    else:
+        start_t, positions, beta0, beta1, warm_start_dir, old_positions_path = find_resume_state(
+            work_dir, n_outer, n_people, orig_dir
+        )
     aligned_dir = None
 
-    for t in range(1, n_outer + 1):
+    if start_t > n_outer:
+        print(f"[condor_joint_manifold] Already at iteration {start_t - 1}/{n_outer} -- "
+              "nothing left to run (pass a larger n_outer in the config to continue further, "
+              "or --fresh to restart).")
+
+    for t in range(start_t, n_outer + 1):
         iter_dir = work_dir / f"iter{t}"
         iter_dir.mkdir(parents=True, exist_ok=True)
 

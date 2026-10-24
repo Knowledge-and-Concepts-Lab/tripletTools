@@ -141,7 +141,26 @@ iteration's `iterN/update.err` for the underlying R error (same
 diagnosis steps as an embedding-refit failure, just for the single update
 job instead of the batch of per-participant ones).
 
-If a run is interrupted partway through, there is currently no resume
-support — this is a planned improvement alongside `mode: loo`. Each
-iteration's outputs are kept on disk (`iterN/`), so a manual resume is
-possible by hand but not yet automated.
+## Resuming / extending a run
+
+Rerunning the exact same command, pointing at the same `output_dir`,
+**automatically resumes** after the last fully-completed iteration rather
+than starting over — it scans `iter1/`, `iter2/`, ... for the first
+incomplete or missing one and continues from there, using that state's
+positions/beta0/beta1 and refit embeddings as the starting point. This
+also means **raising `n_outer` in the config and rerunning is how you
+extend a run** that turned out to need more iterations than you first
+asked for (`n_outer` is a total iteration count, not "run this many
+more") — useful if the population curve hasn't settled yet (watch
+whether beta0/beta1 are still moving by the last iteration, and whether
+any small subgroup of participants is still steadily drifting in
+position rather than having stabilized).
+
+Resuming is refused, with a clear error, if the current `triplet_data.csv`/
+`embeddings.csv` would produce a different participant list or item order
+than the run that's being resumed — a silent mismatch there would
+misattribute every position/embedding to the wrong person rather than
+fail loudly. Pass `--fresh` to ignore any existing `iter*/` state and
+start over from iteration 1 in the same `output_dir` regardless.
+
+`mode: loo` remains a planned follow-up, not yet built.

@@ -398,5 +398,144 @@ class TestRunUpdateStep(unittest.TestCase):
                                         resources={}, container_image="docker://example/image:latest")
 
 
+class TestIdListRoundTrip(unittest.TestCase):
+    def test_write_then_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ids.txt"
+            jm.write_id_list(path, ["p1", "p2", "p3"])
+            self.assertEqual(jm.read_id_list(path), ["p1", "p2", "p3"])
+
+
+class TestCheckOrRecordIds(unittest.TestCase):
+    def test_first_run_records(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            setup_dir = Path(tmp)
+            jm.check_or_record_ids(setup_dir, ["p1", "p2"], ["a", "b"])
+            self.assertEqual(jm.read_id_list(setup_dir / "worker_ids.txt"), ["p1", "p2"])
+            self.assertEqual(jm.read_id_list(setup_dir / "item_order.txt"), ["a", "b"])
+
+    def test_matching_resume_passes_silently(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            setup_dir = Path(tmp)
+            jm.check_or_record_ids(setup_dir, ["p1", "p2"], ["a", "b"])
+            jm.check_or_record_ids(setup_dir, ["p1", "p2"], ["a", "b"])  # must not raise
+
+    def test_mismatched_worker_ids_exits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            setup_dir = Path(tmp)
+            jm.check_or_record_ids(setup_dir, ["p1", "p2"], ["a", "b"])
+            with self.assertRaises(SystemExit):
+                jm.check_or_record_ids(setup_dir, ["p1", "p3"], ["a", "b"])
+
+    def test_mismatched_item_order_exits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            setup_dir = Path(tmp)
+            jm.check_or_record_ids(setup_dir, ["p1", "p2"], ["a", "b"])
+            with self.assertRaises(SystemExit):
+                jm.check_or_record_ids(setup_dir, ["p1", "p2"], ["b", "a"])
+
+
+class TestIterationIsComplete(unittest.TestCase):
+    def _make_complete_iter(self, iter_dir, n_people):
+        emb_dir = iter_dir / "refit" / "embeddings"
+        emb_dir.mkdir(parents=True)
+        for i in range(n_people):
+            (emb_dir / f"person{i}.csv").write_text("item,dim_0\na,1.0\n")
+        (iter_dir / "positions.csv").write_text("position\n0.1\n0.2\n")
+        (iter_dir / "beta.csv").write_text("beta0,beta1,bandwidth\n0,0,1\n")
+
+    def test_complete_iteration_is_true(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            iter_dir = Path(tmp) / "iter1"
+            self._make_complete_iter(iter_dir, 2)
+            self.assertTrue(jm.iteration_is_complete(iter_dir, 2))
+
+    def test_missing_positions_is_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            iter_dir = Path(tmp) / "iter1"
+            self._make_complete_iter(iter_dir, 2)
+            (iter_dir / "positions.csv").unlink()
+            self.assertFalse(jm.iteration_is_complete(iter_dir, 2))
+
+    def test_empty_beta_is_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            iter_dir = Path(tmp) / "iter1"
+            self._make_complete_iter(iter_dir, 2)
+            (iter_dir / "beta.csv").write_text("")
+            self.assertFalse(jm.iteration_is_complete(iter_dir, 2))
+
+    def test_missing_one_persons_embedding_is_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            iter_dir = Path(tmp) / "iter1"
+            self._make_complete_iter(iter_dir, 3)
+            (iter_dir / "refit" / "embeddings" / "person2.csv").unlink()
+            self.assertFalse(jm.iteration_is_complete(iter_dir, 3))
+
+    def test_nonexistent_iteration_is_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertFalse(jm.iteration_is_complete(Path(tmp) / "iter1", 2))
+
+
+class TestFindResumeState(unittest.TestCase):
+    def _make_complete_iter(self, iter_dir, n_people, beta0, beta1, positions):
+        emb_dir = iter_dir / "refit" / "embeddings"
+        emb_dir.mkdir(parents=True)
+        for i in range(n_people):
+            (emb_dir / f"person{i}.csv").write_text("item,dim_0\na,1.0\n")
+        pos_text = "position\n" + "\n".join(str(p) for p in positions) + "\n"
+        (iter_dir / "positions.csv").write_text(pos_text)
+        (iter_dir / "beta.csv").write_text(f"beta0,beta1,bandwidth\n{beta0},{beta1},0.2\n")
+
+    def test_no_prior_iterations_starts_fresh(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            orig_dir = work_dir / "setup" / "original_embeddings"
+            start_t, positions, beta0, beta1, warm_start_dir, old_pos = jm.find_resume_state(
+                work_dir, 6, 2, orig_dir
+            )
+            self.assertEqual(start_t, 1)
+            self.assertIsNone(positions)
+            self.assertEqual((beta0, beta1), (0.0, 0.0))
+            self.assertEqual(warm_start_dir, orig_dir)
+            self.assertIsNone(old_pos)
+
+    def test_resumes_after_last_complete_iteration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            self._make_complete_iter(work_dir / "iter1", 2, 0.1, 0.2, [0.1, -0.1])
+            self._make_complete_iter(work_dir / "iter2", 2, 0.3, 0.4, [0.2, -0.2])
+            start_t, positions, beta0, beta1, warm_start_dir, old_pos = jm.find_resume_state(
+                work_dir, 6, 2, work_dir / "setup" / "original_embeddings"
+            )
+            self.assertEqual(start_t, 3)
+            self.assertEqual(positions, [0.2, -0.2])
+            self.assertEqual((beta0, beta1), (0.3, 0.4))
+            self.assertEqual(warm_start_dir, work_dir / "iter2" / "refit" / "embeddings")
+            self.assertEqual(old_pos, work_dir / "iter2" / "positions.csv")
+
+    def test_stops_at_first_gap_does_not_skip_over_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            self._make_complete_iter(work_dir / "iter1", 2, 0.1, 0.2, [0.1, -0.1])
+            # iter2 deliberately left incomplete (no files at all)
+            self._make_complete_iter(work_dir / "iter3", 2, 0.9, 0.9, [0.9, -0.9])
+            start_t, positions, beta0, beta1, warm_start_dir, old_pos = jm.find_resume_state(
+                work_dir, 6, 2, work_dir / "setup" / "original_embeddings"
+            )
+            self.assertEqual(start_t, 2)  # resume right after iter1, not iter3
+            self.assertEqual((beta0, beta1), (0.1, 0.2))
+
+    def test_already_past_n_outer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            self._make_complete_iter(work_dir / "iter1", 2, 0.1, 0.2, [0.1, -0.1])
+            self._make_complete_iter(work_dir / "iter2", 2, 0.3, 0.4, [0.2, -0.2])
+            start_t, positions, beta0, beta1, warm_start_dir, old_pos = jm.find_resume_state(
+                work_dir, 2, 2, work_dir / "setup" / "original_embeddings"
+            )
+            self.assertEqual(start_t, 3)
+            self.assertGreater(start_t, 2)  # caller interprets this as "nothing left to run"
+
+
 if __name__ == "__main__":
     unittest.main()
