@@ -2379,3 +2379,43 @@ back to the returned matrices.
   skipped over in favor of a later-looking-complete one from some
   earlier abandoned attempt) and the id-consistency check in both
   directions.
+- **Real finding from the first genuine production run (24 participants,
+  extended via resume to `n_outer=30`): `final_embeddings.csv` (each
+  participant’s own individually-refit embedding) showed a clean,
+  monotonic, textbook overfitting signature against the baseline** – a
+  validation-logLik comparison against each person’s own plain
+  individual embedding (standard shared alpha=1) was marginally
+  *positive* at iteration 1 (+0.16, not significant) and degraded
+  smoothly and monotonically to significantly *negative* by iteration 30
+  (-4.32, p=0.0068), with implied alpha spanning 0.007 to 3.3 million
+  across participants by the end. This looked like a direct
+  contradiction of the earlier decisive LOO validation (+3.19, p=0.0011)
+  until the actual discrepancy was found: that LOO test never evaluated
+  a held-out participant’s own refit embedding at all – it evaluated the
+  **kernel-smoothed pooled estimate** (`embed_at()`: a weighted average
+  across the whole aligned pool at that participant’s own recovered
+  position), since in the LOO design the held-out person’s own embedding
+  was excluded from the pool entirely. Re-running the SAME overfitting
+  check using that correct estimator (recomputing GPA alignment locally
+  from each iteration’s own refit embeddings, so every iteration could
+  be checked without needing the `aligned/` output specifically) showed
+  no overfitting trend at all – the smoothed estimate beat the baseline
+  at *every* iteration from 1 to 30, strongest early, dipping modestly
+  through the middle (while positions were still settling), and
+  re-strengthening and stabilizing from iteration ~22 onward almost
+  exactly when the late position flips (see the resume-support entry
+  above) resolved. **The individually-refit embedding (the workflow’s
+  own main output) was never the validated artifact – the
+  kernel-smoothed pooled estimate was, and the two can diverge sharply
+  as a person’s own alpha becomes extreme.** Fixed by adding
+  `final_smoothed_embeddings.csv`/`final_smoothed_alpha.csv` as proper
+  workflow outputs (`write_smoothed_outputs()`), computed via a
+  pure-Python reimplementation of `embed_at()` plus an exact
+  reimplementation of R’s
+  [`stats::bw.nrd0()`](https://rdrr.io/r/stats/bandwidth.html) (verified
+  bit-for-bit against a real R reference value – an *approximate*
+  bandwidth formula would silently use a different kernel than the one
+  the R-side update step actually validated against). Requires the final
+  iteration’s `aligned/` output (the thing the `transfer_output_files`
+  fix a few entries up made reliable); skips with a printed note, not a
+  failure, if it’s missing. 9 new tests (46 total).
