@@ -413,7 +413,7 @@ manifold position.
 The crossover survives: the left-end embedding predicts best for
 participants near the left end of the manifold, the right-end embedding
 predicts best for everyone else, and which one wins tracks manifold
-position almost perfectly (R² = 0.43, from a simple linear regression of
+position almost perfectly (R² = 0.31, from a simple linear regression of
 the accuracy difference on position – barely smaller than what the
 leakage-prone naive version would have reported). This is a genuine,
 strong individual-differences effect – in a domain (color similarity)

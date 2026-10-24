@@ -2340,3 +2340,42 @@ back to the returned matrices.
   (left unset for the embedding-refit jobs, which only ever produce flat
   files) and passing `"positions.csv, beta.csv, aligned"` explicitly
   from the update step’s own submit-file call.
+- **`condor_joint_manifold_workflow.py` gained resume support, motivated
+  directly by its own first real production run (24 participants,
+  `n_outer=8`).** That run’s per-iteration beta0/beta1 trajectory looked
+  concerning at first (still growing, not decelerating) but turned out
+  to have a real, specific explanation once the per-participant position
+  trajectories were pulled apart: most of the sample had converged by
+  iteration 6, but a coherent subgroup of 6 participants had overshot to
+  an extreme position around iterations 3-5 and were still steadily
+  correcting back at iteration 8 (changes of 0.05-0.07 between
+  iterations 6 and 8, vs \<0.005 for the converged majority) – the
+  global curve was still catching up to their correction, not diverging.
+  (Bandwidth narrowing across the same iterations, initially also
+  flagged as a possible overfitting signature, turned out to be roughly
+  proportionate to a genuine, modest narrowing in the position
+  distribution itself – checked directly via the bandwidth-to-SD ratio,
+  which stayed near-constant rather than shrinking independently.) Since
+  the orchestrator had no way to continue past a finished run other than
+  restarting from iteration 1, extending this specific run to let that
+  subgroup settle meant discarding 8 iterations of real compute. Fixed
+  by making `n_outer` a total-iteration target rather than a fixed
+  count: rerunning the same command (same `output_dir`) now auto-resumes
+  after the last iteration with all expected outputs present
+  (`iterN/positions.csv`, `iterN/beta.csv`, every
+  `iterN/refit/embeddings/person{i}.csv`) rather than restarting, so
+  raising `n_outer` and rerunning is how a run gets extended. Guards
+  against the one real correctness risk this introduces – a resume
+  silently using a *different* `triplet_data.csv`/`embeddings.csv` than
+  the original run, which would misattribute every
+  `person{i}.csv`-indexed position/embedding to the wrong participant –
+  by recording the exact worker_id order and item order the first time
+  `setup/` is built (`setup/worker_ids.txt`, `setup/item_order.txt`) and
+  refusing to resume (clear error, not a silent mismatch) if a later
+  invocation’s inputs would produce a different order. A new `--fresh`
+  flag forces starting over regardless. 15 new unit tests (37 total)
+  cover the resume-point scan (including that an incomplete iteration in
+  the *middle* of a run is correctly treated as the resume point, not
+  skipped over in favor of a later-looking-complete one from some
+  earlier abandoned attempt) and the id-consistency check in both
+  directions.
