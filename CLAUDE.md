@@ -2321,3 +2321,22 @@ back to the returned matrices.
   of the same check. Both documents verified by actually knitting them
   (not just inspecting source) and checking rendered numbers against the
   source computation.
+- **`condor_joint_manifold_workflow.py`’s own real first deployment (30
+  participants, `n_outer=2`, `mode: fit`) completed cleanly – 60/60
+  refit jobs with empty `.err` files, stable beta0/beta1/positions
+  across iterations, correctly-renamed embedding files – but its
+  update-step output was missing the `aligned/` directory, even though
+  `update.err` was empty both iterations.** Root cause, confirmed
+  directly from the actual deployed `update.sub` the user pasted back:
+  no explicit `transfer_output_files` was set, and HTCondor’s default
+  “send back whatever’s new in the sandbox” output transfer reliably
+  picks up new plain files (`positions.csv`/`beta.csv` came back fine)
+  but does not reliably recurse into a newly-created *subdirectory*
+  without naming it explicitly – a known HTCondor behavior, not a bug in
+  `condor_joint_manifold_update.R`. Inconsequential for `mode: fit`
+  (`aligned_dir` is write-only there, never read back downstream), but
+  would matter for the still-unbuilt `mode: loo`. Fixed by adding an
+  optional `transfer_output_files` parameter to `write_submit_file()`
+  (left unset for the embedding-refit jobs, which only ever produce flat
+  files) and passing `"positions.csv, beta.csv, aligned"` explicitly
+  from the update step’s own submit-file call.
