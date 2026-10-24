@@ -2238,3 +2238,31 @@ back to the returned matrices.
   No re-run of the existing sweep was judged necessary. Fixed by
   changing `random_state = NULL` to `random_state = seed` (one line),
   matching the already-established, working pattern.
+- **Real deployment crash on `condor_joint_manifold_workflow.py`’s
+  actual first submit-node run (Gabor Experiment 3 data):
+  `build_canonical_items()` crashed `prep_person_files()` with
+  `AttributeError: 'str' object has no attribute 'keys'`.** Root cause:
+  `build_canonical_items()`’s `by_worker` dict was built via
+  `by_worker.setdefault(row["worker_id"], []).append(row["item"])` –
+  appending just the item-name *string*, not the row – while
+  `prep_person_files()` (its only caller) does
+  `by_item = {r["item"]: r for r in embedding_rows_by_worker[w]}`,
+  expecting each entry to be a full row dict with `dim_*` columns. No
+  test caught this before the real run because every existing test
+  exercised the two functions in isolation, each with hand-built inputs
+  already in the shape the *other* function expects – the actual handoff
+  between them (raw CSV rows all the way through to per-person embedding
+  files) was never exercised end-to-end. Fixed by appending the full
+  `row` instead of `row["item"]` (and deriving `first_items` from
+  `r["item"]` for each row), plus a new end-to-end test chaining
+  `build_canonical_items()` into `prep_person_files()` from raw rows,
+  and a strengthened assertion on the existing unit test checking row
+  *shape* (a dict with `dim_0` present), not just count – both confirmed
+  to fail against the reverted bug and pass against the fix before
+  committing. General lesson, worth remembering for this directory’s
+  other orchestrators too: testing each pure function in isolation with
+  inputs shaped exactly as its signature implies does not exercise
+  whether an *upstream* function’s actual output matches that shape –
+  that only shows up in an integration test spanning the real call
+  chain, which is why this one was worth adding even though it covers no
+  new branch of either function individually.
