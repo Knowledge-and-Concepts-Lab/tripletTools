@@ -2,29 +2,36 @@
 
 ## Overview
 
-`tripletTools` ships three independent HTCondor workflows for offloading
-expensive, embarrassingly-parallel computations — grid searches,
-permutation tests, per-participant fits — to a cluster
-(e.g. UW–Madison’s CHTC) instead of running them serially (or even
-multicore) on your own machine.
+`tripletTools` ships several independent HTCondor workflows for
+offloading expensive, embarrassingly-parallel computations — grid
+searches, permutation tests, per-participant fits, joint manifold
+estimation — to a cluster (e.g. UW–Madison’s CHTC) instead of running
+them serially (or even multicore) on your own machine. This vignette
+covers four of them in depth; a fifth (the choice-model recovery sweep)
+has its own `README_recovery_sweep.md` in `inst/condor/` rather than a
+section here yet.
 
-All three share the same design: a small, dependency-light **Python**
-script (the *orchestrator*) runs on the submit node and does the actual
-`condor_submit`/`condor_wait` work — **no R installation is needed on
-the submit node**, only Python 3 and PyYAML. Every real computation
-(each embedding fit, each comparison) instead runs *inside the
-`tripletTools` container image* via HTCondor’s `container` universe,
+All four covered here share the same design: a small, dependency-light
+**Python** script (the *orchestrator*) runs on the submit node and does
+the actual `condor_submit`/`condor_wait` work — **no R installation is
+needed on the submit node**, only Python 3 and PyYAML. Every real
+computation (each embedding fit, each comparison) instead runs *inside
+the `tripletTools` container image* via HTCondor’s `container` universe,
 dispatched as a per-job R script. This split matters because CHTC’s
 execute nodes are heterogeneous and ephemeral — you cannot assume any of
 them has R, `tripletTools`, or the `triplet-embeddings` conda
 environment pre-installed, so every job carries its own environment with
-it via the container instead.
+it via the container instead. (Workflow 4’s first version broke this
+rule for one cheap, non-parallel step — see its own section below for
+why that was a real problem on a real submit node, and how it was
+fixed.)
 
 | Workflow | What it does | Local R equivalent | Files (all in `inst/condor/`) |
 |----|----|----|----|
 | Dimensionality search → learning curve → final fit | Picks an embedding dimension, sanity-checks it against a learning curve, and produces a production embedding | [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) / [`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md) | `condor_workflow.py`, `condor_fit.R`, `params_template.yml` |
 | Group-difference permutation test | Tests whether two participant groups’ embeddings differ reliably, via a size-matched permutation null | [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md) | `condor_group_diff_workflow.py`, `condor_group_fit.R`, `condor_group_compare.R`, `group_diff_params_template.yml` |
 | Per-participant individual embeddings | Fits a separate embedding for every participant, concatenated into one CSV | [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) (its “individual” output) | `condor_individual_embeddings_workflow.py`, `condor_individual_fit.R`, `individual_embeddings_params_template.yml` |
+| Joint geometry+choice-model manifold estimation | Jointly estimates, per participant, a 1-D manifold position determining both a real re-fit embedding and a choice-model shape alpha | (no local equivalent — the fully rigorous version requires Condor-scale parallel embedding refits) | `condor_joint_manifold_workflow.py`, `condor_joint_manifold_fit.R`, `condor_joint_manifold_update.R`, `joint_manifold_params_template.yml` |
 
 Each workflow also has its own quick-reference `README_*.md` alongside
 its scripts in `inst/condor/` — this vignette covers the same ground in
@@ -641,3 +648,94 @@ in that participant’s own random train/test split. See
 for the full rationale and its `diagnostics` output for inspecting the
 whole variance/accuracy curve rather than trusting a single threshold
 blindly.
+
+------------------------------------------------------------------------
+
+## Workflow 4: Joint geometry+choice-model manifold estimation
+
+`condor_joint_manifold_workflow.py` jointly estimates, for every
+participant, a position on a shared 1-D latent manifold that determines
+**both** their own representational geometry **and** their own
+choice-model shape parameter alpha — rather than assuming, as every
+other workflow in this package does, that everyone shares one fixed
+choice model (the crowd-kernel default) and only their geometry differs.
+
+### Why this workflow exists
+
+Whether this is worth the extra machinery is an empirical question, not
+an assumption, and it was tested before any of this was built. The real,
+already-in-production baseline is: fit each participant their own
+individual embedding, score it with the standard shared choice model. On
+real Gabor-triplet data (orientation + contrast, participants instructed
+to judge orientation only — a dataset with documented, qualitative
+individual differences in which stimulus dimension people actually
+attend to), a leave-one-out comparison found that jointly re-fitting
+each participant’s embedding under their own current alpha, alternating
+with re-estimating the shared population curve, beat that baseline
+decisively on held-out validation-trial log-likelihood (20 of 24
+participants, paired $`t=3.74`$, $`p=0.0011`$), with a weaker but
+same-direction trend in raw accuracy — exactly the asymmetry expected
+when the gain comes from calibration (getting each person’s own alpha
+right) rather than from flipping which option gets predicted, since
+accuracy is structurally insensitive to alpha for this choice-model
+family. The same comparison, run on a dataset without that kind of
+qualitative mismatch, showed no advantage at all — this is not a
+workflow worth reaching for by default, only when individual differences
+look like genuinely different people attending to genuinely different
+things, not just noisier versions of the same thing. The full write-up,
+including why those two datasets give different answers, lives outside
+this package in the lab’s own research documentation, not here.
+
+### Unlike Workflow 1-3’s simplicity, this one is iterative
+
+The other three workflows here are one- or two-stage: submit a batch,
+wait, optionally submit a second batch, aggregate locally. This workflow
+alternates for `n_outer` iterations, each needing its own
+submit-and-wait round:
+
+1.  **\[Condor, parallel\]** refit every participant’s own embedding
+    under their current alpha, warm-started from their previous
+    embedding (their original individual fit on iteration 1) — one
+    Condor batch per iteration, covering every participant’s refit at
+    once, not one batch per participant per iteration (submitting that
+    granularly would pay Condor’s queueing/startup latency far more
+    times than necessary).
+
+2.  **\[Condor, single job\]** re-align the newly-refit embeddings,
+    refine each participant’s position via a profiled
+    choice-model-likelihood search, and refit the shared population
+    curve. This step is cheap (seconds) but still runs inside the
+    container as its own single-job Condor batch, not as a local Rscript
+    call on the submit node — an earlier version of this workflow ran it
+    locally, on the reasoning that another Condor round-trip wasn’t
+    worth it for something this cheap, but a real submit node turned out
+    to have no R installation and no clear way to add one. Moving this
+    step into Condor too restored the “no R needed on the submit node”
+    property every workflow in this vignette is supposed to have.
+
+### Inputs and deployment
+
+**Two** files are needed, not one: a combined triplet-judgment CSV, and
+a combined individual-embeddings CSV (e.g. from Workflow 3) giving every
+participant’s own starting embedding — this workflow refits from an
+existing fit, it doesn’t produce one from scratch.
+
+``` bash
+python3 condor_joint_manifold_workflow.py triplet_data.csv embeddings.csv my_params.yml
+```
+
+Outputs in `output_dir`:
+
+| File | Contents |
+|----|----|
+| `setup/` | Per-participant original embeddings and pre-indexed train/test/pooled triplet files — built once, reused every iteration |
+| `iterN/refit/embeddings/personI.csv` | Participant I’s refit embedding after outer iteration N |
+| `iterN/positions.csv`, `iterN/beta.csv` | That iteration’s updated manifold positions and population curve (`beta0`, `beta1`, `bandwidth`) |
+| `final_embeddings.csv`, `final_positions.csv` | Every participant’s final refit embedding and manifold position |
+| `run_manifest.txt` | Participant count, `d`, `n_outer`, final `beta0`/`beta1`, container image, for provenance |
+
+**Only `mode: fit` is implemented so far** — one joint estimate across
+every participant, no held-out evaluation. `mode: loo` (the full
+leave-one-out validation used for the decisive comparison above) is a
+planned follow-up; reproducing that comparison at Condor scale currently
+means running this workflow by hand once per held-out participant.

@@ -71,14 +71,17 @@
 <div class="section level2">
 <h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
 </h2>
-<p><code>tripletTools</code> ships three independent HTCondor workflows
-for offloading expensive, embarrassingly-parallel computations — grid
-searches, permutation tests, per-participant fits — to a cluster
-(e.g. UW–Madison’s CHTC) instead of running them serially (or even
-multicore) on your own machine.</p>
-<p>All three share the same design: a small, dependency-light
-<strong>Python</strong> script (the <em>orchestrator</em>) runs on the
-submit node and does the actual
+<p><code>tripletTools</code> ships several independent HTCondor
+workflows for offloading expensive, embarrassingly-parallel computations
+— grid searches, permutation tests, per-participant fits, joint manifold
+estimation — to a cluster (e.g. UW–Madison’s CHTC) instead of running
+them serially (or even multicore) on your own machine. This vignette
+covers four of them in depth; a fifth (the choice-model recovery sweep)
+has its own <code>README_recovery_sweep.md</code> in
+<code>inst/condor/</code> rather than a section here yet.</p>
+<p>All four covered here share the same design: a small,
+dependency-light <strong>Python</strong> script (the
+<em>orchestrator</em>) runs on the submit node and does the actual
 <code>condor_submit</code>/<code>condor_wait</code> work — <strong>no R
 installation is needed on the submit node</strong>, only Python 3 and
 PyYAML. Every real computation (each embedding fit, each comparison)
@@ -88,7 +91,10 @@ a per-job R script. This split matters because CHTC’s execute nodes are
 heterogeneous and ephemeral — you cannot assume any of them has R,
 <code>tripletTools</code>, or the <code>triplet-embeddings</code> conda
 environment pre-installed, so every job carries its own environment with
-it via the container instead.</p>
+it via the container instead. (Workflow 4’s first version broke this
+rule for one cheap, non-parallel step — see its own section below for
+why that was a real problem on a real submit node, and how it was
+fixed.)</p>
 <table class="table">
 <colgroup>
 <col width="25%">
@@ -138,6 +144,20 @@ output)</td>
 <code>condor_individual_embeddings_workflow.py</code>,
 <code>condor_individual_fit.R</code>,
 <code>individual_embeddings_params_template.yml</code>
+</td>
+</tr>
+<tr class="even">
+<td>Joint geometry+choice-model manifold estimation</td>
+<td>Jointly estimates, per participant, a 1-D manifold position
+determining both a real re-fit embedding and a choice-model shape
+alpha</td>
+<td>(no local equivalent — the fully rigorous version requires
+Condor-scale parallel embedding refits)</td>
+<td>
+<code>condor_joint_manifold_workflow.py</code>,
+<code>condor_joint_manifold_fit.R</code>,
+<code>condor_joint_manifold_update.R</code>,
+<code>joint_manifold_params_template.yml</code>
 </td>
 </tr>
 </tbody>
@@ -792,6 +812,134 @@ random train/test split. See <code><a href="../reference/reduce_embedding_dimens
 for the full rationale and its <code>diagnostics</code> output for
 inspecting the whole variance/accuracy curve rather than trusting a
 single threshold blindly.</p>
+<hr>
+</div>
+<div class="section level2">
+<h2 id="workflow-4-joint-geometrychoice-model-manifold-estimation">Workflow 4: Joint geometry+choice-model manifold estimation<a class="anchor" aria-label="anchor" href="#workflow-4-joint-geometrychoice-model-manifold-estimation"></a>
+</h2>
+<p><code>condor_joint_manifold_workflow.py</code> jointly estimates, for
+every participant, a position on a shared 1-D latent manifold that
+determines <strong>both</strong> their own representational geometry
+<strong>and</strong> their own choice-model shape parameter alpha —
+rather than assuming, as every other workflow in this package does, that
+everyone shares one fixed choice model (the crowd-kernel default) and
+only their geometry differs.</p>
+<div class="section level3">
+<h3 id="why-this-workflow-exists">Why this workflow exists<a class="anchor" aria-label="anchor" href="#why-this-workflow-exists"></a>
+</h3>
+<p>Whether this is worth the extra machinery is an empirical question,
+not an assumption, and it was tested before any of this was built. The
+real, already-in-production baseline is: fit each participant their own
+individual embedding, score it with the standard shared choice model. On
+real Gabor-triplet data (orientation + contrast, participants instructed
+to judge orientation only — a dataset with documented, qualitative
+individual differences in which stimulus dimension people actually
+attend to), a leave-one-out comparison found that jointly re-fitting
+each participant’s embedding under their own current alpha, alternating
+with re-estimating the shared population curve, beat that baseline
+decisively on held-out validation-trial log-likelihood (20 of 24
+participants, paired
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>t</mi><mo>=</mo><mn>3.74</mn></mrow><annotation encoding="application/x-tex">t=3.74</annotation></semantics></math>,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.0011</mn></mrow><annotation encoding="application/x-tex">p=0.0011</annotation></semantics></math>),
+with a weaker but same-direction trend in raw accuracy — exactly the
+asymmetry expected when the gain comes from calibration (getting each
+person’s own alpha right) rather than from flipping which option gets
+predicted, since accuracy is structurally insensitive to alpha for this
+choice-model family. The same comparison, run on a dataset without that
+kind of qualitative mismatch, showed no advantage at all — this is not a
+workflow worth reaching for by default, only when individual differences
+look like genuinely different people attending to genuinely different
+things, not just noisier versions of the same thing. The full write-up,
+including why those two datasets give different answers, lives outside
+this package in the lab’s own research documentation, not here.</p>
+</div>
+<div class="section level3">
+<h3 id="unlike-workflow-1-3s-simplicity-this-one-is-iterative">Unlike Workflow 1-3’s simplicity, this one is iterative<a class="anchor" aria-label="anchor" href="#unlike-workflow-1-3s-simplicity-this-one-is-iterative"></a>
+</h3>
+<p>The other three workflows here are one- or two-stage: submit a batch,
+wait, optionally submit a second batch, aggregate locally. This workflow
+alternates for <code>n_outer</code> iterations, each needing its own
+submit-and-wait round:</p>
+<ol style="list-style-type: lower-alpha">
+<li><p><strong>[Condor, parallel]</strong> refit every participant’s own
+embedding under their current alpha, warm-started from their previous
+embedding (their original individual fit on iteration 1) — one Condor
+batch per iteration, covering every participant’s refit at once, not one
+batch per participant per iteration (submitting that granularly would
+pay Condor’s queueing/startup latency far more times than
+necessary).</p></li>
+<li><p><strong>[Condor, single job]</strong> re-align the newly-refit
+embeddings, refine each participant’s position via a profiled
+choice-model-likelihood search, and refit the shared population curve.
+This step is cheap (seconds) but still runs inside the container as its
+own single-job Condor batch, not as a local Rscript call on the submit
+node — an earlier version of this workflow ran it locally, on the
+reasoning that another Condor round-trip wasn’t worth it for something
+this cheap, but a real submit node turned out to have no R installation
+and no clear way to add one. Moving this step into Condor too restored
+the “no R needed on the submit node” property every workflow in this
+vignette is supposed to have.</p></li>
+</ol>
+</div>
+<div class="section level3">
+<h3 id="inputs-and-deployment">Inputs and deployment<a class="anchor" aria-label="anchor" href="#inputs-and-deployment"></a>
+</h3>
+<p><strong>Two</strong> files are needed, not one: a combined
+triplet-judgment CSV, and a combined individual-embeddings CSV
+(e.g. from Workflow 3) giving every participant’s own starting embedding
+— this workflow refits from an existing fit, it doesn’t produce one from
+scratch.</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a><span class="ex">python3</span> condor_joint_manifold_workflow.py triplet_data.csv embeddings.csv my_params.yml</span></code></pre></div>
+<p>Outputs in <code>output_dir</code>:</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<thead><tr class="header">
+<th>File</th>
+<th>Contents</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>setup/</code></td>
+<td>Per-participant original embeddings and pre-indexed
+train/test/pooled triplet files — built once, reused every
+iteration</td>
+</tr>
+<tr class="even">
+<td><code>iterN/refit/embeddings/personI.csv</code></td>
+<td>Participant I’s refit embedding after outer iteration N</td>
+</tr>
+<tr class="odd">
+<td>
+<code>iterN/positions.csv</code>, <code>iterN/beta.csv</code>
+</td>
+<td>That iteration’s updated manifold positions and population curve
+(<code>beta0</code>, <code>beta1</code>, <code>bandwidth</code>)</td>
+</tr>
+<tr class="even">
+<td>
+<code>final_embeddings.csv</code>,
+<code>final_positions.csv</code>
+</td>
+<td>Every participant’s final refit embedding and manifold position</td>
+</tr>
+<tr class="odd">
+<td><code>run_manifest.txt</code></td>
+<td>Participant count, <code>d</code>, <code>n_outer</code>, final
+<code>beta0</code>/<code>beta1</code>, container image, for
+provenance</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Only <code>mode: fit</code> is implemented so far</strong> —
+one joint estimate across every participant, no held-out evaluation.
+<code>mode: loo</code> (the full leave-one-out validation used for the
+decisive comparison above) is a planned follow-up; reproducing that
+comparison at Condor scale currently means running this workflow by hand
+once per held-out participant.</p>
+</div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

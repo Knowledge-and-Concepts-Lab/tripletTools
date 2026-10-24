@@ -2294,3 +2294,30 @@ back to the returned matrices.
   missing. Fixed by adding the same
   `suppressPackageStartupMessages(library(tripletTools))` call used
   everywhere else in this directory.
+- **`condor_joint_manifold_workflow.py` documented in
+  `condor_workflows_vignette.Rmd`** as a new “Workflow 4” section (plus
+  a new row in the Overview table, and a correction to “three
+  independent workflows” -\> “several,” since the recovery sweep was
+  already a pre-existing fourth/fifth workflow with no vignette section
+  of its own – a gap this pass did not attempt to backfill, flagged
+  rather than silently worked around). Covers why the workflow exists
+  (the decisive log-likelihood validation on Gabor Experiment 3,
+  summarized briefly with a pointer to the full write-up living outside
+  the package in the lab’s own research documentation), why it’s
+  iterative unlike Workflows 1-3, and the update-step-moved-into-Condor
+  design decision. The full scientific write-up itself was added as a
+  new section, “Does jointly estimating geometry and choice model
+  improve prediction?”, in the lab’s own `triplet_choice_and_loss.Rmd`
+  (outside this package, in `Simulation/ChoiceModels/`) – extending the
+  existing “Variation in choice model vs geometry” section’s open
+  question with the Experiment 3 decisive result (20/24 participants,
+  paired $`t=3.74`$, $`p=0.0011`$ on held-out validation logLik), a
+  live-computed sanity check that the recovered LOO positions correlate
+  with an independent, previously-documented contrast-vs-orientation
+  individual-difference axis ($`r=-0.593`$, $`p=0.0022`$, recomputed
+  directly from the decisive run’s own per-participant output rather
+  than reused from an earlier pilot), and a direct contrast with
+  Experiment 1’s null result from the cheaper, embeddings-fixed version
+  of the same check. Both documents verified by actually knitting them
+  (not just inspecting source) and checking rendered numbers against the
+  source computation.
