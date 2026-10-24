@@ -257,42 +257,100 @@ class TestSubmitJobsWithRetry(unittest.TestCase):
 
 
 class TestRunUpdateStep(unittest.TestCase):
-    """Verifies the Rscript command is built correctly and output files are
-    parsed correctly, without actually invoking Rscript."""
+    """Verifies the update step's Condor submit file/arguments are built
+    correctly and its output is parsed correctly, without a real cluster --
+    condor_submit/condor_wait are mocked (via subprocess.run, same as
+    submit_and_wait's own two calls), and the mocked condor_submit writes
+    the output files a real job would have produced, simulating completion."""
 
-    def test_builds_command_and_parses_output(self):
+    def _patch_run(self, tmp, iter_dir, *, positions_text, beta_text, submit_returncode=0,
+                    wait_returncode=0):
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "condor_submit":
+                submit_path = Path(cmd[1])
+                self.assertTrue(submit_path.exists())
+                content = submit_path.read_text()
+                self.assertIn("universe        = container", content)
+                self.assertIn("condor_joint_manifold_update.R", content)
+                if submit_returncode == 0:
+                    (iter_dir / "positions.csv").write_text(positions_text)
+                    (iter_dir / "beta.csv").write_text(beta_text)
+                return mock.Mock(returncode=submit_returncode, stdout="1 job(s) submitted", stderr="")
+            if cmd[0] == "condor_wait":
+                return mock.Mock(returncode=wait_returncode)
+            raise AssertionError(f"unexpected subprocess call: {cmd}")
+        return mock.patch("condor_joint_manifold_workflow.subprocess.run", side_effect=fake_run)
+
+    def test_builds_submit_file_and_parses_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             iter_dir = Path(tmp) / "iter1"
             iter_dir.mkdir()
+            emb_dir = Path(tmp) / "embeddings"; emb_dir.mkdir()
+            trials_dir = Path(tmp) / "person_trials"; trials_dir.mkdir()
 
-            def fake_run(cmd, capture_output, text):
-                # Simulate the R script's own output files.
-                pos_arg = next(c for c in cmd if c.startswith("--output_positions="))
-                beta_arg = next(c for c in cmd if c.startswith("--output_beta="))
-                Path(pos_arg.split("=", 1)[1]).write_text("position\n-0.5\n0.5\n")
-                Path(beta_arg.split("=", 1)[1]).write_text("beta0,beta1,bandwidth\n0.1,0.2,0.3\n")
-                return mock.Mock(returncode=0, stdout="ok", stderr="")
-
-            with mock.patch("condor_joint_manifold_workflow.subprocess.run", side_effect=fake_run):
+            with self._patch_run(tmp, iter_dir, positions_text="position\n-0.5\n0.5\n",
+                                  beta_text="beta0,beta1,bandwidth\n0.1,0.2,0.3\n"):
                 positions, beta0, beta1, aligned_dir = jm.run_update_step(
-                    iter_dir, 2, Path(tmp) / "emb", Path(tmp) / "trials", None, 0.0, 0.0
+                    iter_dir, 2, emb_dir, trials_dir, None, 0.0, 0.0,
+                    resources={}, container_image="docker://example/image:latest"
                 )
             self.assertEqual(positions, [-0.5, 0.5])
             self.assertAlmostEqual(beta0, 0.1)
             self.assertAlmostEqual(beta1, 0.2)
 
-    def test_nonzero_exit_code_exits(self):
+    def test_rejects_embeddings_dir_with_wrong_basename(self):
         with tempfile.TemporaryDirectory() as tmp:
-            iter_dir = Path(tmp) / "iter1"
-            iter_dir.mkdir()
+            iter_dir = Path(tmp) / "iter1"; iter_dir.mkdir()
+            bad_dir = Path(tmp) / "wrong_name"; bad_dir.mkdir()
+            trials_dir = Path(tmp) / "person_trials"; trials_dir.mkdir()
+            with self.assertRaises(AssertionError):
+                jm.run_update_step(iter_dir, 2, bad_dir, trials_dir, None, 0.0, 0.0,
+                                    resources={}, container_image="docker://example/image:latest")
 
-            def fake_run(cmd, capture_output, text):
-                return mock.Mock(returncode=1, stdout="", stderr="boom")
+    def test_old_positions_staged_under_distinct_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prev_iter_dir = Path(tmp) / "iter1"; prev_iter_dir.mkdir()
+            old_positions_path = prev_iter_dir / "positions.csv"
+            old_positions_path.write_text("position\n0.1\n0.2\n")
+
+            iter_dir = Path(tmp) / "iter2"; iter_dir.mkdir()
+            emb_dir = Path(tmp) / "embeddings"; emb_dir.mkdir()
+            trials_dir = Path(tmp) / "person_trials"; trials_dir.mkdir()
+
+            seen_submit_files = []
+
+            def fake_run(cmd, **kwargs):
+                if cmd[0] == "condor_submit":
+                    seen_submit_files.append(Path(cmd[1]).read_text())
+                    (iter_dir / "positions.csv").write_text("position\n0.3\n0.4\n")
+                    (iter_dir / "beta.csv").write_text("beta0,beta1,bandwidth\n0,0,1\n")
+                    return mock.Mock(returncode=0, stdout="", stderr="")
+                return mock.Mock(returncode=0)
+
+            with mock.patch("condor_joint_manifold_workflow.subprocess.run", side_effect=fake_run):
+                jm.run_update_step(iter_dir, 2, emb_dir, trials_dir, old_positions_path, 0.0, 0.0,
+                                    resources={}, container_image="docker://example/image:latest")
+
+            self.assertTrue((iter_dir / "old_positions_input.csv").exists())
+            content = seen_submit_files[0]
+            self.assertIn("old_positions_input.csv", content)
+            self.assertIn("--old_positions=old_positions_input.csv", content)
+
+    def test_missing_output_after_job_exits(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            iter_dir = Path(tmp) / "iter1"; iter_dir.mkdir()
+            emb_dir = Path(tmp) / "embeddings"; emb_dir.mkdir()
+            trials_dir = Path(tmp) / "person_trials"; trials_dir.mkdir()
+
+            def fake_run(cmd, **kwargs):
+                if cmd[0] == "condor_submit":
+                    return mock.Mock(returncode=0, stdout="", stderr="")  # no output files written
+                return mock.Mock(returncode=0)
 
             with mock.patch("condor_joint_manifold_workflow.subprocess.run", side_effect=fake_run):
                 with self.assertRaises(SystemExit):
-                    jm.run_update_step(iter_dir, 2, Path(tmp) / "emb", Path(tmp) / "trials",
-                                        None, 0.0, 0.0)
+                    jm.run_update_step(iter_dir, 2, emb_dir, trials_dir, None, 0.0, 0.0,
+                                        resources={}, container_image="docker://example/image:latest")
 
 
 if __name__ == "__main__":

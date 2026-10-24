@@ -348,23 +348,67 @@ def run_refit_stage(iter_dir, n_people, warm_start_dir, mats_dir, alphas, config
 
 
 def run_update_step(iter_dir, n_people, embeddings_dir, trials_dir, old_positions_path,
-                     old_beta0, old_beta1):
+                     old_beta0, old_beta1, resources, container_image):
+    """Runs condor_joint_manifold_update.R as a single Condor job, inside the
+    same container image as the embedding-refit jobs (which already has R +
+    tripletTools installed) -- NOT a local subprocess call. This keeps the
+    submit node itself free of any R dependency, matching the other three
+    Condor workflows in this directory, at the cost of one extra
+    submit/wait round-trip per outer iteration for a job cheap enough that
+    it finishes in seconds once it starts running.
+
+    `embeddings_dir` and `trials_dir` are transferred as whole directories
+    (HTCondor preserves their basename as the landing directory inside the
+    job's sandbox), so this relies on both always being named "embeddings"
+    and "person_trials" respectively -- true for every caller in this file.
+    """
     positions_path = iter_dir / "positions.csv"
     beta_path = iter_dir / "beta.csv"
     aligned_dir = iter_dir / "aligned"
-    cmd = [
-        "Rscript", str(CONDOR_JOINT_MANIFOLD_UPDATE_R),
-        f"--n_pool={n_people}", f"--embeddings_dir={embeddings_dir}",
-        f"--trials_dir={trials_dir}",
-        f"--old_positions={old_positions_path if old_positions_path else 'NULL'}",
-        f"--old_beta0={old_beta0}", f"--old_beta1={old_beta1}",
-        f"--output_positions={positions_path}", f"--output_beta={beta_path}",
-        f"--output_aligned_dir={aligned_dir}",
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    print(result.stdout.strip())
-    if result.returncode != 0:
-        sys.exit(f"condor_joint_manifold_update.R failed:\n{result.stderr}")
+
+    assert embeddings_dir.name == "embeddings"
+    assert trials_dir.name == "person_trials"
+
+    transfer_files = [str(CONDOR_JOINT_MANIFOLD_UPDATE_R), str(embeddings_dir), str(trials_dir)]
+    if old_positions_path is not None:
+        # Staged under a name distinct from this job's own --output_positions
+        # ("positions.csv") so the two can never collide inside the job's
+        # transfer sandbox -- same concern, same fix, as the embedding-refit
+        # stage's init/output filename split above.
+        staged_old_positions = iter_dir / "old_positions_input.csv"
+        staged_old_positions.write_bytes(Path(old_positions_path).read_bytes())
+        transfer_files.append(str(staged_old_positions))
+        old_positions_arg = "old_positions_input.csv"
+    else:
+        old_positions_arg = "NULL"
+
+    arguments = (
+        f"condor_joint_manifold_update.R --n_pool={n_people} "
+        "--embeddings_dir=embeddings --trials_dir=person_trials "
+        f"--old_positions={old_positions_arg} "
+        f"--old_beta0={old_beta0} --old_beta1={old_beta1} "
+        "--output_positions=positions.csv --output_beta=beta.csv "
+        "--output_aligned_dir=aligned"
+    )
+
+    submit_path = iter_dir / "update.sub"
+    write_submit_file(
+        submit_path,
+        container_image=container_image,
+        arguments=arguments,
+        transfer_input_files=", ".join(transfer_files),
+        log=str(iter_dir / "update.log"),
+        output=str(iter_dir / "update.out"),
+        error=str(iter_dir / "update.err"),
+        resources=resources,
+        initialdir=str(iter_dir),
+        queue_statement="queue\n",
+    )
+    submit_and_wait(submit_path, iter_dir / "update.log", "manifold update")
+
+    if not positions_path.exists() or not beta_path.exists():
+        sys.exit(f"condor_joint_manifold_update.R did not produce expected output -- "
+                 f"check {iter_dir / 'update.err'}")
 
     with open(positions_path, newline="") as f:
         positions = [float(r["position"]) for r in csv.DictReader(f)]
@@ -462,7 +506,8 @@ def main():
                                           config, resources, container_image, batch_size)
 
         positions, beta0, beta1, aligned_dir = run_update_step(
-            iter_dir, n_people, embeddings_dir, trials_dir, old_positions_path, beta0, beta1
+            iter_dir, n_people, embeddings_dir, trials_dir, old_positions_path, beta0, beta1,
+            resources, container_image
         )
         old_positions_path = iter_dir / "positions.csv"
         warm_start_dir = embeddings_dir

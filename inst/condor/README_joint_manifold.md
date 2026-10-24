@@ -14,28 +14,24 @@ every participant, no held-out validation. `mode: loo` (the full
 leave-one-out validation used for the decisive local test this scales up)
 is a planned follow-up.
 
-## Unlike the other three Condor workflows in this directory: R IS needed on the submit node
+## No R needed on the submit node -- same as the other three workflows
 
 Every embedding refit (the expensive part — one real gradient-descent fit
-per participant per outer iteration) still runs entirely inside the
-`tripletTools` container via Condor, same as everywhere else here. But the
-per-iteration *update* step (re-aligning embeddings, finding each
-participant's own best position, refitting the shared population curve)
-runs as a **local Rscript call on the submit node**, not as a Condor job —
-it reuses the same R-side `generalized_procrustes()`/profiled-likelihood
-code already validated locally, and it's cheap enough (seconds) that
-routing it through Condor too wasn't worth the extra per-iteration
-round-trip. This means the submit node needs a working R installation
-**with the tripletTools package itself installed** (not just Python +
-PyYAML, as the other three workflows require) — e.g. via
-`devtools::install_github("Knowledge-and-Concepts-Lab/tripletTools")`,
-which also installs `generalized_procrustes()` and `get.rep.dist()`.
+per participant per outer iteration) runs inside the `tripletTools`
+container via Condor. The per-iteration *update* step (re-aligning
+embeddings, finding each participant's own best position, refitting the
+shared population curve) **also runs as a Condor job in that same
+container** — not a local Rscript call — specifically so this workflow
+doesn't need R installed on the submit node at all (an earlier version of
+this workflow ran that step locally; changed after finding that R isn't
+always available, or installable without special permissions, on a real
+submit node). This costs one extra submit/wait round-trip per outer
+iteration, for a job that's cheap once it starts running (seconds) but
+still pays ordinary Condor queueing/startup latency like any other job.
 
 ## Prerequisites (submit node)
 
 - Python 3 + PyYAML (`pip install --user pyyaml`)
-- **R, with the tripletTools package installed** (see above — this is new
-  relative to the other three workflows)
 - HTCondor client tools (`condor_submit`, `condor_wait`, `condor_q`)
 
 ## Step 1: Get the workflow scripts
@@ -101,10 +97,11 @@ This runs `n_outer` sequential rounds, each submitting **one Condor batch
 covering every participant's refit at once** (not one batch per
 participant per iteration — see the orchestrator's own docstring for why
 this matters for how many submission rounds the whole run actually pays
-the Condor queueing/startup latency for), then a local update step. Safe
-to run directly on the access point inside a persistent session
-(`screen`/`tmux`/`nohup`), same as the other workflows here — it only
-*orchestrates* the expensive part.
+the Condor queueing/startup latency for), followed by one single-job
+Condor batch for that iteration's update step. Safe to run directly on
+the access point inside a persistent session (`screen`/`tmux`/`nohup`),
+same as the other workflows here — it only *orchestrates*, every actual
+computation runs as a Condor job.
 
 Expect this to take a while: at `n=24` participants and `n_outer=6`, the
 embedding-refit batches alone involve ~144 real embedding fits, each
@@ -124,6 +121,7 @@ Written to `output_dir` (default `condor_joint_manifold_output/`, set in
 |---|---|
 | `setup/` | Per-participant original embeddings, pre-indexed train/test/pooled triplet files -- built once, reused every iteration |
 | `iterN/refit/embeddings/personI.csv` | Participant I's refit embedding after outer iteration N |
+| `iterN/update.out`, `iterN/update.err` | That iteration's update-step Condor job log/error output |
 | `iterN/positions.csv`, `iterN/beta.csv` | That iteration's updated manifold positions and population-curve (beta0, beta1, bandwidth) |
 | `iterN/aligned/personI.csv` | GPA-aligned embeddings used internally for that iteration's position search |
 | `final_embeddings.csv` | Every participant's FINAL (last-iteration) refit embedding, indexed by `worker_id` and `item` |
@@ -137,11 +135,11 @@ batch, a job was held or failed — same first steps as the other workflows
 here (`condor_q -hold`, `condor_q -better-analyze <job-id>`), and check
 that iteration's `iterN/refit/refit_*.err` files.
 
-If the driver exits with a message from `condor_joint_manifold_update.R`
-failing (nonzero exit, printed stderr), that's an R-side error in the
-local update step — check that R + tripletTools are actually installed
-and loadable on the submit node (see the top of this file), since this is
-the one step in this workflow that's not container-isolated.
+If `condor_wait` exits with a nonzero status during an update-step batch,
+or the driver exits with "did not produce expected output," check that
+iteration's `iterN/update.err` for the underlying R error (same
+diagnosis steps as an embedding-refit failure, just for the single update
+job instead of the batch of per-participant ones).
 
 If a run is interrupted partway through, there is currently no resume
 support — this is a planned improvement alongside `mode: loo`. Each
