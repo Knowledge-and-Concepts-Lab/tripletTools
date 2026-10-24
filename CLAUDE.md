@@ -111,15 +111,19 @@ Current version: **0.2.0**. Package URL:
                                #                                   _fit_offline()-via-reticulate pattern as the
                                #                                   recovery sweep above); the cheap per-iteration
                                #                                   update (GPA realignment, per-person position
-                               #                                   search, population-curve refit) runs as a LOCAL
-                               #                                   Rscript call on the submit node, not a Condor
-                               #                                   job -- the one workflow here that therefore
-                               #                                   needs R + tripletTools installed on the submit
-                               #                                   node itself, not just Python
-                               #                                   (condor_joint_manifold_update.R). Submits ONE
-                               #                                   Condor batch per outer iteration covering every
-                               #                                   participant's refit at once (not one batch per
-                               #                                   iteration-times-fold), to minimize how many
+                               #                                   search, population-curve refit) ALSO runs as its
+                               #                                   own single Condor job in the same container
+                               #                                   (condor_joint_manifold_update.R) -- not a local
+                               #                                   Rscript call, after an initial version that ran
+                               #                                   it locally turned out to need R on the submit
+                               #                                   node, which a real submit node didn't have and
+                               #                                   couldn't necessarily install (no special
+                               #                                   permissions needed on the submit node at all, by
+                               #                                   design, same as the other three workflows here).
+                               #                                   Submits ONE Condor batch per outer iteration
+                               #                                   covering every participant's refit at once (not
+                               #                                   one batch per iteration-times-fold), to minimize
+                               #                                   how many
                                #                                   rounds pay Condor's submission/queueing latency.
                                #                                   Only mode: fit (one joint estimate, no held-out
                                #                                   evaluation) is implemented; mode: loo (the full
@@ -2164,40 +2168,52 @@ back to the returned matrices.
   after that) rather than random-noise initialization, which is why
   later iterations converge faster than the first (confirmed directly
   during local validation). `condor_joint_manifold_update.R` is new
-  relative to every other workflow in this directory: it runs the cheap
-  per-iteration step (GPA realignment, per-person profiled-likelihood
-  position search, population-curve refit) as a **local Rscript call on
-  the submit node, not a Condor job** – it’s cheap enough (seconds,
-  confirmed locally) that another Condor round-trip wasn’t worth it, but
-  this is the one workflow here that therefore needs R + tripletTools
-  installed on the submit node itself, not just Python. **Real bug
-  caught during implementation, before any Condor deployment**: the
-  per-job embedding-refit output was initially going to be written under
-  the same filename convention (`person{i}.csv`) as its own
-  `--init_embedding` input, which would have collided within a single
-  job’s transfer sandbox (the same direction of mistake
-  `condor_workflow.py`’s own transfer-path-vs-argument-basename lesson
-  warns about, just mirrored) – caught by manually tracing the
-  file-naming chain across iterations before testing, not by a failing
-  test; fixed by writing refit output under a distinct
-  `embedding_person{i}.csv` name and renaming to `person{i}.csv` locally
-  (zero-cost) once the whole batch completes. Validated short of an
-  actual cluster deployment: 20 Python unit tests covering CSV
-  validation, canonical item-order consistency checking, per-person
-  train/test/pooled-trial file prep (zero-based indices, correct
-  sampleSet split, graceful handling of a participant with no random
-  trials), `submit_jobs_with_retry()` (copied in, same
-  self-contained-per-workflow convention as the other three), and
-  `run_update_step()`’s command construction/output parsing (via a
-  mocked `subprocess.run`, no real Rscript needed) – plus a standalone
-  functional smoke test of `condor_joint_manifold_update.R` against
-  synthetic circular-embedding data with a built-in noise gradient,
-  confirming the GPA/cmdscale/profiled-search pipeline runs end-to-end
-  and recovers a position that correlates with the known gradient
-  (r=-0.73). Only `mode: fit` (one joint estimate, no held-out
-  evaluation) is implemented; `mode: loo` (the full leave-one-out
-  validation mirroring the local decisive test) and run-resume support
-  are both explicitly planned follow-ups, not yet built.
+  relative to every other workflow in this directory, but not in *where*
+  it runs – it was originally built to run as a local Rscript call on
+  the submit node (cheap, seconds, so another Condor round-trip seemed
+  not worth it), but **real-deployment feedback before the first actual
+  test run** found the submit node had no R installation and uncertain
+  permissions to add one, so it was moved into its own single-job Condor
+  batch per outer iteration, same container image as the refit jobs
+  (which already has R + tripletTools) – restoring the “no R needed on
+  the submit node” property every other workflow here has. **Two real
+  bugs caught during implementation, both before any Condor
+  deployment**: (1) the per-job embedding-refit output was initially
+  going to be written under the same filename convention
+  (`person{i}.csv`) as its own `--init_embedding` input, which would
+  have collided within a single job’s transfer sandbox (the same
+  direction of mistake `condor_workflow.py`’s own
+  transfer-path-vs-argument-basename lesson warns about, just mirrored)
+  – caught by manually tracing the file-naming chain across iterations
+  before testing, not by a failing test; fixed by writing refit output
+  under a distinct `embedding_person{i}.csv` name and renaming to
+  `person{i}.csv` locally (zero-cost) once the whole batch
+  completes. (2) the SAME class of collision resurfaced when the update
+  step moved into Condor: its own `--old_positions` input would
+  otherwise transfer in under the same name (`positions.csv`) its
+  `--output_positions` writes out – fixed by staging the previous
+  iteration’s positions file under a distinct `old_positions_input.csv`
+  name before transfer. Validated short of an actual cluster deployment:
+  22 Python unit tests covering CSV validation, canonical item-order
+  consistency checking, per-person train/test/pooled-trial file prep
+  (zero-based indices, correct sampleSet split, graceful handling of a
+  participant with no random trials), `submit_jobs_with_retry()` (copied
+  in, same self-contained-per-workflow convention as the other three),
+  and the update step’s Condor submit-file construction/output parsing
+  (via a mocked `subprocess.run` standing in for
+  `condor_submit`/`condor_wait`, no real cluster or Rscript needed) –
+  plus a standalone functional smoke test of
+  `condor_joint_manifold_update.R` itself (run directly, not through the
+  orchestrator) against synthetic circular-embedding data with a
+  built-in noise gradient, confirming the GPA/cmdscale/profiled-search
+  pipeline runs end-to-end and recovers a position that correlates with
+  the known gradient (r=-0.73). (The `condor_recovery_fit.R` seed bug
+  found and fixed alongside this workflow’s first version is covered in
+  its own entry below.) Only `mode: fit` (one joint estimate, no
+  held-out evaluation) is implemented; `mode: loo` (the full
+  leave-one-out validation mirroring the local decisive test) and
+  run-resume support are both explicitly planned follow-ups, not yet
+  built.
 - **Found, while writing `condor_joint_manifold_fit.R` above, that
   `condor_recovery_fit.R` has had the exact same “seed never actually
   controlled a fit” bug already fixed once elsewhere in this project**
