@@ -93,7 +93,17 @@ def get_config(config, field, default=None):
 
 def write_submit_file(path, *, container_image, arguments, transfer_input_files,
                        log, output, error, resources, initialdir,
-                       queue_statement="queue\n"):
+                       queue_statement="queue\n", transfer_output_files=None):
+    # HTCondor's default output transfer ("send back whatever's new in the
+    # sandbox") reliably picks up new plain files but does not reliably
+    # recurse into a newly-created SUBDIRECTORY unless it's named
+    # explicitly here -- confirmed on a real deployment: positions.csv/
+    # beta.csv (plain files) came back fine, a new aligned/ directory never
+    # did. Callers whose job only ever creates flat files (the embedding
+    # refits) can leave this unset.
+    transfer_output_line = (
+        f"transfer_output_files   = {transfer_output_files}\n" if transfer_output_files else ""
+    )
     content = f"""universe        = container
 container_image = {container_image}
 
@@ -106,7 +116,7 @@ initialdir = {initialdir}
 transfer_input_files    = {transfer_input_files}
 should_transfer_files   = YES
 when_to_transfer_output = ON_EXIT
-
+{transfer_output_line}
 request_cpus   = {resources.get("request_cpus", 1)}
 request_memory = {resources.get("request_memory", "4GB")}
 request_disk   = {resources.get("request_disk", "8GB")}
@@ -405,6 +415,7 @@ def run_update_step(iter_dir, n_people, embeddings_dir, trials_dir, old_position
         resources=resources,
         initialdir=str(iter_dir),
         queue_statement="queue\n",
+        transfer_output_files="positions.csv, beta.csv, aligned",
     )
     submit_and_wait(submit_path, iter_dir / "update.log", "manifold update")
 

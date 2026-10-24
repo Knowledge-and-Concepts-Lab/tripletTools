@@ -311,6 +311,12 @@ class TestRunUpdateStep(unittest.TestCase):
                 content = submit_path.read_text()
                 self.assertIn("universe        = container", content)
                 self.assertIn("condor_joint_manifold_update.R", content)
+                # aligned/ is a newly-created SUBdirectory inside the job's
+                # sandbox -- HTCondor's default output transfer doesn't
+                # reliably recurse into those without naming them
+                # explicitly (confirmed on a real deployment: positions.csv
+                # and beta.csv, plain files, came back; aligned/ never did).
+                self.assertIn("transfer_output_files   = positions.csv, beta.csv, aligned", content)
                 if submit_returncode == 0:
                     (iter_dir / "positions.csv").write_text(positions_text)
                     (iter_dir / "beta.csv").write_text(beta_text)
