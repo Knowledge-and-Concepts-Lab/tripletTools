@@ -210,13 +210,15 @@ def read_combined_embeddings(path):
 def build_canonical_items(embedding_rows, worker_ids):
     """Item order from the first worker's own block, validated identical
     (as a set) for every other worker -- every participant's embedding
-    must cover the same item set for GPA/cmdscale to make sense."""
+    must cover the same item set for GPA/cmdscale to make sense. Returns
+    the item-name order plus each worker's FULL rows (not just item
+    names) -- prep_person_files() needs the dim_* columns too."""
     by_worker = {}
     for row in embedding_rows:
-        by_worker.setdefault(row["worker_id"], []).append(row["item"])
-    first_items = by_worker[worker_ids[0]]
+        by_worker.setdefault(row["worker_id"], []).append(row)
+    first_items = [r["item"] for r in by_worker[worker_ids[0]]]
     for w in worker_ids[1:]:
-        if set(by_worker[w]) != set(first_items):
+        if {r["item"] for r in by_worker[w]} != set(first_items):
             sys.exit(f"worker_id {w}'s embedding covers a different item set than "
                       f"{worker_ids[0]}'s -- every participant must share the same items.")
     return first_items, by_worker

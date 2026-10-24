@@ -74,6 +74,13 @@ class TestBuildCanonicalItems(unittest.TestCase):
         item_order, by_worker = jm.build_canonical_items(rows, ["p1", "p2"])
         self.assertEqual(set(item_order), {"a", "b"})
         self.assertEqual(len(by_worker["p1"]), 2)
+        # by_worker must hold full row dicts (with dim_* columns), not bare
+        # item-name strings -- prep_person_files() needs r["item"]/r["dim_0"]
+        # on each entry. A real deployment hit "'str' object has no
+        # attribute 'keys'" here when this returned names instead of rows.
+        for row in by_worker["p1"]:
+            self.assertIsInstance(row, dict)
+            self.assertIn("dim_0", row)
 
     def test_mismatched_item_set_exits(self):
         rows = [
@@ -95,6 +102,38 @@ class TestWinnerLoserItem(unittest.TestCase):
         row = {"Left": "b", "Right": "c", "Answer": "c"}
         winner, loser = jm.winner_loser_item(row)
         self.assertEqual((winner, loser), ("c", "b"))
+
+
+class TestBuildCanonicalItemsIntoPrepPersonFiles(unittest.TestCase):
+    """End-to-end: raw CSV-shaped embedding rows -> build_canonical_items()
+    -> prep_person_files(), the exact handoff that broke in a real
+    deployment (build_canonical_items was storing bare item-name strings
+    instead of full rows, so prep_person_files's r["item"]/r["dim_0"]
+    lookups blew up on a plain str). Every other test exercises these two
+    functions separately with hand-built inputs already in the shape each
+    one expects, which is exactly why this gap wasn't caught before."""
+
+    def test_full_pipeline_from_raw_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            embedding_rows = [
+                {"worker_id": "p1", "item": "itemA", "dim_0": "1.0", "dim_1": "2.0"},
+                {"worker_id": "p1", "item": "itemB", "dim_0": "3.0", "dim_1": "4.0"},
+                {"worker_id": "p2", "item": "itemB", "dim_0": "5.0", "dim_1": "6.0"},
+                {"worker_id": "p2", "item": "itemA", "dim_0": "7.0", "dim_1": "8.0"},
+            ]
+            worker_ids = ["p1", "p2"]
+            item_order, embedding_rows_by_worker = jm.build_canonical_items(embedding_rows, worker_ids)
+            item_index = {it: i for i, it in enumerate(item_order)}
+            triplet_rows_by_worker = {"p1": [], "p2": []}
+
+            setup_dir, orig_dir, mats_dir, trials_dir = jm.prep_person_files(
+                Path(tmp), worker_ids, item_index, triplet_rows_by_worker,
+                embedding_rows_by_worker, item_order
+            )
+            with open(orig_dir / "person0.csv", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(set(rows[0].keys()), {"item", "dim_0", "dim_1"})
 
 
 class TestPrepPersonFiles(unittest.TestCase):
