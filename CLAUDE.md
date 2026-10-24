@@ -70,11 +70,12 @@ Current version: **0.2.0**. Package URL:
                                #                                   simulation is done locally (stdlib
                                #                                   Python, no numpy) by the orchestrator
                                #                                   itself before any Condor job is queued.
-                               #                                   Only workflow here that bypasses
+                               #                                   One of two workflows here that bypass
                                #                                   train_embedding()'s CKL-only R wrapper,
                                #                                   calling compute_embeddings.py's
                                #                                   _fit_offline() directly via reticulate
-                               #                                   to select any noise model/alpha
+                               #                                   to select any noise model/alpha (the other
+                               #                                   is condor_joint_manifold_workflow.py, below)
                                #                                   (condor_recovery_fit.R,
                                #                                   recovery_sweep_params_template.yml,
                                #                                   README_recovery_sweep.md).
@@ -93,6 +94,39 @@ Current version: **0.2.0**. Package URL:
                                #                                   the original stage0_simulate/ data and each
                                #                                   cell's exact original fit_seed, then merge
                                #                                   just those rows into results_long_refit.csv)
+                               #   condor_joint_manifold_workflow.py - Condor-scale version of the fully-rigorous
+                               #                                   joint geometry+choice-model manifold estimation
+                               #                                   validated locally in condor_workflows_vignette.Rmd:
+                               #                                   jointly estimates, per participant, a 1-D
+                               #                                   manifold position determining BOTH a real
+                               #                                   re-fit embedding (not just a kernel-weighted
+                               #                                   average of others' existing fits) AND a choice-
+                               #                                   model shape alpha(t) = exp(beta0+beta1*t), via
+                               #                                   alternating coordinate ascent. The expensive step
+                               #                                   (one real embedding refit per participant per
+                               #                                   outer iteration) is embarrassingly parallel
+                               #                                   within an iteration and runs on Condor
+                               #                                   (condor_joint_manifold_fit.R, the other workflow
+                               #                                   that bypasses the CKL-only R wrapper, same
+                               #                                   _fit_offline()-via-reticulate pattern as the
+                               #                                   recovery sweep above); the cheap per-iteration
+                               #                                   update (GPA realignment, per-person position
+                               #                                   search, population-curve refit) runs as a LOCAL
+                               #                                   Rscript call on the submit node, not a Condor
+                               #                                   job -- the one workflow here that therefore
+                               #                                   needs R + tripletTools installed on the submit
+                               #                                   node itself, not just Python
+                               #                                   (condor_joint_manifold_update.R). Submits ONE
+                               #                                   Condor batch per outer iteration covering every
+                               #                                   participant's refit at once (not one batch per
+                               #                                   iteration-times-fold), to minimize how many
+                               #                                   rounds pay Condor's submission/queueing latency.
+                               #                                   Only mode: fit (one joint estimate, no held-out
+                               #                                   evaluation) is implemented; mode: loo (the full
+                               #                                   leave-one-out validation used for the decisive
+                               #                                   local test) is a planned follow-up
+                               #                                   (joint_manifold_params_template.yml,
+                               #                                   README_joint_manifold.md).
     vignettes/
       tripletTools.Rmd                  # "Get started" guide (name matches pkgname -- pkgdown auto-promotes it
                                          #   to a top-level navbar link instead of the Articles dropdown). Only
@@ -2096,3 +2130,95 @@ back to the returned matrices.
     the targeted refit also costs less total compute, since it only
     touches the ~21% of cells that actually needed it rather than
     redoing everything.
+- **`condor_joint_manifold_workflow.py`** (+
+  `condor_joint_manifold_fit.R`, `condor_joint_manifold_update.R`,
+  `joint_manifold_params_template.yml`, `README_joint_manifold.md`,
+  `test_condor_joint_manifold_workflow.py`) – fourth Condor workflow,
+  the Condor-scale version of the “fully rigorous” (embedding-refit)
+  joint geometry+choice-model manifold idea, validated locally on real
+  Gabor Experiment 3 data via a decisive LOO comparison against the
+  already-in-production baseline (each person’s own individual
+  embedding, standard shared alpha=1): the rigorous model won on
+  held-out validation-trial log-likelihood (20/24 participants, paired
+  t-test p=0.0011) with a supportive but non-significant accuracy trend
+  (16/24, p=0.14) – exactly the asymmetry expected for a model whose
+  advantage is in choice-model *calibration* rather than in flipping
+  which option gets predicted, since accuracy is structurally
+  insensitive to alpha for this Student-t/crowd-kernel family (whichever
+  option has the smaller distance always has higher predicted
+  probability, for any alpha). That result (plus the recovered manifold
+  position independently tracking the known contrast-vs-orientation axis
+  in Experiment 3) was judged sufficient evidence to justify the Condor
+  investment, scoped in a planning exchange before any code was written.
+  Architecture: restructured from the naive “loop over folds, and within
+  each fold loop over outer iterations” shape (which would pay Condor’s
+  submission/queueing latency `n_folds x n_outer` times) to loop over
+  outer iterations as the only sequential axis, submitting **one Condor
+  batch per iteration covering every participant’s refit at once**.
+  `condor_joint_manifold_fit.R` is the second workflow here (after the
+  recovery sweep) to bypass
+  [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)’s
+  CKL-only R wrapper via `_fit_offline()`-through-reticulate,
+  warm-started from each participant’s current embedding (their original
+  CrowdKernel fit on iteration 1, their own previous iteration’s refit
+  after that) rather than random-noise initialization, which is why
+  later iterations converge faster than the first (confirmed directly
+  during local validation). `condor_joint_manifold_update.R` is new
+  relative to every other workflow in this directory: it runs the cheap
+  per-iteration step (GPA realignment, per-person profiled-likelihood
+  position search, population-curve refit) as a **local Rscript call on
+  the submit node, not a Condor job** – it’s cheap enough (seconds,
+  confirmed locally) that another Condor round-trip wasn’t worth it, but
+  this is the one workflow here that therefore needs R + tripletTools
+  installed on the submit node itself, not just Python. **Real bug
+  caught during implementation, before any Condor deployment**: the
+  per-job embedding-refit output was initially going to be written under
+  the same filename convention (`person{i}.csv`) as its own
+  `--init_embedding` input, which would have collided within a single
+  job’s transfer sandbox (the same direction of mistake
+  `condor_workflow.py`’s own transfer-path-vs-argument-basename lesson
+  warns about, just mirrored) – caught by manually tracing the
+  file-naming chain across iterations before testing, not by a failing
+  test; fixed by writing refit output under a distinct
+  `embedding_person{i}.csv` name and renaming to `person{i}.csv` locally
+  (zero-cost) once the whole batch completes. Validated short of an
+  actual cluster deployment: 20 Python unit tests covering CSV
+  validation, canonical item-order consistency checking, per-person
+  train/test/pooled-trial file prep (zero-based indices, correct
+  sampleSet split, graceful handling of a participant with no random
+  trials), `submit_jobs_with_retry()` (copied in, same
+  self-contained-per-workflow convention as the other three), and
+  `run_update_step()`’s command construction/output parsing (via a
+  mocked `subprocess.run`, no real Rscript needed) – plus a standalone
+  functional smoke test of `condor_joint_manifold_update.R` against
+  synthetic circular-embedding data with a built-in noise gradient,
+  confirming the GPA/cmdscale/profiled-search pipeline runs end-to-end
+  and recovers a position that correlates with the known gradient
+  (r=-0.73). Only `mode: fit` (one joint estimate, no held-out
+  evaluation) is implemented; `mode: loo` (the full leave-one-out
+  validation mirroring the local decisive test) and run-resume support
+  are both explicitly planned follow-ups, not yet built.
+- **Found, while writing `condor_joint_manifold_fit.R` above, that
+  `condor_recovery_fit.R` has had the exact same “seed never actually
+  controlled a fit” bug already fixed once elsewhere in this project**
+  (see the
+  [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)/[`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
+  entry earlier in this file): it calls `_fit_offline()` with
+  `random_state = NULL` rather than the actual `seed` value, so two jobs
+  with identical `--seed` only share an initial embedding and train/test
+  split (both R-side, both correctly seeded) – the optimizer’s own
+  internal randomness during gradient descent is never pinned down, so
+  exact reruns aren’t bit-reproducible. Assessed as a reproducibility
+  issue, not a validity one, for the recovery-sweep conclusions already
+  drawn from it: those were established via replication across 20-50
+  independent ground-truth draws specifically so that run-to-run
+  variability from any source gets absorbed into the between-replicate
+  spread the significance tests already account for, the bug introduces
+  unbiased per-job noise (fresh process per Condor job, no shared state
+  to bias a particular direction), and if anything extra uncontrolled
+  noise should make a true effect *harder*, not easier, to find
+  significant – so the upper/lower-triangle asymmetry finding surviving
+  replication despite this is mildly reassuring rather than undermined.
+  No re-run of the existing sweep was judged necessary. Fixed by
+  changing `random_state = NULL` to `random_state = seed` (one line),
+  matching the already-established, working pattern.
