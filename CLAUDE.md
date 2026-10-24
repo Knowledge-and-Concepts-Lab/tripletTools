@@ -2266,3 +2266,31 @@ back to the returned matrices.
   that only shows up in an integration test spanning the real call
   chain, which is why this one was worth adding even though it covers no
   new branch of either function individually.
+- **Second real deployment failure on
+  `condor_joint_manifold_workflow.py`’s first run, right after the
+  previous one was fixed: every embedding-refit job failed with
+  `ModuleNotFoundError: No module named 'pandas'`, after a telltale log
+  of `reticulate` downloading `uv`, a fresh `cpython-3.13` interpreter,
+  and bare `numpy` from scratch.** Root cause, confirmed directly
+  against `R/zzz.R`: the `"triplet-embeddings"` conda environment is
+  activated by
+  [`reticulate::use_condaenv()`](https://rstudio.github.io/reticulate/reference/use_python.html)
+  inside tripletTools’s own `.onLoad()` – which only runs if the package
+  is actually [`library()`](https://rdrr.io/r/base/library.html)-loaded,
+  not merely referenced via
+  `system.file(..., package = "tripletTools")`.
+  `condor_joint_manifold_fit.R` never called
+  [`library(tripletTools)`](https://knowledge-and-concepts-lab.github.io/tripletTools/),
+  so `.onLoad()` never ran, so `reticulate` had no configured Python at
+  all and fell back to auto-bootstrapping its own empty one via `uv` (a
+  newer-`reticulate` fallback behavior) instead of finding the
+  container’s real environment with torch/pandas/etc. already installed.
+  Every *other* per-job fit script in this directory
+  (`condor_recovery_fit.R`, `condor_fit.R`, `condor_group_fit.R`,
+  `condor_individual_fit.R`) already calls
+  [`library(tripletTools)`](https://knowledge-and-concepts-lab.github.io/tripletTools/)
+  for exactly this reason – confirmed by checking all four directly, not
+  assumed – this new script was simply the one place that line was
+  missing. Fixed by adding the same
+  `suppressPackageStartupMessages(library(tripletTools))` call used
+  everywhere else in this directory.
