@@ -58,6 +58,16 @@ if (length(missing)) {
   stop("Missing required arguments: ", paste0("--", missing, collapse = ", "), call. = FALSE)
 }
 
+# Must load the package (not just system.file() its python/ dir below) --
+# tripletTools's own .onLoad() is what activates the "triplet-embeddings"
+# conda env via reticulate::use_condaenv(); skipping this left reticulate
+# with no configured Python on a real deployment, which made it silently
+# auto-bootstrap an empty one via uv instead (ModuleNotFoundError: no
+# module named 'pandas') rather than using the container's real env with
+# torch/pandas/etc. already installed. Every other per-job fit script in
+# this directory already does this -- this one was just missing it.
+suppressPackageStartupMessages(library(tripletTools))
+
 d          <- as.integer(opt$d)
 seed       <- as.integer(opt$seed)
 max_epochs <- as.integer(opt$max_epochs)
