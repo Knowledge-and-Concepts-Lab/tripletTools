@@ -105,7 +105,7 @@ res <- compute_py$"_fit_offline"(
   max_epochs = max_epochs, tolerance = tolerance,
   tol_window = tol_window, print_every = as.integer(max_epochs),
   device = device, noise_model = noise_model, embedding = init_np,
-  random_state = NULL, module_kwargs = kwargs
+  random_state = seed, module_kwargs = kwargs
 )
 recovered <- res[[1]]
 rownames(recovered) <- gt_items

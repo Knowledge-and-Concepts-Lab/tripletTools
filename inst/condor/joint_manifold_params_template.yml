@@ -1,0 +1,99 @@
+# ---------------------------------------------------------------------------
+# tripletTools joint geometry+choice-model manifold Condor workflow
+# configuration
+#
+# Copy this file, edit the fields below, and pass it as the third argument
+# to condor_joint_manifold_workflow.py on the submit node:
+#
+#   python3 condor_joint_manifold_workflow.py triplet_data.csv embeddings.csv my_params.yml
+#
+# Unlike the other three Condor workflows in this directory, this ONE
+# needs R + the tripletTools package installed on the submit node itself,
+# not just Python -- see condor_joint_manifold_workflow.py's own docstring
+# for why (the per-iteration local update step reuses the same R-side
+# generalized Procrustes/profiled-likelihood code already validated
+# locally, and is cheap enough that routing it through Condor too isn't
+# worth the extra round-trip). The expensive part -- one real embedding
+# refit per participant per outer iteration -- still runs entirely inside
+# the tripletTools container via Condor, same as everywhere else here.
+#
+# What this does: jointly estimates, for every participant, a position on
+# a shared 1-D latent manifold that determines BOTH their own
+# representational geometry (a real re-fit embedding, not just an average
+# of others') and their own choice-model shape alpha. See
+# vignette("condor_workflows_vignette") for the local, serial validation
+# this scales up, and this directory's README_joint_manifold.md for
+# deployment steps.
+#
+# Only mode: fit is implemented so far (see below).
+# ---------------------------------------------------------------------------
+
+# Directory (on the submit node) where all outputs are written: per-person
+# setup files (setup/), one subdirectory per outer iteration (iter1/,
+# iter2/, ...), and the final production result (final_embeddings.csv,
+# final_positions.csv, run_manifest.txt) at the top level. Created if it
+# doesn't exist.
+output_dir: condor_joint_manifold_output
+
+# "fit": one joint estimate across every participant in triplet_data.csv
+#   (that also has an existing embedding in embeddings.csv), no held-out
+#   evaluation -- the production output you'd actually use.
+# "loo": NOT YET IMPLEMENTED. Planned follow-up: full leave-one-out
+#   validation, one independent fold per held-out participant, scored
+#   against their own validation trials -- the Condor-scale version of the
+#   decisive local test documented in vignette("condor_workflows_vignette").
+mode: fit
+
+# Embedding dimensionality. Must match embeddings.csv's own dimensionality
+# -- this workflow refits embeddings starting from each participant's
+# EXISTING fit, so it can't change d along the way.
+d: 3
+
+# Number of outer (alternating) iterations: refit every participant's
+# embedding under their current alpha, then re-align/reposition/refit the
+# shared curve. Local validation (serial, so capped at 2-4 for a runnable
+# turnaround) still showed genuine room for further improvement -- since
+# Condor removes that wall-clock constraint, 6-8 is a more reasonable
+# default here.
+n_outer: 6
+
+# Base random seed for the embedding-refit jobs. Each (iteration, person)
+# gets seed + their position index, so every fit gets a distinct,
+# reproducible seed derived from this one value.
+seed: 1
+
+# --- HTCondor settings -------------------------------------------------------
+condor:
+  # docker:// reference to the tripletTools container image, built and
+  # published by .github/workflows/docker-publish.yml at the repo root.
+  # Every embedding-refit job runs inside this image via
+  # universe = container. The per-iteration LOCAL update step does NOT use
+  # this -- see the top of this file.
+  container_image: docker://ghcr.io/knowledge-and-concepts-lab/triplettools:latest
+  resources:
+    request_cpus: 1
+    request_memory: 4GB
+    request_disk: 8GB   # covers the pulled/unpacked container image
+
+  # Optional: cap how many embedding-refit jobs run/finish concurrently
+  # within a single outer iteration's batch, by submitting them in
+  # sequential chunks of this size instead of all at once. See the other
+  # workflows' own params templates and vignette("condor_workflows_vignette")
+  # for the real deployment that motivated this (a burst of ~100
+  # simultaneously-finishing jobs can overload the output-transfer path,
+  # producing a clean exit code but an empty output file -- automatically
+  # retried regardless, but batch_size reduces how often that's needed).
+  # batch_size: 25
+
+# --- Embedding-refit settings -------------------------------------------------
+# Applied to every participant's refit, every outer iteration. Each refit
+# is WARM-STARTED from that participant's current embedding (their
+# original CrowdKernel fit on iteration 1, their own previous iteration's
+# refit after that), so later iterations typically converge much faster
+# than the first -- local validation saw many participants hit
+# [early stop] well before max_epochs by the second iteration, even though
+# most needed the full budget on the first.
+max_epochs: 6000
+tolerance: 1e-4
+tol_window: 300
+device: cpu           # execute nodes in the general CHTC pool have no GPU
