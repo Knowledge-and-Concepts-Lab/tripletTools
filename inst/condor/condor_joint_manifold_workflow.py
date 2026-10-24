@@ -363,6 +363,113 @@ def find_resume_state(work_dir, n_outer, n_people, orig_dir):
 
 
 # ---------------------------------------------------------------------------
+# Smoothed (kernel-weighted pooled) final output -- the artifact actually
+# validated against the baseline, distinct from each participant's own
+# individually-refit embedding (final_embeddings.csv)
+# ---------------------------------------------------------------------------
+
+def r_quantile_type7(sorted_x, p):
+    """R's default quantile() algorithm (type 7, linear interpolation)."""
+    n = len(sorted_x)
+    h = (n - 1) * p
+    lo = math.floor(h)
+    hi = math.ceil(h)
+    return sorted_x[lo] + (h - lo) * (sorted_x[hi] - sorted_x[lo])
+
+
+def bw_nrd0(x):
+    """Exact reimplementation of R's stats::bw.nrd0() (Silverman's
+    rule-of-thumb bandwidth, the default smooth_embedding_trajectory()/
+    condor_joint_manifold_update.R itself uses) -- verified to match R's
+    own output bit-for-bit on a reference vector. Must match exactly: this
+    bandwidth has to agree with what the R-side update step used to
+    produce the `aligned` embeddings being averaged here, or the smoothed
+    output wouldn't correspond to the same kernel the method was actually
+    validated with."""
+    n = len(x)
+    mean = sum(x) / n
+    sd = (sum((v - mean) ** 2 for v in x) / (n - 1)) ** 0.5
+    s = sorted(x)
+    iqr = r_quantile_type7(s, 0.75) - r_quantile_type7(s, 0.25)
+    lo = min(sd, iqr / 1.34)
+    if lo == 0:
+        lo = sd if sd else (abs(x[0]) if x[0] else 1.0)
+    return 0.9 * lo * n ** (-0.2)
+
+
+def read_dim_csv(path):
+    """Reads a plain dim_0,dim_1,...-only CSV (no item column) -- the
+    format aligned/person{i}.csv is written in -- into a list of rows,
+    each a list of floats, in file order (matching the canonical item
+    order every file in this workflow shares)."""
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        dim_cols = reader.fieldnames
+        return [[float(row[c]) for c in dim_cols] for row in reader]
+
+
+def smoothed_embedding_at(t, positions, bandwidth, aligned_rows_list):
+    """Kernel-weighted average across every pool member's aligned embedding
+    at query position t -- the same embed_at() used throughout this
+    workflow's own position-search step (R side), reimplemented here in
+    plain Python so the orchestrator can produce this output without
+    needing R. `aligned_rows_list[k]` is pool member k's aligned embedding
+    (list of item rows, each a list of d floats); `positions[k]` is their
+    corresponding position."""
+    weights = [math.exp(-0.5 * ((p - t) / bandwidth) ** 2) for p in positions]
+    total = sum(weights)
+    weights = [w / total for w in weights]
+    n_items = len(aligned_rows_list[0])
+    d = len(aligned_rows_list[0][0])
+    result = [[0.0] * d for _ in range(n_items)]
+    for person_rows, w in zip(aligned_rows_list, weights):
+        if w == 0.0:
+            continue
+        for i in range(n_items):
+            for k in range(d):
+                result[i][k] += w * person_rows[i][k]
+    return result
+
+
+def write_smoothed_outputs(work_dir, n_outer, worker_ids, item_order, positions, beta0, beta1):
+    """Writes final_smoothed_embeddings.csv (the kernel-smoothed pooled
+    estimate at each participant's own position -- the artifact actually
+    validated as beating the baseline) and final_smoothed_alpha.csv.
+    Requires the final iteration's aligned/ directory (added by the
+    transfer_output_files fix); skips with a clear message, rather than
+    failing the whole run, if it's missing -- e.g. a run from before that
+    fix, or an interrupted iteration."""
+    aligned_dir = work_dir / f"iter{n_outer}" / "aligned"
+    n_people = len(worker_ids)
+    missing = [i for i in range(n_people) if not (aligned_dir / f"person{i}.csv").exists()]
+    if missing:
+        print(f"[condor_joint_manifold] Note: {aligned_dir} is missing or incomplete "
+              f"({len(missing)} of {n_people} participant(s)) -- skipping "
+              "final_smoothed_embeddings.csv. This needs the final iteration's aligned/ "
+              "output (added after the transfer_output_files fix); an older run won't have it.")
+        return
+
+    aligned_rows_list = [read_dim_csv(aligned_dir / f"person{i}.csv") for i in range(n_people)]
+    bandwidth = bw_nrd0(positions)
+
+    smoothed_rows = []
+    alpha_rows = []
+    for i, w in enumerate(worker_ids):
+        X = smoothed_embedding_at(positions[i], positions, bandwidth, aligned_rows_list)
+        for item, row in zip(item_order, X):
+            smoothed_rows.append({"worker_id": w, "item": item,
+                                   **{f"dim_{k}": v for k, v in enumerate(row)}})
+        alpha_rows.append({"worker_id": w, "position": positions[i],
+                            "alpha": math.exp(beta0 + beta1 * positions[i])})
+
+    dim_cols = [f"dim_{k}" for k in range(len(aligned_rows_list[0][0]))]
+    write_csv(work_dir / "final_smoothed_embeddings.csv", ["worker_id", "item"] + dim_cols, smoothed_rows)
+    write_csv(work_dir / "final_smoothed_alpha.csv", ["worker_id", "position", "alpha"], alpha_rows)
+    print(f"[condor_joint_manifold] Wrote {work_dir / 'final_smoothed_embeddings.csv'} "
+          f"(bandwidth={bandwidth:.4f})")
+
+
+# ---------------------------------------------------------------------------
 # One outer iteration
 # ---------------------------------------------------------------------------
 
@@ -617,6 +724,16 @@ def main():
         print(f"[condor_joint_manifold] iteration {t} done: beta0={beta0:.4f} beta1={beta1:.4f}")
 
     # ---- Final production output ----
+    # NOTE: final_embeddings.csv (below) is each participant's own
+    # INDIVIDUALLY-REFIT embedding -- useful for inspection, but NOT the
+    # artifact validated as beating the baseline (own individual embedding,
+    # standard shared alpha): that comparison was always against the
+    # KERNEL-SMOOTHED pooled estimate (embed_at(), a weighted average across
+    # the whole aligned pool at each participant's own position), confirmed
+    # directly on a real production run where final_embeddings.csv alone
+    # showed progressive, spurious-looking "overfitting" across outer
+    # iterations that the smoothed estimate (final_smoothed_embeddings.csv,
+    # below) did not. Use the smoothed version for any actual prediction.
     final_rows = []
     for i, w in enumerate(worker_ids):
         with open(warm_start_dir / f"person{i}.csv", newline="") as f:
@@ -627,6 +744,8 @@ def main():
 
     positions_rows = [{"worker_id": w, "position": positions[i]} for i, w in enumerate(worker_ids)]
     write_csv(work_dir / "final_positions.csv", ["worker_id", "position"], positions_rows)
+
+    write_smoothed_outputs(work_dir, n_outer, worker_ids, item_order, positions, beta0, beta1)
 
     manifest = [
         f"Run finished:    {__import__('datetime').datetime.utcnow().isoformat()}Z",

@@ -124,8 +124,10 @@ Written to `output_dir` (default `condor_joint_manifold_output/`, set in
 | `iterN/update.out`, `iterN/update.err` | That iteration's update-step Condor job log/error output |
 | `iterN/positions.csv`, `iterN/beta.csv` | That iteration's updated manifold positions and population-curve (beta0, beta1, bandwidth) |
 | `iterN/aligned/personI.csv` | GPA-aligned embeddings used internally for that iteration's position search |
-| `final_embeddings.csv` | Every participant's FINAL (last-iteration) refit embedding, indexed by `worker_id` and `item` |
+| `final_embeddings.csv` | Every participant's FINAL (last-iteration) individually-refit embedding, indexed by `worker_id` and `item` -- **not** the artifact validated against the baseline, see below |
 | `final_positions.csv` | Every participant's final manifold position, indexed by `worker_id` |
+| `final_smoothed_embeddings.csv` | **Use this one for prediction.** The kernel-smoothed pooled estimate at each participant's own position (a weighted average across every participant's aligned, individually-refit embedding) -- this is the estimator actually validated as beating the baseline; `final_embeddings.csv` alone was found, on a real production run, to show spurious-looking "overfitting" across outer iterations that this smoothed version does not. Requires the final iteration's `aligned/` output; skipped with a printed note (not a hard failure) if that's missing, e.g. a run from before the `transfer_output_files` fix |
+| `final_smoothed_alpha.csv` | Each participant's own position and implied `alpha = exp(beta0 + beta1*position)` |
 | `run_manifest.txt` | Participant count, `d`, `n_outer`, final beta0/beta1, container image, for provenance |
 
 ## Troubleshooting

@@ -11,6 +11,7 @@ invoked by devtools::test()/R CMD check -- a developer-facing check for
 the Python side of this Condor workflow.
 """
 import csv
+import math
 import sys
 import tempfile
 import unittest
@@ -535,6 +536,95 @@ class TestFindResumeState(unittest.TestCase):
             )
             self.assertEqual(start_t, 3)
             self.assertGreater(start_t, 2)  # caller interprets this as "nothing left to run"
+
+
+class TestBwNrd0(unittest.TestCase):
+    """Verified against R's own bw.nrd0() output on this exact vector --
+    see condor_joint_manifold_workflow.py's own docstring for why this
+    needs to match R bit-for-bit, not just approximately."""
+
+    def test_matches_r_reference_value(self):
+        x = [-0.6264538107, 0.1836433242, -0.8356286124, 1.5952808021, 0.3295077718,
+             -0.8204683841, 0.4874290524, 0.7383247051, 0.5757813517, -0.3053883872,
+             1.5117811685, 0.3898432364, -0.6212405805, -2.2146998872, 1.1249309181,
+             -0.0449336090, -0.0161902631, 0.9438362107, 0.8212211951, 0.5939013212,
+             0.9189773716, 0.7821363007, 0.0745649834, -1.9893516959]
+        self.assertAlmostEqual(jm.bw_nrd0(x), 0.4184064851, places=9)
+
+
+class TestRQuantileType7(unittest.TestCase):
+    def test_median_of_odd_length(self):
+        self.assertAlmostEqual(jm.r_quantile_type7([1.0, 2.0, 3.0], 0.5), 2.0)
+
+    def test_quartiles_of_known_vector(self):
+        x = sorted([1.0, 2.0, 3.0, 4.0])
+        self.assertAlmostEqual(jm.r_quantile_type7(x, 0.25), 1.75)
+        self.assertAlmostEqual(jm.r_quantile_type7(x, 0.75), 3.25)
+
+
+class TestSmoothedEmbeddingAt(unittest.TestCase):
+    def test_weights_sum_to_one_recovers_constant_embedding(self):
+        # If every pool member has the IDENTICAL embedding, the weighted
+        # average must equal that same embedding regardless of bandwidth/t.
+        rows = [[1.0, 2.0], [3.0, 4.0]]
+        aligned_list = [rows, rows, rows]
+        result = jm.smoothed_embedding_at(0.3, [-1.0, 0.0, 1.0], 0.5, aligned_list)
+        for got, expected in zip(result, rows):
+            for g, e in zip(got, expected):
+                self.assertAlmostEqual(g, e)
+
+    def test_closest_position_dominates_with_narrow_bandwidth(self):
+        aligned_list = [[[0.0]], [[10.0]]]
+        result = jm.smoothed_embedding_at(0.0, [0.0, 100.0], 0.01, aligned_list)
+        self.assertAlmostEqual(result[0][0], 0.0, places=3)
+
+    def test_symmetric_query_point_averages_evenly(self):
+        aligned_list = [[[0.0]], [[10.0]]]
+        result = jm.smoothed_embedding_at(5.0, [0.0, 10.0], 1000.0, aligned_list)
+        self.assertAlmostEqual(result[0][0], 5.0, places=3)
+
+
+class TestReadDimCsv(unittest.TestCase):
+    def test_reads_rows_in_file_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "aligned.csv"
+            path.write_text("dim_0,dim_1\n1.0,2.0\n3.0,4.0\n")
+            rows = jm.read_dim_csv(path)
+            self.assertEqual(rows, [[1.0, 2.0], [3.0, 4.0]])
+
+
+class TestWriteSmoothedOutputs(unittest.TestCase):
+    def test_skips_gracefully_when_aligned_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            (work_dir / "iter2").mkdir(parents=True)
+            # No aligned/ directory created -- simulates a run from before
+            # the transfer_output_files fix.
+            jm.write_smoothed_outputs(work_dir, 2, ["p1", "p2"], ["a", "b"],
+                                       [0.1, -0.1], 0.0, 1.0)
+            self.assertFalse((work_dir / "final_smoothed_embeddings.csv").exists())
+
+    def test_writes_expected_files_when_aligned_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            aligned_dir = work_dir / "iter2" / "aligned"
+            aligned_dir.mkdir(parents=True)
+            (aligned_dir / "person0.csv").write_text("dim_0,dim_1\n1.0,2.0\n3.0,4.0\n")
+            (aligned_dir / "person1.csv").write_text("dim_0,dim_1\n5.0,6.0\n7.0,8.0\n")
+
+            jm.write_smoothed_outputs(work_dir, 2, ["p1", "p2"], ["itemA", "itemB"],
+                                       [0.1, -0.1], 0.0, 1.0)
+
+            self.assertTrue((work_dir / "final_smoothed_embeddings.csv").exists())
+            with open(work_dir / "final_smoothed_embeddings.csv", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 4)  # 2 participants x 2 items
+            self.assertEqual({r["worker_id"] for r in rows}, {"p1", "p2"})
+
+            with open(work_dir / "final_smoothed_alpha.csv", newline="") as f:
+                alpha_rows = list(csv.DictReader(f))
+            self.assertEqual(len(alpha_rows), 2)
+            self.assertAlmostEqual(float(alpha_rows[0]["alpha"]), math.exp(0.0 + 1.0 * 0.1))
 
 
 if __name__ == "__main__":
