@@ -24,7 +24,7 @@ for reproducibility. Default: \code{42}.}
 
 \item{validation_mode}{One of \code{"train"} (the default),
 \code{"test"}, or \code{"holdout"} -- where \code{sampleAlg ==
-  "validation"} trials are routed. See \emph{Validation trials} below.}
+"validation"} trials are routed. See \emph{Validation trials} below.}
 }
 \value{
 The input data frame with an additional character column

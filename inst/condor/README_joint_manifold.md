@@ -4,24 +4,34 @@ This describes how to run `condor_joint_manifold_workflow.py` — the
 Condor-scale version of the fully-rigorous joint manifold estimation
 validated locally and documented in `vignette("condor_workflows_vignette")`.
 It jointly estimates, for every participant, a position on a shared 1-D
-latent manifold that determines **both** their own representational
-geometry (a real re-fit embedding under their own current choice-model
-shape, not just a kernel-weighted average of other participants' existing
-fits) **and** their own choice-model shape parameter alpha.
+latent geometry manifold (a real re-fit embedding at that position, not
+just a kernel-weighted average of other participants' existing fits)
+**and** their own choice-model shape parameter alpha — but alpha is
+estimated **independently** of position, not as a function of it. An
+earlier design tied alpha to the same position driving geometry
+(`alpha(t) = exp(beta0 + beta1*t)`); tested directly against the current
+decoupled design on two real datasets, it showed no predictive advantage
+on the one dataset where it mattered at all, while risking real harm on a
+dataset whose geometry carries no individual-differences signal (see
+`triplet_choice_and_loss.Rmd`, outside this package, for the comparison).
 
 **Only `mode: fit` is implemented so far** — one joint estimate across
 every participant, no held-out validation. `mode: loo` (the full
 leave-one-out validation used for the decisive local test this scales up)
-is a planned follow-up.
+is deliberately deprioritized, not a near-term follow-up: it mainly
+answers a magnitude question that two much cheaper checks --
+`loo_trajectory_accuracy()` and the embedding/alpha decomposition in
+`summarize_joint_estimation()` -- already answer convincingly for the
+existence question, at a fraction of the cost.
 
 ## No R needed on the submit node -- same as the other three workflows
 
 Every embedding refit (the expensive part — one real gradient-descent fit
 per participant per outer iteration) runs inside the `tripletTools`
 container via Condor. The per-iteration *update* step (re-aligning
-embeddings, finding each participant's own best position, refitting the
-shared population curve) **also runs as a Condor job in that same
-container** — not a local Rscript call — specifically so this workflow
+embeddings, finding each participant's own best position, and
+re-estimating each participant's own shrinkage-regularized alpha)
+**also runs as a Condor job in that same container** — not a local Rscript call — specifically so this workflow
 doesn't need R installed on the submit node at all (an earlier version of
 this workflow ran that step locally; changed after finding that R isn't
 always available, or installable without special permissions, on a real
@@ -122,13 +132,15 @@ Written to `output_dir` (default `condor_joint_manifold_output/`, set in
 | `setup/` | Per-participant original embeddings, pre-indexed train/test/pooled triplet files -- built once, reused every iteration |
 | `iterN/refit/embeddings/personI.csv` | Participant I's refit embedding after outer iteration N |
 | `iterN/update.out`, `iterN/update.err` | That iteration's update-step Condor job log/error output |
-| `iterN/positions.csv`, `iterN/beta.csv` | That iteration's updated manifold positions and population-curve (beta0, beta1, bandwidth) |
+| `iterN/positions.csv` | That iteration's updated manifold positions |
+| `iterN/alpha.csv` | Each pool member's own re-estimated alpha (shrinkage-regularized), plus diagnostics: `log_alpha_raw`/`se_log_alpha` (the unregularized per-person MLE and its estimated precision), `shrinkage_weight`, `tau2`/`pop_mean_alpha` (population-level, repeated on every row), and `bandwidth` (geometry pooling, unrelated to alpha) |
 | `iterN/aligned/personI.csv` | GPA-aligned embeddings used internally for that iteration's position search |
 | `final_embeddings.csv` | Every participant's FINAL (last-iteration) individually-refit embedding, indexed by `worker_id` and `item` -- **not** the artifact validated against the baseline, see below |
 | `final_positions.csv` | Every participant's final manifold position, indexed by `worker_id` |
+| `final_alpha.csv` | Every participant's final alpha, indexed by `worker_id` -- already the shrinkage-regularized value, no further computation needed |
 | `final_smoothed_embeddings.csv` | **Use this one for prediction.** The kernel-smoothed pooled estimate at each participant's own position (a weighted average across every participant's aligned, individually-refit embedding) -- this is the estimator actually validated as beating the baseline; `final_embeddings.csv` alone was found, on a real production run, to show spurious-looking "overfitting" across outer iterations that this smoothed version does not. Requires the final iteration's `aligned/` output; skipped with a printed note (not a hard failure) if that's missing, e.g. a run from before the `transfer_output_files` fix |
-| `final_smoothed_alpha.csv` | Each participant's own position and implied `alpha = exp(beta0 + beta1*position)` |
-| `run_manifest.txt` | Participant count, `d`, `n_outer`, final beta0/beta1, container image, for provenance |
+| `final_grand_mean_embedding.csv` | The same plain, *position-independent* average across every participant's aligned embedding (no kernel weighting) -- same `item`/`dim_*` shape as `setup/original_embeddings/personI.csv`, one row set shared by everyone. Useful as a baseline to check whether the smoothed estimate's position-dependence is adding anything real: on one dataset analyzed this way it was statistically indistinguishable from `final_smoothed_embeddings.csv` (no real position-dependent structure, just noise reduction from averaging), and on another it was not (position-weighting gave a reliably better fit) -- `summarize_joint_estimation()` (R package) reports this comparison directly |
+| `run_manifest.txt` | Participant count, `d`, `n_outer`, final mean alpha, container image, for provenance |
 
 ## Troubleshooting
 
@@ -149,14 +161,13 @@ Rerunning the exact same command, pointing at the same `output_dir`,
 **automatically resumes** after the last fully-completed iteration rather
 than starting over — it scans `iter1/`, `iter2/`, ... for the first
 incomplete or missing one and continues from there, using that state's
-positions/beta0/beta1 and refit embeddings as the starting point. This
-also means **raising `n_outer` in the config and rerunning is how you
-extend a run** that turned out to need more iterations than you first
-asked for (`n_outer` is a total iteration count, not "run this many
-more") — useful if the population curve hasn't settled yet (watch
-whether beta0/beta1 are still moving by the last iteration, and whether
-any small subgroup of participants is still steadily drifting in
-position rather than having stabilized).
+positions/alpha and refit embeddings as the starting point. This also
+means **raising `n_outer` in the config and rerunning is how you extend a
+run** that turned out to need more iterations than you first asked for
+(`n_outer` is a total iteration count, not "run this many more") --
+useful if estimates haven't settled yet (`summarize_joint_estimation()`
+flags exactly this -- a participant's position or alpha whose recent-
+iteration range is still large relative to the full sample).
 
 Resuming is refused, with a clear error, if the current `triplet_data.csv`/
 `embeddings.csv` would produce a different participant list or item order
@@ -165,4 +176,5 @@ misattribute every position/embedding to the wrong person rather than
 fail loudly. Pass `--fresh` to ignore any existing `iter*/` state and
 start over from iteration 1 in the same `output_dir` regardless.
 
-`mode: loo` remains a planned follow-up, not yet built.
+`mode: loo` remains deliberately deprioritized, not yet built -- see the
+note at the top of this file for why.

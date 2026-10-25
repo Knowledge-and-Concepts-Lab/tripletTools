@@ -39,7 +39,7 @@ relying on the \code{dominance_ratio} heuristic alone. Default
 
 \item{n_simulations}{Integer. Null datasets simulated for
 \code{\link{test_dominant_dimension}} when \code{test_dominance =
-  TRUE}. Default 2000. Ignored otherwise.}
+TRUE}. Default 2000. Ignored otherwise.}
 
 \item{verbose}{Logical. Print an interpretive summary? Default \code{TRUE}.}
 }
