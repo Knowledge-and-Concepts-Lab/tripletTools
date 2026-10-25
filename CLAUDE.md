@@ -209,6 +209,7 @@ Current version: **0.2.0**. Package URL:
 | [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md) | R/loo_trajectory_accuracy.R | Leave-one-out-corrected version of the “does the trajectory predict held-out judgments” workflow — fully excludes each participant (including from the 1-D axis itself) before computing the trajectory evaluated against them, fixing a real, confirmed data-leakage pitfall in the naive version of this analysis |
 | [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md) | R/plot_3d_trajectory.R | 3-D scatterplot of one query point of a [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) result (`scatterplot3d`, Suggests-only), with an `effective_n` strip along the bottom, a red marker at the query point shown, and (optional) small black dots marking real participants’ own positions along the same strip |
 | [`plot_2d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_2d_trajectory.md) | R/plot_3d_trajectory.R | Same as [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md) (same argument conventions, same bottom strip/marker/dots) but for 2-D embeddings, built on base [`graphics::plot()`](https://rdrr.io/r/graphics/plot.default.html) instead of `scatterplot3d` – no extra dependency |
+| [`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md) | R/summarize_joint_estimation.R | Reads a `condor_joint_manifold_workflow.py` output directory (`inst/condor/`) and writes a self-contained Markdown diagnostic report: independent per-participant position- and alpha-convergence flagging (geometry and alpha are decoupled, not a shared curve, so each gets its own spaghetti plot + oscillation detection), population-level alpha diagnostics (mean alpha / tau2 trajectory), an embedding-geometry grid (2-D/3-D), a descriptive final-alpha-vs-position scatter, and – when the original combined triplet data is supplied (never recoverable from `output_dir` alone, since validation trials are deliberately held out of the Condor workflow itself) – a 7-row own/pooled/grand-mean-embedding x alpha=1/shrunk-alpha decomposition (the grand-mean rows isolate whether a participant’s own recovered *position* adds anything beyond plain averaging across everyone) and a [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md) fully-out-of-sample confirmation |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`,
 `.get_compute_py()`. Internal helpers in
@@ -221,7 +222,19 @@ Internal helpers in `R/find_discriminating_triplets.R` (not exported):
 `multinom_probs_matrix()` (normalizes
 [`nnet::multinom`](https://rdrr.io/pkg/nnet/man/multinom.html)’s predict
 output — returns a bare vector instead of a matrix for exactly 2
-classes), `multiclass_metrics()`.
+classes), `multiclass_metrics()`. Internal helpers in
+`R/summarize_joint_estimation.R` (not exported):
+`read_joint_manifold_run()`, `flag_unstable_joint_positions()`,
+`flag_unstable_joint_alpha()` (same convergence check, applied to each
+participant’s own alpha trajectory in log-alpha space – a separate check
+from position’s now that the two are estimated independently),
+`estimate_shrunk_alpha()` (per-person bounded-grid profiled MLE +
+DerSimonian-Laird empirical-Bayes shrinkage, the fallback when a run
+predates `final_alpha.csv`), `ckl_validation_eval()` (profiled
+Student-t/crowd-kernel logLik+accuracy, a proper shared helper rather
+than yet another duplicate of the formula repeated across the Condor R
+scripts, since this one lives inside the package itself),
+`build_jm_trial_lists()`, `compare_jm_conditions()`, `md_table()`.
 
 ------------------------------------------------------------------------
 
@@ -2419,3 +2432,391 @@ back to the returned matrices.
   iteration’s `aligned/` output (the thing the `transfer_output_files`
   fix a few entries up made reliable); skips with a printed note, not a
   failure, if it’s missing. 9 new tests (46 total).
+- **Full 30-participant Experiment 3 production run, plus a real
+  methodological question from the user that led to a genuinely useful
+  decomposition.** With resume support, `n_outer=30` was run on all 30
+  available Experiment 3 participants (not just the 24-participant
+  quality-gated subset); the earlier 24- and 30-participant runs were
+  moved to
+  `GaborTriplets/joint_manifolds/condor_joint_manifold_output_ex3{,_n24}`
+  to make room (see the directory-collision note below). The full-sample
+  production comparison strengthened rather than weakened relative to
+  n=24 (25/30 win, mean diff +3.00 nats, $`p=0.000118`$) and surfaced a
+  second real non-convergence case distinct from the resume-support one:
+  worker 95061’s position genuinely oscillates between two states across
+  all 30 iterations (amplitude ~0.3, still moving 0.35 at the final
+  transition) rather than converging, landing by coincidence within
+  0.0001 of a different worker’s own genuinely-converged final position
+  – caught by plotting the full trajectory, not trusting the
+  final-iteration number. Separately, the full-sample run’s choice-model
+  curve was dramatically more moderate than the 24-participant subset’s
+  (beta1 1.76 vs. 14.56) – checked whether the six additional
+  participants simply filled previously-sparse territory (they don’t;
+  their positions overlap the original 24’s own range) and reported this
+  as a plausible-but-unconfirmed curve-fitting-stability account rather
+  than a proven mechanism.
+  - **The user then asked a sharp methodological question**: since every
+    participant’s own data informs both their own refit and the shared
+    curve, is the production comparison’s win just self-contribution, or
+    could it even be explained away – if there were no real shared
+    structure, shouldn’t pooling in other participants’ data make a
+    held-out prediction *worse*, not better, by the user’s own correct
+    bias-variance argument? This was answered empirically, not
+    rhetorically, with a controlled decomposition: four conditions (own
+    vs. pooled/kernel-smoothed embedding) x (alpha fixed at 1 vs. the
+    fitted smoothed-alpha curve). Alpha-smoothing alone, embedding held
+    at each participant’s own refit, does nothing ($`p=0.597`$) –
+    unsurprising, since accuracy is structurally alpha-invariant for
+    this choice-model family and logLik barely moved either.
+    **Embedding-pooling alone, alpha held fixed at 1 – the clean test of
+    the user’s question – is itself a clear win** (23/30, mean diff
+    +2.06 nats, $`p=0.0018`$), ruling out both the alpha-recalibration
+    confound and (by the user’s own correct logic) the no-real-structure
+    account. A second, fully independent check followed immediately:
+    [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+    (already existing, no Condor run needed, no alpha component at all,
+    full participant exclusion including from the 1-D axis itself) gave
+    R² = 0.72, $`p=2.6\times10^{-9}`$ on the same n=30 data – about as
+    decisive as this kind of test gets. Both pieces of evidence, plus
+    the original small-scale full-refit LOO ($`p=0.0011`$), are
+    documented in `triplet_choice_and_loss.Rmd`’s new “Is the
+    embedding-pooling advantage real, or an artifact?” section, which
+    closes with a concrete recommendation for future datasets: these two
+    cheap checks (no Condor needed) answer the *existence* question, and
+    the expensive `mode: loo` Condor workflow (one full production run
+    per held-out participant) is worth its cost only when the
+    *magnitude* of benefit to a genuinely new participant specifically
+    needs to be trustworthy – a headline effect size, or sizing a real
+    application – not as a routine step on every new dataset.
+  - **A real near-miss, not a data-loss incident**: between sessions,
+    the user ran the same workflow on Experiment 1 data
+    (orientation-only Gabors, 38 participants, $`d=2`$) using the
+    *default* `condor_joint_manifold_output` output directory – the same
+    path the Experiment 3 n=30 run had used – which would have silently
+    overwritten the n=30 run’s raw per-iteration data (the thing
+    `triplet_choice_and_loss.Rmd`’s oscillation-trajectory figure reads
+    directly from disk at knit time) had the user not already moved the
+    prior results to
+    `joint_manifolds/condor_joint_manifold_output_ex3{,_n24}` first.
+    Caught via the harness’s own file-change notification on
+    `iter30/beta.csv`, confirmed via `run_manifest.txt` showing the
+    Experiment 1 inputs at that path, and resolved by updating the one
+    Rmd chunk that reads the live directory (`cj_dir`) to the new
+    `joint_manifolds/...` path. Worth remembering generally: this
+    project’s established convention of appending a suffix to a prior
+    run’s output directory (`_n24`, now `_ex3`) only protects against
+    collision if it happens *before* the next run starts, not after –
+    there is no in-workflow safeguard against two different datasets
+    being pointed at the same default output path.
+- **[`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md)**
+  (new) – the user, now having run this workflow on a second dataset
+  (Experiment 1) and anticipating several more, asked for the
+  diagnostics generated by hand above (convergence checking,
+  individual-vs-smoothed comparison) to become a reusable function
+  rather than a repeated manual exercise. Reads a
+  `condor_joint_manifold_workflow.py` output directory directly
+  (`run_manifest.txt`, `setup/worker_ids.txt`/`item_order.txt`, every
+  `iterN/positions.csv`/`beta.csv`, `setup/original_embeddings/`,
+  `final_embeddings.csv`,
+  `final_smoothed_embeddings.csv`/`final_smoothed_alpha.csv` when
+  present) and writes a self-contained Markdown report (figures as
+  sibling PNGs, relative links) covering position-convergence flagging,
+  the beta/bandwidth trajectory, the choice-model curve, and a 2-D/3-D
+  embedding-geometry grid – all of this needs nothing beyond
+  `output_dir` itself. The held-out validation comparison (the four-way
+  decomposition from the discussion above, plus the
+  [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+  confirmation) is gated on an optional `triplet_data` argument, since
+  validation trials are deliberately never passed to the Condor workflow
+  at all
+  ([`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)’s
+  `"holdout"` convention) and so cannot be recovered from `output_dir`
+  alone – the original baseline embeddings, by contrast, *are* already
+  saved under `setup/original_embeddings/` and need no separate
+  argument. Reuses already-exported package functions
+  ([`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md)
+  and
+  [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)
+  via its explicit `query_points` argument,
+  [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md),
+  [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md))
+  rather than re-deriving kernel-smoothing/GPA logic a second time; the
+  profiled Student-t/crowd-kernel likelihood machinery, needed for the
+  decomposition and not available anywhere else in the package (only
+  duplicated across the standalone Condor R scripts, which are
+  deliberately self-contained for cluster deployment – a rationale that
+  doesn’t apply here, since this lives inside the package itself), is
+  factored into one proper internal helper (`ckl_validation_eval()`)
+  instead of being duplicated a fourth time. Verified against real data,
+  not just a synthetic fixture: run on the actual Experiment 3 n=30
+  output directory, every number in the generated report (the
+  decomposition table, the flagged-participant table, the LOO R²)
+  matched the hand-computed analysis above exactly; run on the actual
+  Experiment 1 output directory with no `triplet_data` (confirming
+  graceful skipping of the comparison sections) and surfaced a second,
+  independently real non-convergence case worth noting for its own sake
+  – a different worker whose position converges smoothly for 29
+  iterations and then jumps sharply at the very last one, a distinct
+  failure mode from worker 95061’s sustained oscillation above, caught
+  by the same flagging logic without any manual trajectory inspection.
+  `p_acc` is reported as `NA` (not a bug) whenever two compared
+  conditions share the same embedding and differ only in alpha, since
+  R’s own [`t.test()`](https://rdrr.io/r/stats/t.test.html) returns `NA`
+  (not an error) for an exactly-zero-variance paired difference –
+  documented with a footnote in the generated report rather than left to
+  look like a silent failure. New test file
+  `test-summarize_joint_estimation.R` (21 assertions) builds a small
+  synthetic fake output directory (geometric position convergence, one
+  engineered last-iteration jump) covering both the self-contained
+  diagnostics and, separately, the `triplet_data`-gated comparison/LOO
+  path.
+- **Run live on Experiment 1 with real `triplet_data` for the first
+  time, and a chain of real methodological questions that fully resolved
+  a genuine open tension.** The decomposition showed a strong
+  embedding-pooling win for Experiment 1 too (32/38,
+  $`p=2.8\times10^{-7}`$) – on its face in tension with the fully
+  out-of-sample
+  [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+  null (R²=0.02, $`p=0.38`$) documented above. Resolved in stages, each
+  tested rather than argued: (1) isolating the refit procedure itself
+  from pooling (own refit, unpooled, vs. original: $`p=0.88`$, nothing)
+  ruled out “refitting is just better optimization”; (2) comparing the
+  position-weighted pooled estimate against a **plain,
+  position-independent grand mean** (same embedding for everyone) showed
+  the grand mean alone already recovers the *entire* effect (30/38 win
+  on its own, $`p=1.7\times10^{-6}`$) and position-weighting adds
+  nothing on top (23/38, $`p=0.53`$) – the win is pure noise reduction
+  from averaging, not anything about where a given participant
+  specifically sits in the pool; (3) directly checking the grand mean
+  against the known orientation ground-truth circle (same construction
+  as `triplet_choice_and_loss.Rmd`’s circular-geometry analysis) found a
+  Procrustes correlation of 0.988 – far exceeding even the single best
+  individual embedding’s own fidelity (max 0.926, median 0.745) –
+  confirming the grand mean isn’t just *a* consensus, it recovers the
+  true geometry almost exactly, which is exactly why pooling helps
+  despite there being no real cross-participant manifold; (4) this in
+  turn explains the Rmd’s own documented alpha-vs-circular-fidelity
+  correlation as largely an estimation-precision artifact (lower alpha
+  -\> noisier decisions -\> noisier individual embedding estimate of the
+  *same* true circle, not a different true geometry), fully compatible
+  with pooling denoising it away. One follow-up test came out negative,
+  which was itself informative: the ~8 participants whose own individual
+  embedding beats the true circle on their own held-out trials
+  (`geom_mismatch` in the Rmd) were tested for whether they share a
+  common alternative geometry with each other – pairwise Procrustes
+  distance among them is statistically indistinguishable from a random
+  same-size subset (permutation $`p=0.77`$), and a leave-one-out
+  subgroup mean built from just the other outliers is the *worst* of
+  four predictors tested (0.598 mean accuracy, behind even the generic
+  circle’s 0.600 and the full-population grand mean’s 0.625) – these
+  participants are idiosyncratically different from everyone, including
+  each other, not a coherent second cluster, so no pooling scheme
+  (subgroup or population-wide) has anything to offer them specifically.
+- **Grand mean added as a first-class output, both in the Condor
+  workflow and in
+  [`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md)’s
+  report, directly motivated by the resolution above.**
+  `write_smoothed_outputs()` (`condor_joint_manifold_workflow.py`) now
+  also computes and writes `final_grand_mean_embedding.csv`
+  (`grand_mean_embedding()`, pure unweighted average across the final
+  iteration’s aligned pool, no kernel weighting) alongside the existing
+  smoothed outputs – same `aligned/` input already being read, so
+  effectively free. 2 new Python unit tests (48 total).
+  [`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md)’s
+  decomposition grew from 5 to 7 rows: `(e) grand mean vs. (a) baseline`
+  and `(c) position-weighted pool vs. (e) grand mean`, the latter being
+  the direct test of “does a participant’s own recovered position add
+  anything beyond plain averaging.” Reads
+  `final_grand_mean_embedding.csv` when present (same
+  graceful-fallback-to-local-recomputation pattern as
+  `final_smoothed_*`, via
+  [`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md)
+  on `final_embeddings`). Re-run on both real datasets to confirm the
+  asymmetry predicted before writing any code: Experiment 1’s grand mean
+  beats baseline decisively (30/38, $`p=1.7\times10^{-6}`$) with
+  position adding nothing ($`p=0.53`$); Experiment 3’s grand mean does
+  *not* reliably beat baseline at all (17/30, $`p=0.70`$, slightly
+  negative), while position-weighting on top of it is itself significant
+  (22/30, mean diff +2.43 nats, $`p=0.0080`$) – exactly the opposite
+  pattern, confirming the comparison correctly distinguishes a dataset
+  with real manifold structure from one without. Also fixed an unrelated
+  latent bug surfaced while touching the test file:
+  `build_fake_jm_output()`’s synthetic per-person embeddings used
+  unseeded [`rnorm()`](https://rdrr.io/r/stats/Normal.html) jitter,
+  making the test suite genuinely flaky (one run hit a degenerate LOO
+  fold and errored inside
+  [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md))
+  – fixed with an explicit
+  [`set.seed()`](https://rdrr.io/r/base/Random.html), confirmed by
+  rerunning the suite multiple times after the fix with no recurrence.
+- **`condor_workflows_vignette.Rmd`’s “Workflow 4” section brought up to
+  date** rather than spinning off a new vignette –
+  [`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md)
+  is a companion tool to this exact workflow, and this package’s
+  convention is to extend a thematically-related vignette rather than
+  fragment into many small ones. The section had gone stale in ways that
+  were actively misleading, not just incomplete, by the time this was
+  done: it still pointed readers at
+  `final_embeddings.csv`/`final_positions.csv` with no warning, even
+  though that’s precisely the artifact the overfitting-misdiagnosis
+  finding above showed is not safe to use; its outputs table predated
+  `final_smoothed_embeddings.csv`/`final_smoothed_alpha.csv`/`final_grand_mean_embedding.csv`/`aligned/`
+  entirely; it said nothing about resume support; and “`mode: loo` is a
+  planned follow-up” no longer matched the actual, now-settled position
+  (deliberately deprioritized in favor of two cheap checks, build only
+  if a magnitude claim specifically needs it – see the
+  `triplet_choice_and_loss.Rmd` entry above). Fixed all four, and added
+  a new “Summarizing and interpreting a run” subsection demonstrating
+  [`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md)
+  itself, including a worked summary of the real cross-dataset asymmetry
+  (grand mean alone explains Experiment 1’s pooling benefit, $`p=0.53`$
+  for position on top of it; Experiment 3’s needs real
+  position-weighting, $`p=0.0080`$) as the motivating example for why
+  the decomposition table exists at all. Verified by actually knitting
+  the vignette
+  ([`knitr::knit()`](https://rdrr.io/pkg/knitr/man/knit.html), 33/33
+  chunks; full HTML render via
+  [`rmarkdown::render()`](https://pkgs.rstudio.com/rmarkdown/reference/render.html)
+  wasn’t possible in this environment – no pandoc installed – so this is
+  Markdown-level verification only, same limitation as any other render
+  in this environment, not specific to this change) rather than just
+  checking the source looked right.
+- **`condor_joint_manifold_workflow.py` redesigned: alpha is now
+  decoupled from geometric position by default, not a function of it.**
+  Direct continuation of the investigation above – the user asked
+  whether there was any actual rationale (computational or otherwise)
+  for tying alpha to geometry, given the
+  decoupled-with-proper-regularization design had just been shown to tie
+  with the coupled one on the dataset where coupling mattered and to
+  avoid a real liability on the other. No such rationale survived: the
+  only genuine advantage of coupling was getting alpha’s regularization
+  “for free” from machinery already needed for geometry, which is moot
+  once the decoupled machinery is already built and validated (as it now
+  was); the robustness argument (coupling can’t run away to a degenerate
+  per-person estimate the way an unconstrained per-person alpha fit can)
+  turned out to be an argument for *some* regularization, not for
+  coupling specifically, since the decoupled-with-shrinkage version
+  handles the exact same failure mode just as well. For the eventual
+  paper, decoupled is also the easier story: “each participant’s alpha
+  gets standard empirical-Bayes partial pooling, independent of
+  geometry” needs no special justification, where “alpha is tied to the
+  same manifold position as geometry” is the assumption that needed
+  defending and didn’t hold up.
+  - **`condor_joint_manifold_update.R`** rewritten: step 3 (position
+    search) now scores candidate positions at each participant’s own
+    *fixed* current alpha rather than a curve evaluated at the candidate
+    position; step 4 no longer refits a shared 2-parameter curve
+    (`beta0`/`beta1`) – it re-estimates each participant’s own alpha
+    directly, via a per-person profiled MLE over the same bounded grid
+    used throughout this investigation
+    (`10^seq(log10(2e-4), log10(2e6), length.out = 140)` – avoids the
+    unconstrained-optimizer runaway confirmed for participants whose own
+    data is highly self-consistent, some individual estimates diverged
+    past $`10^{10}`$ without a bound) followed by empirical-Bayes
+    shrinkage toward a *precision-weighted* population mean (a standard
+    random-effects DerSimonian-Laird estimator of the between-person
+    variance net of estimation noise). The precision-weighting
+    specifically matters: an initial, simpler unweighted shrinkage
+    estimator was tried first and collapsed to zero between-person
+    variance on both validation datasets, traced to a handful of
+    poorly-identified (near-boundary) individuals distorting the
+    variance estimate as much as well-identified ones – the
+    precision-weighted DerSimonian-Laird version doesn’t have this
+    problem, confirmed directly against both real datasets (τ² came out
+    clearly nonzero, 0.124 and 1.172, where the naive estimator gave
+    exactly 0 for both). `--old_beta0`/`--old_beta1` replaced by
+    `--old_alpha` (a staged file path, same
+    `old_positions_input.csv`-style distinct-name convention, not a
+    command-line scalar, since it’s now one value per pool member);
+    output is `alpha.csv` (one row per pool member: `log_alpha`,
+    `alpha`, `log_alpha_raw`, `se_log_alpha`, `shrinkage_weight`
+    per-person, plus `tau2`/`pop_mean_alpha`/`bandwidth` repeated
+    globally) replacing `beta.csv`. Smoke-tested standalone against
+    synthetic circular-embedding data (same established pattern as the
+    script’s original validation) in two passes: an initial version
+    using a deterministic “closer-to-truth-wins” choice rule produced
+    near-saturated likelihoods (alpha pinned near the grid boundary for
+    nearly everyone, bandwidth collapsed near zero) – not a code bug, a
+    test-data artifact (zero simulated decision noise), fixed by
+    generating choices probabilistically via the actual crowd-kernel
+    rule against each participant’s own noisy embedding instead; the
+    corrected version produced sensible position spread, a
+    non-degenerate bandwidth, a believable mix of well- and
+    poorly-identified (boundary-pinned) alpha estimates with shrinkage
+    visibly pulling the latter back toward the population – and a second
+    run confirmed the `--old_positions`/`--old_alpha` resume-staging
+    path also works.
+  - **`condor_joint_manifold_workflow.py`** updated to match: the main
+    iteration loop no longer computes
+    `alphas = [exp(beta0 + beta1*position) ...]` each round – it just
+    passes through whatever `alphas` the previous iteration’s update
+    step (or `find_resume_state()`, on a resume) already returned, since
+    alpha is a direct per-person value now, not derived from a curve.
+    `write_smoothed_outputs()` no longer computes or writes an alpha
+    file at all (nothing position-dependent left to compute);
+    `final_alpha.csv` is written directly in `main()` from the
+    per-person values already in memory. `run_manifest.txt` reports
+    `alpha estimation: decoupled...` and a final mean alpha instead of
+    final beta0/beta1. The module-level docstring and
+    `condor_joint_manifold_fit.R`’s own `--alpha` argument comment were
+    both rewritten to describe the new design (the docstring was also
+    stale on an unrelated point found in passing – it still said the
+    update step “runs as a LOCAL Rscript call on the submit node,” which
+    stopped being true when that step was moved into Condor in an
+    earlier session; fixed as part of this same pass). 2 new Python unit
+    tests (49 total) plus substantial rewrites to
+    `TestRunUpdateStep`/`TestIterationIsComplete`/`TestFindResumeState`/`TestWriteSmoothedOutputs`
+    for the new `alpha.csv`-based signatures.
+  - **[`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md)**
+    updated in step: `read_joint_manifold_run()` now builds an
+    `alpha_mat` (n participants x n_outer, mirroring `positions_mat`)
+    and a small `alpha_diag_traj` (per-iteration
+    `tau2`/`pop_mean_alpha`/`bandwidth`) from each iteration’s
+    `alpha.csv`, instead of a single `beta_traj`; reads
+    `final_alpha.csv` (renamed from `final_smoothed_alpha.csv`, now a
+    direct per-person pass-through with no position dependence). New
+    `flag_unstable_joint_alpha()` gives alpha its own independent
+    convergence check (log-alpha space, same window/threshold convention
+    as position’s). The “Choice-model curve across the manifold” report
+    section (a fitted `alpha(t)` line, which no longer exists) is
+    replaced by a purely descriptive final-alpha-vs-position scatter
+    plot that assumes no relationship. **Real bug caught before this
+    shipped**, found by running the updated function against a real
+    *old-format* run (predates this redesign, so it has no
+    `iterN/alpha.csv` or `final_alpha.csv` at all):
+    [`graphics::matplot()`](https://rdrr.io/r/graphics/matplot.html) on
+    an all-`NA` `alpha_mat` (`log10(NA)` throughout) failed with “need
+    finite ‘ylim’ values,” an unhandled crash rather than a graceful
+    skip. Fixed with a `has_alpha_traj <- !all(is.na(run$alpha_mat))`
+    guard around both new alpha plots and the alpha-flagging table,
+    printing an explanatory note instead – the same “skip gracefully,
+    don’t fail the whole report” pattern `write_smoothed_outputs()`’s
+    own missing-`aligned/` handling already established, now applied to
+    this new failure mode too. Verified end-to-end against that same
+    real old-format directory after the fix: runs cleanly, correctly
+    reports “no `iterN/alpha.csv` found… predates alpha being decoupled
+    from position,” and the held-out comparison’s
+    `estimate_shrunk_alpha()` fallback (triggered since
+    `final_alpha.csv` doesn’t exist either) reproduced numbers
+    consistent with the by-hand validation earlier in this
+    investigation. Test fixture (`build_fake_jm_output()`) updated to
+    write per-iteration `alpha.csv` (varying by worker, not constant –
+    an initial constant-alpha version produced degenerate zero-variance
+    paired differences once combined with the fixture’s
+    already-identical toy embeddings/trials, triggering
+    [`t.test()`](https://rdrr.io/r/stats/t.test.html)’s “data are
+    essentially constant” error) and gained a new `oscillate_alpha_last`
+    parameter, independent of `oscillate_last` (position), exercising
+    the new independent alpha-convergence check; 33 assertions total (up
+    from 24), including new direct tests of
+    `flag_unstable_joint_alpha()` and `estimate_shrunk_alpha()`.
+  - **Documentation**: `inst/condor/README_joint_manifold.md` and
+    `vignettes/condor_workflows_vignette.Rmd`’s Workflow 4 section both
+    rewritten for the decoupled design – updated outputs tables
+    (`alpha.csv`/`final_alpha.csv` replacing
+    `beta.csv`/`final_smoothed_alpha.csv`), the iteration-steps
+    description, the resume-state description, and a new subsection in
+    each (*Does alpha need to be tied to geometry?* / the README’s own
+    top-of-file note) explaining the finding and pointing to
+    `triplet_choice_and_loss.Rmd` for the full comparison. Verified by
+    re-knitting the vignette end-to-end (33/33 chunks, no errors).

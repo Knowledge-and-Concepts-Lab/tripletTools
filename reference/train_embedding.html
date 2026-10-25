@@ -197,7 +197,7 @@ embedding so its centroid sits at the origin – like <code>rotate</code>, this
 changes no pairwise distance, but unlike <code>rotate</code> it does
 <em>not</em> preserve each item's own norm, so it only ever applies when
 <code>geometry = "euclidean"</code> (silently ignored for <code>geometry =
-  "sphere"</code>, where translating would move items off the sphere).  Note
+"sphere"</code>, where translating would move items off the sphere).  Note
 that <code>history</code>'s <code>max_norm</code>/<code>median_norm</code>/<code>norm_ratio</code>
 columns are computed during training, <em>before</em> this final
 centering step, so they reflect the embedding's position at each

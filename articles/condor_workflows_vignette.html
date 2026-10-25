@@ -818,12 +818,14 @@ single threshold blindly.</p>
 <h2 id="workflow-4-joint-geometrychoice-model-manifold-estimation">Workflow 4: Joint geometry+choice-model manifold estimation<a class="anchor" aria-label="anchor" href="#workflow-4-joint-geometrychoice-model-manifold-estimation"></a>
 </h2>
 <p><code>condor_joint_manifold_workflow.py</code> jointly estimates, for
-every participant, a position on a shared 1-D latent manifold that
-determines <strong>both</strong> their own representational geometry
-<strong>and</strong> their own choice-model shape parameter alpha —
-rather than assuming, as every other workflow in this package does, that
-everyone shares one fixed choice model (the crowd-kernel default) and
-only their geometry differs.</p>
+every participant, a position on a shared 1-D latent geometry manifold
+(a real re-fit embedding at that position) <strong>and</strong> their
+own choice-model shape parameter alpha — rather than assuming, as every
+other workflow in this package does, that everyone shares one fixed
+choice model (the crowd-kernel default) and only their geometry differs.
+Geometry and alpha are estimated <strong>independently</strong> of each
+other, not tied to a single shared curve — see <em>Does alpha need to be
+tied to geometry?</em> below for why.</p>
 <div class="section level3">
 <h3 id="why-this-workflow-exists">Why this workflow exists<a class="anchor" aria-label="anchor" href="#why-this-workflow-exists"></a>
 </h3>
@@ -852,6 +854,48 @@ look like genuinely different people attending to genuinely different
 things, not just noisier versions of the same thing. The full write-up,
 including why those two datasets give different answers, lives outside
 this package in the lab’s own research documentation, not here.</p>
+<p>Full-scale production runs (24 then 30 participants on the
+orientation+contrast dataset) confirmed this holds up outside the small
+leave-one-out pilot, and sharpened it further: an in-sample comparison
+alone can’t distinguish “real cross-participant structure” from two more
+mundane explanations (self-contribution, and recalibrating the
+choice-model noise parameter rather than the geometry) — see
+<em>Summarizing and interpreting a run</em> below for the diagnostic
+this project now runs to tell them apart, and why it matters before
+trusting any single comparison number.</p>
+</div>
+<div class="section level3">
+<h3 id="does-alpha-need-to-be-tied-to-geometry">Does alpha need to be tied to geometry?<a class="anchor" aria-label="anchor" href="#does-alpha-need-to-be-tied-to-geometry"></a>
+</h3>
+<p>The original design (and the LOO test above) tied alpha to the same
+position driving geometry: <code>alpha(t) = exp(beta0 + beta1*t)</code>,
+one smooth curve fit jointly across everyone. That coupling was never
+load-bearing, and later testing removed it. A controlled decomposition –
+own vs. pooled embedding, crossed with alpha fixed at 1 vs. the fitted
+curve – found the production run’s advantage over baseline separates
+into two pieces, not one: embedding-pooling alone (alpha held fixed)
+already recovered most of the combined effect, leaving only one open
+question – does the curve’s own position-dependence add anything a
+plain, independently-estimated per-person alpha (properly regularized
+toward the population) would not? Tested directly on both validated
+datasets, the answer was no: a per-person alpha, estimated by its own
+bounded-grid profiled MLE and shrunk toward a precision-weighted
+population mean (a standard random-effects, DerSimonian-Laird
+empirical-Bayes estimator – which also turned out to matter: a naive
+unweighted shrinkage estimate collapsed to zero between-person variance
+on both datasets, traced to a few poorly-identified individuals
+distorting it as much as well-identified ones), tied with the coupled
+curve on the dataset where coupling helped at all, and avoided a real
+liability on the other dataset, where geometry carries no
+individual-differences signal and tying alpha to it has nothing to gain
+and real noise to inherit. This decoupled design is now the only one
+implemented – the full comparison, including why a plain population mean
+among the per-person estimates themselves needed the same
+precision-weighting to avoid being dominated by a couple of runaway
+individual fits (one unconstrained per-person optimizer diverged past
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mn>10</mn><mn>10</mn></msup><annotation encoding="application/x-tex">10^{10}</annotation></semantics></math>
+for a participant whose own data was highly self-consistent), lives in
+<code>triplet_choice_and_loss.Rmd</code> outside this package.</p>
 </div>
 <div class="section level3">
 <h3 id="unlike-workflow-1-3s-simplicity-this-one-is-iterative">Unlike Workflow 1-3’s simplicity, this one is iterative<a class="anchor" aria-label="anchor" href="#unlike-workflow-1-3s-simplicity-this-one-is-iterative"></a>
@@ -862,24 +906,49 @@ alternates for <code>n_outer</code> iterations, each needing its own
 submit-and-wait round:</p>
 <ol style="list-style-type: lower-alpha">
 <li><p><strong>[Condor, parallel]</strong> refit every participant’s own
-embedding under their current alpha, warm-started from their previous
-embedding (their original individual fit on iteration 1) — one Condor
-batch per iteration, covering every participant’s refit at once, not one
-batch per participant per iteration (submitting that granularly would
-pay Condor’s queueing/startup latency far more times than
-necessary).</p></li>
+embedding under their current alpha (their own independently-estimated,
+shrinkage-regularized value – not a function of position), warm-started
+from their previous embedding (their original individual fit on
+iteration 1) — one Condor batch per iteration, covering every
+participant’s refit at once, not one batch per participant per iteration
+(submitting that granularly would pay Condor’s queueing/startup latency
+far more times than necessary).</p></li>
 <li><p><strong>[Condor, single job]</strong> re-align the newly-refit
 embeddings, refine each participant’s position via a profiled
-choice-model-likelihood search, and refit the shared population curve.
-This step is cheap (seconds) but still runs inside the container as its
-own single-job Condor batch, not as a local Rscript call on the submit
-node — an earlier version of this workflow ran it locally, on the
-reasoning that another Condor round-trip wasn’t worth it for something
-this cheap, but a real submit node turned out to have no R installation
-and no clear way to add one. Moving this step into Condor too restored
-the “no R needed on the submit node” property every workflow in this
-vignette is supposed to have.</p></li>
+choice-model-likelihood search (scored at their own current, fixed alpha
+– not a curve evaluated at the candidate position), and re-estimate each
+participant’s own alpha (bounded-grid profiled MLE, then empirical-Bayes
+shrinkage toward the population). This step is cheap (seconds) but still
+runs inside the container as its own single-job Condor batch, not as a
+local Rscript call on the submit node — an earlier version of this
+workflow ran it locally, on the reasoning that another Condor round-trip
+wasn’t worth it for something this cheap, but a real submit node turned
+out to have no R installation and no clear way to add one. Moving this
+step into Condor too restored the “no R needed on the submit node”
+property every workflow in this vignette is supposed to have.</p></li>
 </ol>
+</div>
+<div class="section level3">
+<h3 id="resuming-an-interrupted-or-extended-run">Resuming an interrupted or extended run<a class="anchor" aria-label="anchor" href="#resuming-an-interrupted-or-extended-run"></a>
+</h3>
+<p><code>n_outer</code> is a total-iteration <em>target</em>, not a
+fixed count: rerunning the same command against the same
+<code>output_dir</code> resumes after the last iteration with all
+expected outputs present (<code>positions.csv</code> and
+<code>alpha.csv</code>), rather than starting over. This is how a run
+gets extended after the fact (a real production run’s per-participant
+position trajectories took considerably longer to settle than first
+expected, with a specific subgroup still correcting from an early
+overshoot at iteration 8 — raising <code>n_outer</code> and rerunning
+let that finish without discarding the compute already spent) — just
+edit <code>n_outer</code> upward in <code>my_params.yml</code> and rerun
+the same command. A <code>--fresh</code> flag forces starting over
+regardless. Resuming checks that the triplet/embeddings inputs match the
+original run’s recorded
+<code>setup/worker_ids.txt</code>/<code>item_order.txt</code> exactly,
+and refuses (with a clear error, not a silent mismatch) rather than risk
+misattributing a <code>person{i}.csv</code>-indexed position or
+embedding to the wrong participant.</p>
 </div>
 <div class="section level3">
 <h3 id="inputs-and-deployment">Inputs and deployment<a class="anchor" aria-label="anchor" href="#inputs-and-deployment"></a>
@@ -904,41 +973,157 @@ scratch.</p>
 <tr class="odd">
 <td><code>setup/</code></td>
 <td>Per-participant original embeddings and pre-indexed
-train/test/pooled triplet files — built once, reused every
-iteration</td>
+train/test/pooled triplet files, plus
+<code>worker_ids.txt</code>/<code>item_order.txt</code> (the canonical
+order every other file in the run shares, and what resuming checks
+against) — built once, reused every iteration</td>
 </tr>
 <tr class="even">
 <td><code>iterN/refit/embeddings/personI.csv</code></td>
 <td>Participant I’s refit embedding after outer iteration N</td>
 </tr>
 <tr class="odd">
-<td>
-<code>iterN/positions.csv</code>, <code>iterN/beta.csv</code>
-</td>
-<td>That iteration’s updated manifold positions and population curve
-(<code>beta0</code>, <code>beta1</code>, <code>bandwidth</code>)</td>
+<td><code>iterN/aligned/personI.csv</code></td>
+<td>That iteration’s GPA-aligned embeddings — needs the update step’s
+<code>transfer_output_files</code> to include <code>aligned</code>
+explicitly (HTCondor’s default output transfer picks up new plain files
+but not new subdirectories on its own); missing on a run from before
+that was fixed</td>
+</tr>
+<tr class="even">
+<td><code>iterN/positions.csv</code></td>
+<td>That iteration’s updated manifold positions</td>
+</tr>
+<tr class="odd">
+<td><code>iterN/alpha.csv</code></td>
+<td>Each participant’s own re-estimated alpha (shrinkage-regularized),
+plus diagnostics (<code>log_alpha_raw</code>/<code>se_log_alpha</code> –
+the unregularized per-person MLE and its precision,
+<code>shrinkage_weight</code>,
+<code>tau2</code>/<code>pop_mean_alpha</code> – population-level, same
+on every row, and geometry <code>bandwidth</code>, unrelated to
+alpha)</td>
 </tr>
 <tr class="even">
 <td>
 <code>final_embeddings.csv</code>,
 <code>final_positions.csv</code>
 </td>
-<td>Every participant’s final refit embedding and manifold position</td>
+<td>Every participant’s final refit embedding and manifold position.
+<strong>Not the artifact to evaluate or predict with</strong> — a real
+production run showed this specific output degrading with more outer
+iterations in a way that looks exactly like textbook overfitting, which
+turned out to be a measurement artifact: the leave-one-out validation
+above never evaluated a held-out participant’s own refit embedding at
+all, only the kernel-smoothed pooled estimate below. Use that
+instead.</td>
 </tr>
 <tr class="odd">
+<td><code>final_alpha.csv</code></td>
+<td>Every participant’s final alpha — already the shrinkage-regularized
+value, no further computation needed</td>
+</tr>
+<tr class="even">
+<td><code>final_smoothed_embeddings.csv</code></td>
+<td>
+<strong>The validated geometry estimator.</strong> The
+kernel-smoothed pooled embedding at each participant’s own position —
+this is what the decisive comparison above actually evaluated (paired
+with <code>final_alpha.csv</code>). Requires the final iteration’s
+<code>aligned/</code> output; skipped with a printed note (not a
+failure) if that’s missing.</td>
+</tr>
+<tr class="odd">
+<td><code>final_grand_mean_embedding.csv</code></td>
+<td>A plain, <em>position-independent</em> average across every
+participant’s aligned embedding — the same embedding for everyone, no
+kernel weighting. Comparing this to
+<code>final_smoothed_embeddings.csv</code> is how to tell whether a
+participant’s own recovered position is doing anything real, or whether
+pooling alone (noise reduction, no manifold needed) explains the whole
+benefit — see <em>Summarizing and interpreting a run</em> below.</td>
+</tr>
+<tr class="even">
 <td><code>run_manifest.txt</code></td>
-<td>Participant count, <code>d</code>, <code>n_outer</code>, final
-<code>beta0</code>/<code>beta1</code>, container image, for
-provenance</td>
+<td>Participant count, <code>d</code>, <code>n_outer</code>, final mean
+alpha, container image, for provenance</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Only <code>mode: fit</code> is implemented so far</strong> —
-one joint estimate across every participant, no held-out evaluation.
+</div>
+<div class="section level3">
+<h3 id="summarizing-and-interpreting-a-run">Summarizing and interpreting a run<a class="anchor" aria-label="anchor" href="#summarizing-and-interpreting-a-run"></a>
+</h3>
+<p><code><a href="../reference/summarize_joint_estimation.html">summarize_joint_estimation()</a></code> (R package, not a Condor
+file) reads <code>output_dir</code> directly and writes a self-contained
+Markdown report, so the diagnostics below don’t have to be redone by
+hand for every new dataset run through this workflow:</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://knowledge-and-concepts-lab.github.io/tripletTools/">tripletTools</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Convergence diagnostics (position AND alpha trajectory flagging --</span></span>
+<span><span class="co"># estimated independently now, each gets its own check -- an</span></span>
+<span><span class="co"># embedding-geometry grid) need nothing beyond the output directory itself:</span></span>
+<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summarize_joint_estimation.html">summarize_joint_estimation</a></span><span class="op">(</span><span class="st">"condor_joint_manifold_output"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># The held-out validation comparison and `loo_trajectory_accuracy()` check</span></span>
+<span><span class="co"># need the *original* combined triplet data too, since validation trials</span></span>
+<span><span class="co"># are deliberately never passed to this workflow at all</span></span>
+<span><span class="co"># (assign_sample_sets()'s "holdout" convention) -- they can't be recovered</span></span>
+<span><span class="co"># from output_dir alone, unlike the original baseline embeddings, which</span></span>
+<span><span class="co"># already live under setup/original_embeddings/ and need no extra argument.</span></span>
+<span><span class="va">res</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summarize_joint_estimation.html">summarize_joint_estimation</a></span><span class="op">(</span></span>
+<span>  <span class="st">"condor_joint_manifold_output"</span>,</span>
+<span>  triplet_data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv</a></span><span class="op">(</span><span class="st">"triplet_data.csv"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">res</span><span class="op">$</span><span class="va">decomposition</span></span></code></pre></div>
+<p>The report’s comparison table is deliberately not just “does the
+production estimate beat the baseline” — that single comparison
+conflates two different things (pooling across participants, and
+recalibrating the choice-model noise parameter), either of which alone
+could produce a win with no real geometric structure behind it. The
+decisive row is
+<code>(c) position-weighted pool vs. (e) grand mean</code>: if a
+participant’s own recovered position adds nothing on top of a plain,
+position-independent average of everyone, there is no evidence of real
+manifold structure, only ordinary noise reduction from pooling. Run live
+on two real datasets, this told two genuinely different stories: on one
+(orientation-only Gabors, no documented individual-difference axis), the
+grand mean alone recovered the <em>entire</em> pooling benefit (position
+added nothing more,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.53</mn></mrow><annotation encoding="application/x-tex">p=0.53</annotation></semantics></math>)
+and even reached a Procrustes correlation of 0.988 with the known true
+geometry — individual embeddings there are best understood as noisy
+estimates of one shared representation, not evidence of a real manifold.
+On the other (orientation+contrast, the dataset <em>Why this workflow
+exists</em> above is based on), the grand mean did <em>not</em> reliably
+beat the baseline on its own, while position-weighting on top of it was
+itself a significant, additional improvement
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo>=</mo><mn>0.0080</mn></mrow><annotation encoding="application/x-tex">p=0.0080</annotation></semantics></math>)
+— exactly the asymmetry that justifies this workflow’s extra machinery
+for that dataset and not the other one. Neither conclusion was assumed
+going in; both came from running the same report on real data.</p>
+</div>
+<div class="section level3">
+<h3 id="mode-loo-deliberately-not-the-default-next-step">
+<code>mode: loo</code> — deliberately not the default next step<a class="anchor" aria-label="anchor" href="#mode-loo-deliberately-not-the-default-next-step"></a>
+</h3>
+<p><strong>Only <code>mode: fit</code> is implemented</strong> — one
+joint estimate across every participant, no held-out evaluation.
 <code>mode: loo</code> (the full leave-one-out validation used for the
-decisive comparison above) is a planned follow-up; reproducing that
-comparison at Condor scale currently means running this workflow by hand
-once per held-out participant.</p>
+decisive comparison above, re-running the entire alternating procedure
+once per held-out participant) is not a planned near-term follow-up so
+much as a deliberately deprioritized one: it is expensive (one full
+production run per participant) and mainly answers a <em>magnitude</em>
+question — how much does the actual deployed estimator help a genuinely
+new participant, quantitatively. The two cheap checks in <em>Summarizing
+and interpreting a run</em> above (the grand-mean decomposition and
+<code><a href="../reference/loo_trajectory_accuracy.html">loo_trajectory_accuracy()</a></code>, neither needing a Condor run)
+already answer the <em>existence</em> question — is there real structure
+at all — convincingly and for near-zero cost, and are the recommended
+first step on any new dataset. Build <code>mode: loo</code> only when
+the magnitude specifically needs to be trustworthy on its own, e.g. a
+headline effect size for publication.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

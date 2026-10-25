@@ -145,6 +145,8 @@
   : Successor representation of a weighted adjacency matrix
 - [`summarize_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.md)
   : Summarize per-restart dimensionality-search results
+- [`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md)
+  : Summarize a joint-manifold Condor workflow run
 - [`summarize_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_learning_curve.md)
   : Summarize per-restart learning-curve results
 - [`test.model()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.md)
