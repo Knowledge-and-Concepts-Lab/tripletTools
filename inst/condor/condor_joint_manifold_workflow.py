@@ -2,45 +2,60 @@
 """tripletTools joint geometry+choice-model manifold Condor workflow driver.
 
 Jointly estimates, for every participant, a position t_i on a shared 1-D
-latent manifold that determines BOTH their own representational geometry
-X(t_i) (via an actual re-fit embedding, not just a kernel-weighted average
-of other participants' existing fits) AND their own choice-model shape
-alpha(t_i) = exp(beta0 + beta1*t_i) -- the "fully rigorous" version of the
-joint-manifold idea validated locally (see vignette("condor_workflows_vignette")
-for the write-up of the decisive LOO test this workflow scales up). This is
-the Condor-scale companion to that local, serial validation: the dominant
-cost -- one real embedding refit per participant per outer iteration -- is
-embarrassingly parallel within an iteration, so it is farmed out to the
-cluster; everything else (GPA alignment, the per-person position search,
-and the population-curve refit) is cheap and stays local.
+latent geometry manifold (via an actual re-fit embedding at that position,
+not just a kernel-weighted average of other participants' existing fits)
+AND their own choice-model shape alpha_i -- but unlike an earlier coupled
+design, alpha_i is NOT a function of t_i. It is estimated independently:
+a per-person profiled MLE, shrunk toward a precision-weighted population
+mean via a standard random-effects (DerSimonian-Laird) empirical-Bayes
+estimate. The coupled alternative (alpha(t) = exp(beta0 + beta1*t), a
+smooth function of the same position driving geometry) was tested directly
+against this decoupled design on two real datasets and showed no
+detectable predictive advantage on the one dataset where it was shown to
+matter at all, while risking real harm on a dataset whose geometry carries
+no real individual-differences signal (see the lab's own
+`triplet_choice_and_loss.Rmd` for the full comparison that motivated this).
+Geometry pooling by position is retained -- real structure was found
+there, on the dataset this method was validated on -- only alpha's
+estimation is decoupled from it.
+
+This is the Condor-scale companion to that local, serial validation: the
+dominant cost -- one real embedding refit per participant per outer
+iteration -- is embarrassingly parallel within an iteration, so it is
+farmed out to the cluster; everything else (GPA alignment, the per-person
+position search, and the per-person alpha re-estimation) is cheap and
+stays local (in the sense of not needing a neural-network refit -- see
+below for where it actually runs).
 
 Alternating (coordinate-ascent) structure, repeated for `n_outer`
 iterations:
   (a) [Condor, parallel]  refit every participant's own embedding under
-      their CURRENT alpha(t_i), warm-started from their previous embedding
+      their CURRENT alpha_i, warm-started from their previous embedding
       (their original CrowdKernel fit on iteration 1).
-  (b) [local, cheap]      re-align the newly-refit embeddings (generalized
+  (b) [Condor, single job] re-align the newly-refit embeddings (generalized
       Procrustes), refine each participant's own position via a profiled
-      choice-model-likelihood search against their own fitting trials, and
-      refit the shared population curve (beta0, beta1) given the updated
-      positions.
+      choice-model-likelihood search against their own fitting trials
+      (scored at their own current, fixed alpha_i -- not a curve
+      evaluated at the candidate position), and re-estimate each
+      participant's own alpha via the shrinkage procedure above.
 
 Only `mode: fit` is implemented so far -- one joint estimate across every
 participant, with no held-out evaluation. `mode: loo` (the full
 leave-one-out validation, one independent fold per held-out participant)
-is a planned follow-up, built the same way but wrapping this same
-per-iteration logic across many parallel fold states.
+is a deliberately deprioritized follow-up, not a near-term one: it mainly
+answers a magnitude question (how much does the actual deployed estimator
+help a genuinely new participant) that two much cheaper checks --
+`loo_trajectory_accuracy()` and the embedding/alpha decomposition in
+`summarize_joint_estimation()` -- already answer convincingly for the
+existence question, at a fraction of the cost.
 
-Unlike the other three Condor workflows in this directory, step (b) above
-runs as a LOCAL Rscript call on the submit node, not inside the container
-via Condor: it needs the same R-side generalized_procrustes()/profiled-
-likelihood code already validated locally, and it is cheap enough (seconds,
-confirmed during that local validation) that the extra Condor round-trip
-isn't worth it. This means, unlike the other three workflows, an R
-installation WITH the tripletTools package IS required on the submit node
-(only for this one step -- condor_joint_manifold_fit.R, the expensive part,
-still runs entirely inside the container via Condor, same as everywhere
-else in this directory).
+Step (b) above runs as its own single-job Condor batch, inside the same
+container image as the embedding-refit jobs, NOT as a local Rscript call
+on the submit node -- an earlier version did that, on the reasoning that
+another Condor round-trip wasn't worth it for something this cheap, but a
+real submit node turned out to have no R installation and no clear way to
+add one. This keeps the submit node itself free of any R dependency,
+matching the other three Condor workflows in this directory.
 
 Usage:
     python3 condor_joint_manifold_workflow.py <triplet_data.csv> <embeddings.csv> <params.yml>
@@ -325,10 +340,18 @@ def check_or_record_ids(setup_dir, worker_ids, item_order):
         write_id_list(item_order_path, item_order)
 
 
+def read_alpha_csv(path):
+    """Reads an alpha.csv (one row per pool member, in pool order) into a
+    plain list of alpha values -- the format condor_joint_manifold_update.R
+    writes and condor_joint_manifold_fit.R's --alpha expects."""
+    with open(path, newline="") as f:
+        return [float(r["alpha"]) for r in csv.DictReader(f)]
+
+
 def iteration_is_complete(iter_dir, n_people):
     def ok(path):
         return path.exists() and path.stat().st_size > 0
-    if not ok(iter_dir / "positions.csv") or not ok(iter_dir / "beta.csv"):
+    if not ok(iter_dir / "positions.csv") or not ok(iter_dir / "alpha.csv"):
         return False
     embeddings_dir = iter_dir / "refit" / "embeddings"
     return all(ok(embeddings_dir / f"person{i}.csv") for i in range(n_people))
@@ -339,8 +362,9 @@ def find_resume_state(work_dir, n_outer, n_people, orig_dir):
     incomplete or missing iteration, even if a LATER one looks complete
     from some earlier abandoned attempt, stops the scan -- resuming must
     continue from the first gap, not skip over it). Returns
-    (start_t, positions, beta0, beta1, warm_start_dir, old_positions_path)
-    -- start_t=1 with the fresh-start defaults if nothing is resumable."""
+    (start_t, positions, alphas, warm_start_dir, old_positions_path,
+    old_alpha_path) -- start_t=1 with the fresh-start defaults (alpha=1 for
+    everyone) if nothing is resumable."""
     last_complete = 0
     for t in range(1, n_outer + 1):
         if iteration_is_complete(work_dir / f"iter{t}", n_people):
@@ -349,17 +373,16 @@ def find_resume_state(work_dir, n_outer, n_people, orig_dir):
             break
 
     if last_complete == 0:
-        return 1, None, 0.0, 0.0, orig_dir, None
+        return 1, None, [1.0] * n_people, orig_dir, None, None
 
     iter_dir = work_dir / f"iter{last_complete}"
     with open(iter_dir / "positions.csv", newline="") as f:
         positions = [float(r["position"]) for r in csv.DictReader(f)]
-    with open(iter_dir / "beta.csv", newline="") as f:
-        beta_row = next(csv.DictReader(f))
+    alphas = read_alpha_csv(iter_dir / "alpha.csv")
     print(f"[condor_joint_manifold] Resuming after iteration {last_complete}/{n_outer} "
-          f"(beta0={float(beta_row['beta0']):.4f}, beta1={float(beta_row['beta1']):.4f})")
-    return (last_complete + 1, positions, float(beta_row["beta0"]), float(beta_row["beta1"]),
-            iter_dir / "refit" / "embeddings", iter_dir / "positions.csv")
+          f"(mean alpha={sum(alphas) / len(alphas):.4f})")
+    return (last_complete + 1, positions, alphas,
+            iter_dir / "refit" / "embeddings", iter_dir / "positions.csv", iter_dir / "alpha.csv")
 
 
 # ---------------------------------------------------------------------------
@@ -431,14 +454,41 @@ def smoothed_embedding_at(t, positions, bandwidth, aligned_rows_list):
     return result
 
 
-def write_smoothed_outputs(work_dir, n_outer, worker_ids, item_order, positions, beta0, beta1):
+def grand_mean_embedding(aligned_rows_list):
+    """Plain, position-independent average across every pool member's
+    aligned embedding -- the same embedding for everyone, no kernel
+    weighting at all. Cheap to compute alongside smoothed_embedding_at()
+    since both start from the same aligned_rows_list; added after real
+    analysis on two datasets (see triplet_choice_and_loss.Rmd) found that
+    for a dataset with no real cross-participant geometric structure, this
+    plain average beat the position-weighted smoothed estimate just as
+    well (indistinguishably, in fact) -- while for a dataset with real
+    structure it did not. Reporting both lets a user see which situation
+    they're in without a separate ad hoc analysis each time."""
+    n_people = len(aligned_rows_list)
+    n_items = len(aligned_rows_list[0])
+    d = len(aligned_rows_list[0][0])
+    result = [[0.0] * d for _ in range(n_items)]
+    for person_rows in aligned_rows_list:
+        for i in range(n_items):
+            for k in range(d):
+                result[i][k] += person_rows[i][k] / n_people
+    return result
+
+
+def write_smoothed_outputs(work_dir, n_outer, worker_ids, item_order, positions):
     """Writes final_smoothed_embeddings.csv (the kernel-smoothed pooled
-    estimate at each participant's own position -- the artifact actually
-    validated as beating the baseline) and final_smoothed_alpha.csv.
-    Requires the final iteration's aligned/ directory (added by the
-    transfer_output_files fix); skips with a clear message, rather than
-    failing the whole run, if it's missing -- e.g. a run from before that
-    fix, or an interrupted iteration."""
+    geometry estimate at each participant's own position -- the artifact
+    actually validated as beating the baseline) and
+    final_grand_mean_embedding.csv (the plain, position-independent
+    average -- see grand_mean_embedding()). Geometry only -- alpha is
+    decoupled from position entirely now, so each participant's final
+    alpha is just their own value from the last iteration's alpha.csv,
+    written separately in main() with no position-dependent computation
+    needed. Requires the final iteration's aligned/ directory (added by
+    the transfer_output_files fix); skips with a clear message, rather
+    than failing the whole run, if it's missing -- e.g. a run from before
+    that fix, or an interrupted iteration."""
     aligned_dir = work_dir / f"iter{n_outer}" / "aligned"
     n_people = len(worker_ids)
     missing = [i for i in range(n_people) if not (aligned_dir / f"person{i}.csv").exists()]
@@ -453,20 +503,22 @@ def write_smoothed_outputs(work_dir, n_outer, worker_ids, item_order, positions,
     bandwidth = bw_nrd0(positions)
 
     smoothed_rows = []
-    alpha_rows = []
     for i, w in enumerate(worker_ids):
         X = smoothed_embedding_at(positions[i], positions, bandwidth, aligned_rows_list)
         for item, row in zip(item_order, X):
             smoothed_rows.append({"worker_id": w, "item": item,
                                    **{f"dim_{k}": v for k, v in enumerate(row)}})
-        alpha_rows.append({"worker_id": w, "position": positions[i],
-                            "alpha": math.exp(beta0 + beta1 * positions[i])})
 
     dim_cols = [f"dim_{k}" for k in range(len(aligned_rows_list[0][0]))]
     write_csv(work_dir / "final_smoothed_embeddings.csv", ["worker_id", "item"] + dim_cols, smoothed_rows)
-    write_csv(work_dir / "final_smoothed_alpha.csv", ["worker_id", "position", "alpha"], alpha_rows)
+
+    gm = grand_mean_embedding(aligned_rows_list)
+    gm_rows = [{"item": item, **{f"dim_{k}": v for k, v in enumerate(row)}}
+               for item, row in zip(item_order, gm)]
+    write_csv(work_dir / "final_grand_mean_embedding.csv", ["item"] + dim_cols, gm_rows)
+
     print(f"[condor_joint_manifold] Wrote {work_dir / 'final_smoothed_embeddings.csv'} "
-          f"(bandwidth={bandwidth:.4f})")
+          f"(bandwidth={bandwidth:.4f}) and {work_dir / 'final_grand_mean_embedding.csv'}")
 
 
 # ---------------------------------------------------------------------------
@@ -543,7 +595,7 @@ def run_refit_stage(iter_dir, n_people, warm_start_dir, mats_dir, alphas, config
 
 
 def run_update_step(iter_dir, n_people, embeddings_dir, trials_dir, old_positions_path,
-                     old_beta0, old_beta1, resources, container_image):
+                     old_alpha_path, resources, container_image):
     """Runs condor_joint_manifold_update.R as a single Condor job, inside the
     same container image as the embedding-refit jobs (which already has R +
     tripletTools installed) -- NOT a local subprocess call. This keeps the
@@ -558,31 +610,34 @@ def run_update_step(iter_dir, n_people, embeddings_dir, trials_dir, old_position
     and "person_trials" respectively -- true for every caller in this file.
     """
     positions_path = iter_dir / "positions.csv"
-    beta_path = iter_dir / "beta.csv"
+    alpha_path = iter_dir / "alpha.csv"
     aligned_dir = iter_dir / "aligned"
 
     assert embeddings_dir.name == "embeddings"
     assert trials_dir.name == "person_trials"
 
     transfer_files = [str(CONDOR_JOINT_MANIFOLD_UPDATE_R), str(embeddings_dir), str(trials_dir)]
-    if old_positions_path is not None:
-        # Staged under a name distinct from this job's own --output_positions
-        # ("positions.csv") so the two can never collide inside the job's
-        # transfer sandbox -- same concern, same fix, as the embedding-refit
-        # stage's init/output filename split above.
-        staged_old_positions = iter_dir / "old_positions_input.csv"
-        staged_old_positions.write_bytes(Path(old_positions_path).read_bytes())
-        transfer_files.append(str(staged_old_positions))
-        old_positions_arg = "old_positions_input.csv"
-    else:
-        old_positions_arg = "NULL"
+
+    def stage(path, staged_name):
+        # Staged under a name distinct from this job's own output of the
+        # same kind ("positions.csv" / "alpha.csv") so the two can never
+        # collide inside the job's transfer sandbox -- same concern, same
+        # fix, as the embedding-refit stage's init/output filename split.
+        if path is None:
+            return "NULL"
+        staged = iter_dir / staged_name
+        staged.write_bytes(Path(path).read_bytes())
+        transfer_files.append(str(staged))
+        return staged_name
+
+    old_positions_arg = stage(old_positions_path, "old_positions_input.csv")
+    old_alpha_arg = stage(old_alpha_path, "old_alpha_input.csv")
 
     arguments = (
         f"condor_joint_manifold_update.R --n_pool={n_people} "
         "--embeddings_dir=embeddings --trials_dir=person_trials "
-        f"--old_positions={old_positions_arg} "
-        f"--old_beta0={old_beta0} --old_beta1={old_beta1} "
-        "--output_positions=positions.csv --output_beta=beta.csv "
+        f"--old_positions={old_positions_arg} --old_alpha={old_alpha_arg} "
+        "--output_positions=positions.csv --output_alpha=alpha.csv "
         "--output_aligned_dir=aligned"
     )
 
@@ -598,19 +653,18 @@ def run_update_step(iter_dir, n_people, embeddings_dir, trials_dir, old_position
         resources=resources,
         initialdir=str(iter_dir),
         queue_statement="queue\n",
-        transfer_output_files="positions.csv, beta.csv, aligned",
+        transfer_output_files="positions.csv, alpha.csv, aligned",
     )
     submit_and_wait(submit_path, iter_dir / "update.log", "manifold update")
 
-    if not positions_path.exists() or not beta_path.exists():
+    if not positions_path.exists() or not alpha_path.exists():
         sys.exit(f"condor_joint_manifold_update.R did not produce expected output -- "
                  f"check {iter_dir / 'update.err'}")
 
     with open(positions_path, newline="") as f:
         positions = [float(r["position"]) for r in csv.DictReader(f)]
-    with open(beta_path, newline="") as f:
-        beta_row = next(csv.DictReader(f))
-    return positions, float(beta_row["beta0"]), float(beta_row["beta1"]), aligned_dir
+    alphas = read_alpha_csv(alpha_path)
+    return positions, alphas, aligned_dir
 
 
 # ---------------------------------------------------------------------------
@@ -688,11 +742,11 @@ def main():
     check_or_record_ids(setup_dir, worker_ids, item_order)
 
     if args.fresh:
-        start_t, positions, beta0, beta1, warm_start_dir, old_positions_path = (
-            1, None, 0.0, 0.0, orig_dir, None
+        start_t, positions, alphas, warm_start_dir, old_positions_path, old_alpha_path = (
+            1, None, [1.0] * n_people, orig_dir, None, None
         )
     else:
-        start_t, positions, beta0, beta1, warm_start_dir, old_positions_path = find_resume_state(
+        start_t, positions, alphas, warm_start_dir, old_positions_path, old_alpha_path = find_resume_state(
             work_dir, n_outer, n_people, orig_dir
         )
     aligned_dir = None
@@ -706,22 +760,19 @@ def main():
         iter_dir = work_dir / f"iter{t}"
         iter_dir.mkdir(parents=True, exist_ok=True)
 
-        if positions is None:
-            alphas = [1.0] * n_people
-        else:
-            alphas = [math.exp(beta0 + beta1 * positions[i]) for i in range(n_people)]
-
         print(f"[condor_joint_manifold] --- outer iteration {t}/{n_outer} ---")
         embeddings_dir = run_refit_stage(iter_dir, n_people, warm_start_dir, mats_dir, alphas,
                                           config, resources, container_image, batch_size)
 
-        positions, beta0, beta1, aligned_dir = run_update_step(
-            iter_dir, n_people, embeddings_dir, trials_dir, old_positions_path, beta0, beta1,
+        positions, alphas, aligned_dir = run_update_step(
+            iter_dir, n_people, embeddings_dir, trials_dir, old_positions_path, old_alpha_path,
             resources, container_image
         )
         old_positions_path = iter_dir / "positions.csv"
+        old_alpha_path = iter_dir / "alpha.csv"
         warm_start_dir = embeddings_dir
-        print(f"[condor_joint_manifold] iteration {t} done: beta0={beta0:.4f} beta1={beta1:.4f}")
+        print(f"[condor_joint_manifold] iteration {t} done: "
+              f"mean alpha={sum(alphas) / len(alphas):.4f}")
 
     # ---- Final production output ----
     # NOTE: final_embeddings.csv (below) is each participant's own
@@ -745,8 +796,16 @@ def main():
     positions_rows = [{"worker_id": w, "position": positions[i]} for i, w in enumerate(worker_ids)]
     write_csv(work_dir / "final_positions.csv", ["worker_id", "position"], positions_rows)
 
-    write_smoothed_outputs(work_dir, n_outer, worker_ids, item_order, positions, beta0, beta1)
+    # Each participant's own alpha -- already a direct per-person value
+    # (regularized via shrinkage in the update step, not a function of
+    # position), so no position-dependent computation is needed here, just
+    # a pass-through under the worker_id each file in this workflow uses.
+    alpha_rows = [{"worker_id": w, "alpha": alphas[i]} for i, w in enumerate(worker_ids)]
+    write_csv(work_dir / "final_alpha.csv", ["worker_id", "alpha"], alpha_rows)
 
+    write_smoothed_outputs(work_dir, n_outer, worker_ids, item_order, positions)
+
+    mean_alpha = sum(alphas) / len(alphas)
     manifest = [
         f"Run finished:    {__import__('datetime').datetime.utcnow().isoformat()}Z",
         f"triplet_data:    {args.triplet_data.resolve()}",
@@ -756,8 +815,8 @@ def main():
         f"d:               {config['d']}",
         f"n_outer:         {n_outer}",
         f"mode:            {mode}",
-        f"final beta0:     {beta0}",
-        f"final beta1:     {beta1}",
+        f"alpha estimation: decoupled (per-person, shrinkage-regularized -- not a function of position)",
+        f"final mean alpha: {mean_alpha}",
         f"container_image: {container_image}",
     ]
     (work_dir / "run_manifest.txt").write_text("\n".join(manifest) + "\n")

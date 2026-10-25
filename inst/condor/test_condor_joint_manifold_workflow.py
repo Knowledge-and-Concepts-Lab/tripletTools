@@ -303,7 +303,7 @@ class TestRunUpdateStep(unittest.TestCase):
     submit_and_wait's own two calls), and the mocked condor_submit writes
     the output files a real job would have produced, simulating completion."""
 
-    def _patch_run(self, tmp, iter_dir, *, positions_text, beta_text, submit_returncode=0,
+    def _patch_run(self, tmp, iter_dir, *, positions_text, alpha_text, submit_returncode=0,
                     wait_returncode=0):
         def fake_run(cmd, **kwargs):
             if cmd[0] == "condor_submit":
@@ -316,11 +316,11 @@ class TestRunUpdateStep(unittest.TestCase):
                 # sandbox -- HTCondor's default output transfer doesn't
                 # reliably recurse into those without naming them
                 # explicitly (confirmed on a real deployment: positions.csv
-                # and beta.csv, plain files, came back; aligned/ never did).
-                self.assertIn("transfer_output_files   = positions.csv, beta.csv, aligned", content)
+                # and alpha.csv, plain files, came back; aligned/ never did).
+                self.assertIn("transfer_output_files   = positions.csv, alpha.csv, aligned", content)
                 if submit_returncode == 0:
                     (iter_dir / "positions.csv").write_text(positions_text)
-                    (iter_dir / "beta.csv").write_text(beta_text)
+                    (iter_dir / "alpha.csv").write_text(alpha_text)
                 return mock.Mock(returncode=submit_returncode, stdout="1 job(s) submitted", stderr="")
             if cmd[0] == "condor_wait":
                 return mock.Mock(returncode=wait_returncode)
@@ -335,14 +335,13 @@ class TestRunUpdateStep(unittest.TestCase):
             trials_dir = Path(tmp) / "person_trials"; trials_dir.mkdir()
 
             with self._patch_run(tmp, iter_dir, positions_text="position\n-0.5\n0.5\n",
-                                  beta_text="beta0,beta1,bandwidth\n0.1,0.2,0.3\n"):
-                positions, beta0, beta1, aligned_dir = jm.run_update_step(
-                    iter_dir, 2, emb_dir, trials_dir, None, 0.0, 0.0,
+                                  alpha_text="alpha\n1.1\n1.2\n"):
+                positions, alphas, aligned_dir = jm.run_update_step(
+                    iter_dir, 2, emb_dir, trials_dir, None, None,
                     resources={}, container_image="docker://example/image:latest"
                 )
             self.assertEqual(positions, [-0.5, 0.5])
-            self.assertAlmostEqual(beta0, 0.1)
-            self.assertAlmostEqual(beta1, 0.2)
+            self.assertEqual(alphas, [1.1, 1.2])
 
     def test_rejects_embeddings_dir_with_wrong_basename(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -350,14 +349,16 @@ class TestRunUpdateStep(unittest.TestCase):
             bad_dir = Path(tmp) / "wrong_name"; bad_dir.mkdir()
             trials_dir = Path(tmp) / "person_trials"; trials_dir.mkdir()
             with self.assertRaises(AssertionError):
-                jm.run_update_step(iter_dir, 2, bad_dir, trials_dir, None, 0.0, 0.0,
+                jm.run_update_step(iter_dir, 2, bad_dir, trials_dir, None, None,
                                     resources={}, container_image="docker://example/image:latest")
 
-    def test_old_positions_staged_under_distinct_name(self):
+    def test_old_positions_and_alpha_staged_under_distinct_names(self):
         with tempfile.TemporaryDirectory() as tmp:
             prev_iter_dir = Path(tmp) / "iter1"; prev_iter_dir.mkdir()
             old_positions_path = prev_iter_dir / "positions.csv"
             old_positions_path.write_text("position\n0.1\n0.2\n")
+            old_alpha_path = prev_iter_dir / "alpha.csv"
+            old_alpha_path.write_text("alpha\n1.0\n1.0\n")
 
             iter_dir = Path(tmp) / "iter2"; iter_dir.mkdir()
             emb_dir = Path(tmp) / "embeddings"; emb_dir.mkdir()
@@ -369,18 +370,19 @@ class TestRunUpdateStep(unittest.TestCase):
                 if cmd[0] == "condor_submit":
                     seen_submit_files.append(Path(cmd[1]).read_text())
                     (iter_dir / "positions.csv").write_text("position\n0.3\n0.4\n")
-                    (iter_dir / "beta.csv").write_text("beta0,beta1,bandwidth\n0,0,1\n")
+                    (iter_dir / "alpha.csv").write_text("alpha\n1.1\n1.1\n")
                     return mock.Mock(returncode=0, stdout="", stderr="")
                 return mock.Mock(returncode=0)
 
             with mock.patch("condor_joint_manifold_workflow.subprocess.run", side_effect=fake_run):
-                jm.run_update_step(iter_dir, 2, emb_dir, trials_dir, old_positions_path, 0.0, 0.0,
+                jm.run_update_step(iter_dir, 2, emb_dir, trials_dir, old_positions_path, old_alpha_path,
                                     resources={}, container_image="docker://example/image:latest")
 
             self.assertTrue((iter_dir / "old_positions_input.csv").exists())
+            self.assertTrue((iter_dir / "old_alpha_input.csv").exists())
             content = seen_submit_files[0]
-            self.assertIn("old_positions_input.csv", content)
             self.assertIn("--old_positions=old_positions_input.csv", content)
+            self.assertIn("--old_alpha=old_alpha_input.csv", content)
 
     def test_missing_output_after_job_exits(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -395,7 +397,7 @@ class TestRunUpdateStep(unittest.TestCase):
 
             with mock.patch("condor_joint_manifold_workflow.subprocess.run", side_effect=fake_run):
                 with self.assertRaises(SystemExit):
-                    jm.run_update_step(iter_dir, 2, emb_dir, trials_dir, None, 0.0, 0.0,
+                    jm.run_update_step(iter_dir, 2, emb_dir, trials_dir, None, None,
                                         resources={}, container_image="docker://example/image:latest")
 
 
@@ -443,7 +445,7 @@ class TestIterationIsComplete(unittest.TestCase):
         for i in range(n_people):
             (emb_dir / f"person{i}.csv").write_text("item,dim_0\na,1.0\n")
         (iter_dir / "positions.csv").write_text("position\n0.1\n0.2\n")
-        (iter_dir / "beta.csv").write_text("beta0,beta1,bandwidth\n0,0,1\n")
+        (iter_dir / "alpha.csv").write_text("alpha\n1.0\n1.0\n")
 
     def test_complete_iteration_is_true(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -458,11 +460,11 @@ class TestIterationIsComplete(unittest.TestCase):
             (iter_dir / "positions.csv").unlink()
             self.assertFalse(jm.iteration_is_complete(iter_dir, 2))
 
-    def test_empty_beta_is_false(self):
+    def test_empty_alpha_is_false(self):
         with tempfile.TemporaryDirectory() as tmp:
             iter_dir = Path(tmp) / "iter1"
             self._make_complete_iter(iter_dir, 2)
-            (iter_dir / "beta.csv").write_text("")
+            (iter_dir / "alpha.csv").write_text("")
             self.assertFalse(jm.iteration_is_complete(iter_dir, 2))
 
     def test_missing_one_persons_embedding_is_false(self):
@@ -478,60 +480,63 @@ class TestIterationIsComplete(unittest.TestCase):
 
 
 class TestFindResumeState(unittest.TestCase):
-    def _make_complete_iter(self, iter_dir, n_people, beta0, beta1, positions):
+    def _make_complete_iter(self, iter_dir, n_people, alphas, positions):
         emb_dir = iter_dir / "refit" / "embeddings"
         emb_dir.mkdir(parents=True)
         for i in range(n_people):
             (emb_dir / f"person{i}.csv").write_text("item,dim_0\na,1.0\n")
         pos_text = "position\n" + "\n".join(str(p) for p in positions) + "\n"
         (iter_dir / "positions.csv").write_text(pos_text)
-        (iter_dir / "beta.csv").write_text(f"beta0,beta1,bandwidth\n{beta0},{beta1},0.2\n")
+        alpha_text = "alpha\n" + "\n".join(str(a) for a in alphas) + "\n"
+        (iter_dir / "alpha.csv").write_text(alpha_text)
 
     def test_no_prior_iterations_starts_fresh(self):
         with tempfile.TemporaryDirectory() as tmp:
             work_dir = Path(tmp)
             orig_dir = work_dir / "setup" / "original_embeddings"
-            start_t, positions, beta0, beta1, warm_start_dir, old_pos = jm.find_resume_state(
+            start_t, positions, alphas, warm_start_dir, old_pos, old_alpha = jm.find_resume_state(
                 work_dir, 6, 2, orig_dir
             )
             self.assertEqual(start_t, 1)
             self.assertIsNone(positions)
-            self.assertEqual((beta0, beta1), (0.0, 0.0))
+            self.assertEqual(alphas, [1.0, 1.0])
             self.assertEqual(warm_start_dir, orig_dir)
             self.assertIsNone(old_pos)
+            self.assertIsNone(old_alpha)
 
     def test_resumes_after_last_complete_iteration(self):
         with tempfile.TemporaryDirectory() as tmp:
             work_dir = Path(tmp)
-            self._make_complete_iter(work_dir / "iter1", 2, 0.1, 0.2, [0.1, -0.1])
-            self._make_complete_iter(work_dir / "iter2", 2, 0.3, 0.4, [0.2, -0.2])
-            start_t, positions, beta0, beta1, warm_start_dir, old_pos = jm.find_resume_state(
+            self._make_complete_iter(work_dir / "iter1", 2, [1.1, 1.2], [0.1, -0.1])
+            self._make_complete_iter(work_dir / "iter2", 2, [1.3, 1.4], [0.2, -0.2])
+            start_t, positions, alphas, warm_start_dir, old_pos, old_alpha = jm.find_resume_state(
                 work_dir, 6, 2, work_dir / "setup" / "original_embeddings"
             )
             self.assertEqual(start_t, 3)
             self.assertEqual(positions, [0.2, -0.2])
-            self.assertEqual((beta0, beta1), (0.3, 0.4))
+            self.assertEqual(alphas, [1.3, 1.4])
             self.assertEqual(warm_start_dir, work_dir / "iter2" / "refit" / "embeddings")
             self.assertEqual(old_pos, work_dir / "iter2" / "positions.csv")
+            self.assertEqual(old_alpha, work_dir / "iter2" / "alpha.csv")
 
     def test_stops_at_first_gap_does_not_skip_over_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             work_dir = Path(tmp)
-            self._make_complete_iter(work_dir / "iter1", 2, 0.1, 0.2, [0.1, -0.1])
+            self._make_complete_iter(work_dir / "iter1", 2, [1.1, 1.2], [0.1, -0.1])
             # iter2 deliberately left incomplete (no files at all)
-            self._make_complete_iter(work_dir / "iter3", 2, 0.9, 0.9, [0.9, -0.9])
-            start_t, positions, beta0, beta1, warm_start_dir, old_pos = jm.find_resume_state(
+            self._make_complete_iter(work_dir / "iter3", 2, [1.9, 1.9], [0.9, -0.9])
+            start_t, positions, alphas, warm_start_dir, old_pos, old_alpha = jm.find_resume_state(
                 work_dir, 6, 2, work_dir / "setup" / "original_embeddings"
             )
             self.assertEqual(start_t, 2)  # resume right after iter1, not iter3
-            self.assertEqual((beta0, beta1), (0.1, 0.2))
+            self.assertEqual(alphas, [1.1, 1.2])
 
     def test_already_past_n_outer(self):
         with tempfile.TemporaryDirectory() as tmp:
             work_dir = Path(tmp)
-            self._make_complete_iter(work_dir / "iter1", 2, 0.1, 0.2, [0.1, -0.1])
-            self._make_complete_iter(work_dir / "iter2", 2, 0.3, 0.4, [0.2, -0.2])
-            start_t, positions, beta0, beta1, warm_start_dir, old_pos = jm.find_resume_state(
+            self._make_complete_iter(work_dir / "iter1", 2, [1.1, 1.2], [0.1, -0.1])
+            self._make_complete_iter(work_dir / "iter2", 2, [1.3, 1.4], [0.2, -0.2])
+            start_t, positions, alphas, warm_start_dir, old_pos, old_alpha = jm.find_resume_state(
                 work_dir, 2, 2, work_dir / "setup" / "original_embeddings"
             )
             self.assertEqual(start_t, 3)
@@ -584,6 +589,31 @@ class TestSmoothedEmbeddingAt(unittest.TestCase):
         self.assertAlmostEqual(result[0][0], 5.0, places=3)
 
 
+class TestGrandMeanEmbedding(unittest.TestCase):
+    def test_averages_across_pool_with_no_weighting(self):
+        aligned_list = [[[0.0, 0.0], [2.0, 2.0]], [[10.0, 0.0], [2.0, -2.0]]]
+        result = jm.grand_mean_embedding(aligned_list)
+        self.assertAlmostEqual(result[0][0], 5.0)
+        self.assertAlmostEqual(result[0][1], 0.0)
+        self.assertAlmostEqual(result[1][0], 2.0)
+        self.assertAlmostEqual(result[1][1], 0.0)
+
+    def test_identical_pool_members_recover_that_embedding(self):
+        rows = [[1.0, 2.0], [3.0, 4.0]]
+        result = jm.grand_mean_embedding([rows, rows, rows])
+        for got, expected in zip(result, rows):
+            for g, e in zip(got, expected):
+                self.assertAlmostEqual(g, e)
+
+
+class TestReadAlphaCsv(unittest.TestCase):
+    def test_reads_alpha_column_in_row_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "alpha.csv"
+            path.write_text("log_alpha,alpha,bandwidth\n0.1,1.105,0.2\n-0.3,0.741,0.2\n")
+            self.assertEqual(jm.read_alpha_csv(path), [1.105, 0.741])
+
+
 class TestReadDimCsv(unittest.TestCase):
     def test_reads_rows_in_file_order(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -600,9 +630,9 @@ class TestWriteSmoothedOutputs(unittest.TestCase):
             (work_dir / "iter2").mkdir(parents=True)
             # No aligned/ directory created -- simulates a run from before
             # the transfer_output_files fix.
-            jm.write_smoothed_outputs(work_dir, 2, ["p1", "p2"], ["a", "b"],
-                                       [0.1, -0.1], 0.0, 1.0)
+            jm.write_smoothed_outputs(work_dir, 2, ["p1", "p2"], ["a", "b"], [0.1, -0.1])
             self.assertFalse((work_dir / "final_smoothed_embeddings.csv").exists())
+            self.assertFalse((work_dir / "final_grand_mean_embedding.csv").exists())
 
     def test_writes_expected_files_when_aligned_present(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -612,8 +642,7 @@ class TestWriteSmoothedOutputs(unittest.TestCase):
             (aligned_dir / "person0.csv").write_text("dim_0,dim_1\n1.0,2.0\n3.0,4.0\n")
             (aligned_dir / "person1.csv").write_text("dim_0,dim_1\n5.0,6.0\n7.0,8.0\n")
 
-            jm.write_smoothed_outputs(work_dir, 2, ["p1", "p2"], ["itemA", "itemB"],
-                                       [0.1, -0.1], 0.0, 1.0)
+            jm.write_smoothed_outputs(work_dir, 2, ["p1", "p2"], ["itemA", "itemB"], [0.1, -0.1])
 
             self.assertTrue((work_dir / "final_smoothed_embeddings.csv").exists())
             with open(work_dir / "final_smoothed_embeddings.csv", newline="") as f:
@@ -621,10 +650,20 @@ class TestWriteSmoothedOutputs(unittest.TestCase):
             self.assertEqual(len(rows), 4)  # 2 participants x 2 items
             self.assertEqual({r["worker_id"] for r in rows}, {"p1", "p2"})
 
-            with open(work_dir / "final_smoothed_alpha.csv", newline="") as f:
-                alpha_rows = list(csv.DictReader(f))
-            self.assertEqual(len(alpha_rows), 2)
-            self.assertAlmostEqual(float(alpha_rows[0]["alpha"]), math.exp(0.0 + 1.0 * 0.1))
+            # Alpha is no longer written here -- it's decoupled from position
+            # now, so final_alpha.csv is written directly in main() from the
+            # per-person values already in memory, with no position-dependent
+            # computation needed.
+            self.assertFalse((work_dir / "final_smoothed_alpha.csv").exists())
+
+            self.assertTrue((work_dir / "final_grand_mean_embedding.csv").exists())
+            with open(work_dir / "final_grand_mean_embedding.csv", newline="") as f:
+                gm_rows = list(csv.DictReader(f))
+            self.assertEqual(len(gm_rows), 2)  # one row per item, no worker_id (same for everyone)
+            self.assertEqual({r["item"] for r in gm_rows}, {"itemA", "itemB"})
+            gm_itemA = next(r for r in gm_rows if r["item"] == "itemA")
+            self.assertAlmostEqual(float(gm_itemA["dim_0"]), 3.0)  # mean(1.0, 5.0)
+            self.assertAlmostEqual(float(gm_itemA["dim_1"]), 4.0)  # mean(2.0, 6.0)
 
 
 if __name__ == "__main__":

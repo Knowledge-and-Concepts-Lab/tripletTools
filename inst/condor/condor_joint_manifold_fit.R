@@ -32,11 +32,12 @@
 #   for gradient descent (a real warm start, not random-noise
 #   initialization), which is why later outer iterations converge much
 #   faster than the first.
-# --alpha: this person's CURRENT choice-model shape, alpha(t_i) =
-#   exp(beta0 + beta1 * t_i), computed by the orchestrator from the
-#   population curve's state at the start of this outer iteration. Finite
-#   alpha uses the Student-t ("TSTE") noise model; alpha > 1e5 (or
-#   literally Inf) is treated as the exact Gaussian limit ("STE").
+# --alpha: this person's CURRENT choice-model shape -- their own
+#   independently estimated, shrinkage-regularized alpha from the start of
+#   this outer iteration (condor_joint_manifold_update.R's own alpha.csv
+#   output), not a function of their geometric position. Finite alpha uses
+#   the Student-t ("TSTE") noise model; alpha > 1e5 (or literally Inf) is
+#   treated as the exact Gaussian limit ("STE").
 
 parse_args <- function(raw) {
   bad <- !grepl("^--[^=]+=", raw)
