@@ -39,6 +39,14 @@ row names for each dataframe. The list elements will be labelled by the
 Use this function to read in combined (across subjects) triplet data
 files (with `eflag=FALSE`) or embedding files (with `eflag=TRUE`)
 
+`worker_id` and `item` are always read as character, even when every
+value in the file happens to look numeric (e.g. randomly-generated
+all-digit worker IDs) – otherwise
+[`read.csv()`](https://rdrr.io/r/utils/read.table.html)'s default type
+inference would read such a column as numeric, silently dropping any
+leading zeros and breaking exact matching against the original string
+IDs downstream.
+
 ## Examples
 
 ``` r

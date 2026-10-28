@@ -85,6 +85,11 @@ column to set row names for each dataframe. The list elements will be
 labelled by the <code>worker_id</code> value.</p>
 <p>Use this function to read in combined (across subjects) triplet data
 files (with <code>eflag=FALSE</code>) or embedding files (with <code>eflag=TRUE</code>)</p>
+<p><code>worker_id</code> and <code>item</code> are always read as character, even when every
+value in the file happens to look numeric (e.g. randomly-generated
+all-digit worker IDs) – otherwise <code><a href="https://rdrr.io/r/utils/read.table.html" class="external-link">read.csv()</a></code>'s default type inference
+would read such a column as numeric, silently dropping any leading zeros
+and breaking exact matching against the original string IDs downstream.</p>
     </div>
 
     <div class="section level2">

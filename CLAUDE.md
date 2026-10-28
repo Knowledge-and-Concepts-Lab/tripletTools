@@ -3067,3 +3067,74 @@ back to the returned matrices.
     “empty output” one’s structure) all updated to describe the new
     auto-release behavior instead of telling the reader to notice and
     release a held job manually.
+- **Real bug found in
+  [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md):
+  an all-digit `worker_id` column is silently read back as numeric,
+  dropping leading zeros.** Surfaced while helping the user add a
+  [`write.csv()`](https://rdrr.io/r/utils/write.table.html) step to
+  `Simulation/ManifoldEstimation/ManifoldEstimation.Rmd` (outside this
+  package, a research notebook) so freshly-regenerated simulated
+  triplets could round-trip through
+  [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
+  without a stale CSV in between. `simulate.participant()`’s random
+  10-digit `worker_id` strings have about a 96% chance across 30
+  participants that at least one starts with `0`;
+  [`read.csv()`](https://rdrr.io/r/utils/read.table.html)’s default type
+  inference reads an all-digit-looking column as numeric regardless, so
+  e.g. `"0733092758"` came back as the numeric `733092758` – same root
+  cause, same failure signature (IDs silently merged/dropped on
+  mismatch) as the already-documented, already-fixed Python-side bug in
+  `compute_embeddings.py::process_all_workers()` above, just
+  independently present on the R/CSV-reading side of this shared,
+  exported function. Confirmed directly: `unique(tmp$worker_id)` after a
+  plain [`read.csv()`](https://rdrr.io/r/utils/read.table.html) showed
+  several IDs 1-2 digits short of the expected 10. Fixed by forcing
+  `worker_id` (and `item`, for the `eflag=TRUE` embeddings case, same
+  risk in principle) to character via a targeted `colClasses` argument –
+  reads the header first to build a named `colClasses` vector only for
+  whichever of those two columns are actually present, leaving every
+  other column’s type auto-detected as before. New regression test
+  (`test-get_combined.R`) locks down the exact failure mode: a
+  2-participant synthetic CSV with one ID starting with `0`, asserting
+  the read-back ID stays a full 10-character string and its 2 rows
+  aren’t split off into an unmatched, dangling entry. Full 241-block
+  package test suite re-run and confirmed unaffected.
+- \*\*[`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md)‘s
+  embedding-geometry grid was silently double-smoothing, visibly
+  flattening real structure.\*\* Found after the user re-ran the
+  decoupled-alpha workflow on Experiment 1
+  (`GaborTriplets/joint_manifold_exp1`, 38 participants, n_outer=30) and
+  noticed the geometry-grid panels didn’t recover the known circular
+  arrangement of the orientation stimuli nearly as cleanly as the
+  original always-fit-at-alpha=1 individual embeddings did. Root cause:
+  `smoothed_source <- run$final_smoothed_embeddings %||% run$final_embeddings`
+  preferred the already-pooled/kernel-smoothed file (the same preference
+  used correctly everywhere else in the report, since the raw per-person
+  refit is the known-to-overfit artifact – see the “real finding” entry
+  above), but the grid itself then calls
+  [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)
+  a *second* time on whatever it picked, to interpolate across a grid of
+  query positions that generally aren’t any real participant’s actual
+  position. When the smoothed file is present (every current-format
+  run), that means smoothing twice with the same kernel/bandwidth –
+  close to convolving a Gaussian with itself, which compounds to an
+  effective bandwidth roughly sqrt(2)x larger than intended –
+  over-flattening exactly the position-dependent geometric structure the
+  plot exists to show. Fixed by always building the grid from the raw
+  `run$final_embeddings` directly (renamed `smoothed_source` -\>
+  `geometry_source`), a single smoothing pass, matching the only case
+  where this worked correctly before (an old-format run with no
+  `final_smoothed_embeddings.csv` at all). Verified by re-rendering both
+  real datasets’ reports: Experiment 1’s grid now shows a clean,
+  well-formed ring with the orientation color gradient running smoothly
+  around it from `t=-0.15` onward, matching what the original
+  per-individual alpha=1 fits recovered – the one remaining ragged panel
+  (`t=-0.59`, the extreme low tail) is expected, not a smoothing
+  artifact, since that’s the sparse-data boundary region where the one
+  position-unstable participant (`67e08871...`, flagged in the same
+  report’s convergence table) sits. All 33 existing tests pass unchanged
+  (they only assert the PNG file is written, not its content). Purely a
+  visualization fix – no statistics in the decomposition table or
+  [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
+  check were ever affected, since neither reads
+  `final_smoothed_embeddings` through this code path.
