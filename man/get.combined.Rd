@@ -32,6 +32,12 @@ labelled by the \code{worker_id} value.
 
 Use this function to read in combined (across subjects) triplet data
 files (with \code{eflag=FALSE}) or embedding files (with \code{eflag=TRUE})
+
+\code{worker_id} and \code{item} are always read as character, even when every
+value in the file happens to look numeric (e.g. randomly-generated
+all-digit worker IDs) -- otherwise \code{read.csv()}'s default type inference
+would read such a column as numeric, silently dropping any leading zeros
+and breaking exact matching against the original string IDs downstream.
 }
 \examples{
 fpath <- system.file("extdata", "icon_embeddings_individual.csv", package="tripletTools")
