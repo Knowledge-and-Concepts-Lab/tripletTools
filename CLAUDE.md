@@ -2820,3 +2820,51 @@ back to the returned matrices.
     top-of-file note) explaining the finding and pointing to
     `triplet_choice_and_loss.Rmd` for the full comparison. Verified by
     re-knitting the vignette end-to-end (33/33 chunks, no errors).
+- **Real production incident: a HELD Condor job stalled an overnight
+  `condor_joint_manifold_workflow.py` deployment completely, with no
+  automatic recovery.** `condor_q -held` showed
+  `Error from slot1_11@e2472.chtc.wisc.edu: ... invalid mount config for type "bind": bind source path does not exist: /cvmfs`
+  – a transient broken Docker/CVMFS mount on one specific bad CHTC
+  execute node, unrelated to the job’s own code, data, or container
+  image. The real problem wasn’t the hold itself (a plain
+  `condor_release` fixes it, since the matchmaker reassigns the job to a
+  different slot rather than retrying the same bad one) – it’s that
+  **every** orchestrator’s `submit_and_wait()` called a single blocking
+  `condor_wait` with no timeout, and `condor_wait` only returns once
+  every job in its log has *terminated or been removed*; a held job does
+  neither until a human intervenes. So the driver’s blocking wait sat
+  there all night with no way to notice or recover on its own, distinct
+  from (and not covered by) `submit_jobs_with_retry()`, which only
+  checks for missing/empty output *after* `condor_wait` already returned
+  – it never fires if the wait itself never returns.
+  - Fixed identically across **all five** orchestrators
+    (`condor_workflow.py`, `condor_group_diff_workflow.py`,
+    `condor_individual_embeddings_workflow.py`,
+    `condor_recovery_sweep_workflow.py`,
+    `condor_joint_manifold_workflow.py` – same
+    self-contained-per-workflow duplication convention as every other
+    shared fix here, e.g. `submit_jobs_with_retry()` itself):
+    `submit_and_wait()` now parses the cluster id out of
+    `condor_submit`‘s own stdout, then polls with
+    `condor_wait -wait 120 <log>` in a loop instead of one open-ended
+    call. On each timeout it checks
+    `condor_q <cluster> -held -af ProcId HoldReason` and auto-releases
+    (`condor_release`) anything found held, up to 3 releases per job
+    before giving up with a clear error naming the job and its hold
+    reason – rather than either hanging forever or failing instantly on
+    a merely-transient hold. New
+    `HELD_JOB_MAX_RELEASES`/`HELD_JOB_POLL_SECONDS` constants and a
+    `held_jobs_in_cluster()` helper, duplicated into each file the same
+    way. 4 new tests in `test_condor_joint_manifold_workflow.py` (53
+    total; all 93 tests across the other four workflows’ own suites pass
+    unchanged, confirming the signature/behavior change – `condor_wait`
+    now called with extra args, an occasional new
+    `condor_q`/`condor_release` call – doesn’t break any existing mocked
+    test, none of which asserted the exact `condor_wait` argument list,
+    only `cmd[0]`). `README_joint_manifold.md`, `README_group_diff.md`,
+    `README_individual_embeddings.md`, `README_recovery_sweep.md`, and
+    `condor_workflows_vignette.Rmd`’s shared troubleshooting section (a
+    new “A job goes held mid-run” subsection, mirroring the existing
+    “empty output” one’s structure) all updated to describe the new
+    auto-release behavior instead of telling the reader to notice and
+    release a held job manually.
