@@ -604,10 +604,16 @@ summarize_joint_estimation <- function(output_dir, triplet_data = NULL,
   }
 
   ## ---- Embedding geometry grid ----
-  smoothed_source <- run$final_smoothed_embeddings %||% run$final_embeddings
-  if (!is.null(smoothed_source) && run$d %in% c(2, 3) && n >= 2) {
+  ## Always smooths from the raw per-person refits, not final_smoothed_embeddings --
+  ## the grid itself calls smooth_embedding_trajectory() to interpolate across a
+  ## grid of positions, so starting from the already-smoothed file would smooth
+  ## twice with the same bandwidth (close to convolving a Gaussian kernel with
+  ## itself, roughly sqrt(2)x the intended effective bandwidth), over-flattening
+  ## exactly the position-dependent structure this plot exists to show.
+  geometry_source <- run$final_embeddings
+  if (!is.null(geometry_source) && run$d %in% c(2, 3) && n >= 2) {
     if (verbose) cat("Building embedding-geometry grid...\n")
-    traj <- smooth_embedding_trajectory(smoothed_source, pos_final, n_query = n_geometry_panels)
+    traj <- smooth_embedding_trajectory(geometry_source, pos_final, n_query = n_geometry_panels)
     colors <- item_colors %||% grDevices::rainbow(length(run$item_order))
     if (run$d == 3 && requireNamespace("scatterplot3d", quietly = TRUE)) {
       n_row <- ceiling(sqrt(n_geometry_panels)); n_col <- ceiling(n_geometry_panels / n_row)
@@ -638,7 +644,7 @@ summarize_joint_estimation <- function(output_dir, triplet_data = NULL,
       md <- c(md, "## Embedding geometry across the manifold", "",
               "scatterplot3d is not installed; skipping the d=3 geometry grid.", "")
     }
-  } else if (!is.null(smoothed_source) && !(run$d %in% c(2, 3))) {
+  } else if (!is.null(geometry_source) && !(run$d %in% c(2, 3))) {
     md <- c(md, "## Embedding geometry across the manifold", "",
             sprintf("Skipped: no generic plot is defined for d = %s.", run$d), "")
   }
