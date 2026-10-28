@@ -144,16 +144,27 @@ Written to `output_dir` (default `condor_joint_manifold_output/`, set in
 
 ## Troubleshooting
 
-If `condor_wait` exits with a nonzero status during an embedding-refit
-batch, a job was held or failed — same first steps as the other workflows
-here (`condor_q -hold`, `condor_q -better-analyze <job-id>`), and check
-that iteration's `iterN/refit/refit_*.err` files.
+A job that goes **held** (not failed, not running) is handled
+automatically now — `submit_and_wait()` polls rather than blocking on a
+single `condor_wait`, and auto-releases anything it finds held via
+`condor_q -held` (up to 3 times per job before giving up). This was added
+after a real run stalled overnight on exactly this: a job held with
+`invalid mount config for type "bind": bind source path does not exist:
+/cvmfs` — a transient broken Docker/CVMFS mount on one bad CHTC execute
+node, nothing to do with the job itself, that a plain `condor_release`
+fixes because the matchmaker reassigns the job to a different slot. You
+should see `job ... is held (auto-release N/3) -- <reason>` printed
+when this happens; no manual intervention needed unless it exhausts all
+3 releases, which means the job is failing for a reason release alone
+won't fix.
 
-If `condor_wait` exits with a nonzero status during an update-step batch,
-or the driver exits with "did not produce expected output," check that
-iteration's `iterN/update.err` for the underlying R error (same
-diagnosis steps as an embedding-refit failure, just for the single update
-job instead of the batch of per-participant ones).
+If the driver eventually does exit with "held again after 3 automatic
+releases" (an embedding-refit batch) or "did not produce expected
+output" (either stage), check that iteration's `iterN/refit/refit_*.err`
+(a per-participant refit) or `iterN/update.err` (the single update job)
+for the underlying R error — the hold-reason or `.err` content printed
+in the exit message tells you whether it's a real recurring problem or
+just needs `condor_release <job-id>` once more by hand.
 
 ## Resuming / extending a run
 

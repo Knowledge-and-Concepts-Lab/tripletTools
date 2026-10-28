@@ -141,15 +141,21 @@ Written to `output_dir` (default `condor_group_diff_output/`, set in
 
 ## Troubleshooting
 
-If `condor_wait` exits with a nonzero status, a job in that stage was held
-or failed. Check the printed `.log` path, and the corresponding
-`.out`/`.err` files in the stage directory, then:
+A **held** job (not failed, not running) is handled automatically now —
+the driver polls rather than blocking on a single `condor_wait`, and
+auto-releases anything it finds held via `condor_q -held` (up to 3 times
+per job before giving up). This covers the common case of a transient
+bad execute node (e.g. a broken Docker/CVMFS mount on just that one
+machine) — `condor_release` fixes it because the matchmaker reassigns
+the job elsewhere. You'll see `job ... is held (auto-release N/3) --
+<reason>` printed when this happens; no manual action needed unless it
+exhausts all 3 releases.
 
-```bash
-condor_q -hold
-condor_q -better-analyze <job-id>
-```
-
-are the standard first steps for diagnosing why HTCondor won't run/finish a
-job (common causes: a typo'd container image tag, or `request_disk` too
-small for the pulled image — see `request_disk` in the config).
+If the driver does exit (either "held again after 3 automatic releases"
+or "did not produce expected output"), check the printed `.log` path and
+the corresponding `.out`/`.err` files in the stage directory. The hold
+reason or `.err` content printed in the exit message usually tells you
+whether it's a real recurring problem (common causes: a typo'd container
+image tag, or `request_disk` too small for the pulled image — see
+`request_disk` in the config) or just needs releasing once more by hand
+(`condor_q -hold`, `condor_release <job-id>`).

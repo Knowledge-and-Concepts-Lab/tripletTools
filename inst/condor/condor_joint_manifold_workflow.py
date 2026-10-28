@@ -75,6 +75,7 @@ directory.
 import argparse
 import csv
 import math
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -144,6 +145,28 @@ error  = {error}
     path.write_text(content)
 
 
+HELD_JOB_MAX_RELEASES = 3
+HELD_JOB_POLL_SECONDS = 120
+
+
+def held_jobs_in_cluster(cluster_id):
+    """{ProcId: HoldReason} for every currently-held job in cluster_id. A
+    held job on a shared pool like CHTC is very often a transient
+    execute-node problem (e.g. a broken Docker/CVMFS mount on one bad
+    machine) -- condor_release reassigns it through the matchmaker to a
+    different slot, it is not pinned to the machine that held it."""
+    result = subprocess.run(
+        ["condor_q", cluster_id, "-held", "-af", "ProcId", "HoldReason"],
+        capture_output=True, text=True,
+    )
+    held = {}
+    for line in result.stdout.splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) == 2:
+            held[parts[0]] = parts[1]
+    return held
+
+
 def submit_and_wait(submit_path, log_path, label):
     print(f"[condor_joint_manifold] Submitting {label} ({submit_path.name})...")
     result = subprocess.run(["condor_submit", str(submit_path)],
@@ -152,15 +175,43 @@ def submit_and_wait(submit_path, log_path, label):
     if result.returncode != 0:
         sys.exit(f"condor_submit failed for {label}:\n{result.stderr}")
 
+    cluster_match = re.search(r"submitted to cluster (\d+)", result.stdout)
+    cluster_id = cluster_match.group(1) if cluster_match else None
+
     print(f"[condor_joint_manifold] Waiting for {label} to finish "
           f"(condor_wait {log_path})...")
-    wait = subprocess.run(["condor_wait", str(log_path)])
-    if wait.returncode != 0:
-        sys.exit(
-            f"condor_wait exited with status {wait.returncode} for {label}. "
-            f"Check {log_path} and the corresponding .out/.err files for "
-            "held or failed jobs (condor_q -hold, condor_q -better-analyze)."
+    release_counts = {}
+    while True:
+        wait = subprocess.run(
+            ["condor_wait", "-wait", str(HELD_JOB_POLL_SECONDS), str(log_path)]
         )
+        if wait.returncode == 0:
+            return
+        if cluster_id is None:
+            sys.exit(
+                f"condor_wait exited with status {wait.returncode} for {label} "
+                "and the submitted cluster id couldn't be parsed from "
+                "condor_submit's output, so held jobs can't be auto-released. "
+                f"Check {log_path} and the corresponding .out/.err files for "
+                "held or failed jobs (condor_q -hold, condor_q -better-analyze)."
+            )
+        held = held_jobs_in_cluster(cluster_id)
+        if not held:
+            continue  # still running, or a one-off condor_wait hiccup -- keep polling
+        for proc_id, reason in held.items():
+            job_id = f"{cluster_id}.{proc_id}"
+            release_counts[proc_id] = release_counts.get(proc_id, 0) + 1
+            if release_counts[proc_id] > HELD_JOB_MAX_RELEASES:
+                sys.exit(
+                    f"{label}: job {job_id} held again after "
+                    f"{HELD_JOB_MAX_RELEASES} automatic releases. Hold reason: "
+                    f"{reason}\nGiving up -- fix the underlying cause and "
+                    f"release manually (condor_release {job_id})."
+                )
+            print(f"[condor_joint_manifold] {label}: job {job_id} is held "
+                  f"(auto-release {release_counts[proc_id]}/{HELD_JOB_MAX_RELEASES}) "
+                  f"-- {reason}")
+            subprocess.run(["condor_release", job_id])
 
 
 def queue_from_block(varnames, rows):

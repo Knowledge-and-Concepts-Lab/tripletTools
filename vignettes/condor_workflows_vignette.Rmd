@@ -221,6 +221,20 @@ p_value     <- (1 + sum(null_values <= observed)) / (1 + length(null_values))
 
 ---
 
+## A job goes held mid-run
+
+`JobStatus = 5` (held, from the status-check above) used to mean the whole run would simply stall — `condor_wait` only returns once every job in its log has either terminated or been removed, and a held job does neither until a human releases or removes it. This happened for real on an overnight joint-manifold deployment: one job held with `invalid mount config for type "bind": bind source path does not exist: /cvmfs` — a broken Docker/CVMFS mount specific to one bad execute node, unrelated to the job's own code or data — and the run sat there until morning.
+
+**All five workflows now handle this automatically.** `submit_and_wait()` polls with `condor_wait -wait <seconds>` in a loop instead of blocking on one open-ended call, and after each timeout checks `condor_q -held` for that submission's cluster and auto-releases anything it finds — up to 3 releases per job before giving up. A transient bad-execute-node problem like the `/cvmfs` one above almost always succeeds on the very next release, since the matchmaker reassigns a released job to a different slot rather than retrying the same one. You'll see this in the driver's own output as e.g.:
+
+```
+[condor_joint_manifold] embedding refits: job 7202726.21 is held (auto-release 1/3) -- Error from slot1_11@e2472.chtc.wisc.edu: Error response from daemon: invalid mount config for type "bind": bind source path does not exist: /cvmfs
+```
+
+Nothing further to do in that case — just let it keep running. If a job holds for the *same* reason three times in a row, the driver gives up with a clear error naming the job and the hold reason, since at that point it's more likely a real, persistent problem (e.g. a genuinely bad `request_memory`/`request_disk`, or a bad container tag) than bad luck with execute nodes, and worth looking at directly (`condor_q -held`, `condor_q -better-analyze <jobid>`) before releasing it again by hand.
+
+---
+
 ## Workflow 1: Dimensionality search, learning curve, and final embedding fit
 
 For the common case of "pick a dimension, check it against a learning curve, and fit the best embedding," `condor_workflow.py` runs all three stages back to back, dispatching every individual fit to HTCondor as its own job.

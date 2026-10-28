@@ -296,6 +296,85 @@ class TestSubmitJobsWithRetry(unittest.TestCase):
                                            label="test", max_retries=1)
 
 
+class TestSubmitAndWait(unittest.TestCase):
+    """A job that comes back HELD (e.g. a transient bad-execute-node Docker/
+    CVMFS mount failure, seen live on a real CHTC deployment) must not make
+    condor_wait block forever -- submit_and_wait() polls with condor_wait
+    -wait, auto-releases anything it finds held via condor_q -held, and
+    only gives up once a job has held repeatedly past HELD_JOB_MAX_RELEASES."""
+
+    def test_succeeds_without_any_hold(self):
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd[0])
+            if cmd[0] == "condor_submit":
+                return mock.Mock(returncode=0, stdout="1 job(s) submitted to cluster 42.",
+                                  stderr="")
+            if cmd[0] == "condor_wait":
+                return mock.Mock(returncode=0)
+            raise AssertionError(f"unexpected call: {cmd}")
+
+        with mock.patch("condor_joint_manifold_workflow.subprocess.run", side_effect=fake_run):
+            jm.submit_and_wait(Path("sub.sub"), Path("log"), "test job")
+        self.assertNotIn("condor_q", calls)
+        self.assertNotIn("condor_release", calls)
+
+    def test_held_job_is_auto_released_then_succeeds(self):
+        wait_calls = {"n": 0}
+
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "condor_submit":
+                return mock.Mock(returncode=0, stdout="1 job(s) submitted to cluster 42.",
+                                  stderr="")
+            if cmd[0] == "condor_wait":
+                wait_calls["n"] += 1
+                # Held on the first poll, gone (released, then finished) by the second.
+                return mock.Mock(returncode=0 if wait_calls["n"] > 1 else 1)
+            if cmd[0] == "condor_q":
+                if wait_calls["n"] == 1:
+                    return mock.Mock(returncode=0, stdout="21 Error from slot1_11@e2472: "
+                                                           "invalid mount config for /cvmfs\n")
+                return mock.Mock(returncode=0, stdout="")
+            if cmd[0] == "condor_release":
+                self.assertEqual(cmd[1], "42.21")
+                return mock.Mock(returncode=0)
+            raise AssertionError(f"unexpected call: {cmd}")
+
+        with mock.patch("condor_joint_manifold_workflow.subprocess.run", side_effect=fake_run):
+            jm.submit_and_wait(Path("sub.sub"), Path("log"), "test job")
+        self.assertEqual(wait_calls["n"], 2)
+
+    def test_repeatedly_held_job_gives_up(self):
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "condor_submit":
+                return mock.Mock(returncode=0, stdout="1 job(s) submitted to cluster 42.",
+                                  stderr="")
+            if cmd[0] == "condor_wait":
+                return mock.Mock(returncode=1)
+            if cmd[0] == "condor_q":
+                return mock.Mock(returncode=0, stdout="21 same transient-looking reason every time\n")
+            if cmd[0] == "condor_release":
+                return mock.Mock(returncode=0)
+            raise AssertionError(f"unexpected call: {cmd}")
+
+        with mock.patch("condor_joint_manifold_workflow.subprocess.run", side_effect=fake_run):
+            with self.assertRaises(SystemExit):
+                jm.submit_and_wait(Path("sub.sub"), Path("log"), "test job")
+
+    def test_unparseable_cluster_id_exits_on_timeout_without_querying_condor_q(self):
+        def fake_run(cmd, **kwargs):
+            if cmd[0] == "condor_submit":
+                return mock.Mock(returncode=0, stdout="not the format we expected", stderr="")
+            if cmd[0] == "condor_wait":
+                return mock.Mock(returncode=1)
+            raise AssertionError(f"unexpected call: {cmd}")
+
+        with mock.patch("condor_joint_manifold_workflow.subprocess.run", side_effect=fake_run):
+            with self.assertRaises(SystemExit):
+                jm.submit_and_wait(Path("sub.sub"), Path("log"), "test job")
+
+
 class TestRunUpdateStep(unittest.TestCase):
     """Verifies the update step's Condor submit file/arguments are built
     correctly and its output is parsed correctly, without a real cluster --

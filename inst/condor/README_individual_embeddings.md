@@ -119,9 +119,19 @@ set in `my_params.yml`):
 
 ## Troubleshooting
 
-If `condor_wait` exits with a nonzero status, a job was held or failed.
-Check the printed `.log` path, and the corresponding `.out`/`.err` files in
-`stage1_fit/`, then:
+A **held** job (not failed, not running) is handled automatically now —
+the driver polls rather than blocking on a single `condor_wait`, and
+auto-releases anything it finds held via `condor_q -held` (up to 3 times
+per job before giving up). This covers the common case of a transient
+bad execute node (e.g. a broken Docker/CVMFS mount on just that one
+machine) — `condor_release` fixes it because the matchmaker reassigns
+the job elsewhere. You'll see `job ... is held (auto-release N/3) --
+<reason>` printed when this happens; no manual action needed unless it
+exhausts all 3 releases.
+
+If the driver does exit (either "held again after 3 automatic releases"
+or a failed job), check the printed `.log` path and the corresponding
+`.out`/`.err` files in `stage1_fit/`, then:
 
 ```bash
 condor_q -hold
