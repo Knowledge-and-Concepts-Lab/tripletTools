@@ -144,18 +144,40 @@ vmat <- make.vmat(icon_triplets)
 
 # One row per unique validation triplet
 head(vmat$majority)
-#>             triplet majority pmaj Center  Left Right
-#> 1 fdfow_fnmyb_pdhos    fnmyb  1.0  fdfow fnmyb pdhos
-#> 2 fdmob_fdfow_pnhob    fdfow  1.0  fdmob fdfow pnhob
-#> 3 fdmob_fdmow_fdmyb    fdmyb  0.8  fdmob fdmow fdmyb
-#> 4 fdmob_fnmob_pdcos    fnmob  1.0  fdmob fnmob pdcos
-#> 5 fdmow_fdmyw_fnfyw    fdmyw  1.0  fdmow fdmyw fnfyw
-#> 6 fdmow_fnfyw_pncnb    fnfyw  1.0  fdmow fnfyw pncnb
+#>             triplet majority pmaj n nmaj       p   sig Center  Left Right
+#> 1 fdfow_fnmyb_pdhos    fnmyb  1.0 1    1 0.50000 FALSE  fdfow fnmyb pdhos
+#> 2 fdmob_fdfow_pnhob    fdfow  1.0 5    5 0.03125  TRUE  fdmob fdfow pnhob
+#> 3 fdmob_fdmow_fdmyb    fdmyb  0.8 5    4 0.18750 FALSE  fdmob fdmow fdmyb
+#> 4 fdmob_fnmob_pdcos    fnmob  1.0 1    1 0.50000 FALSE  fdmob fnmob pdcos
+#> 5 fdmow_fdmyw_fnfyw    fdmyw  1.0 5    5 0.03125  TRUE  fdmow fdmyw fnfyw
+#> 6 fdmow_fnfyw_pncnb    fnfyw  1.0 1    1 0.50000 FALSE  fdmow fnfyw pncnb
 ```
 
 The `pmaj` column shows the proportion of participants who agreed with
 the majority choice. Values near 1.0 indicate near-universal agreement;
 values near 0.5 indicate a closely split decision.
+
+`pmaj` alone can be misleading for a triplet only a handful of
+participants happened to judge – `n` (how many participants judged it)
+and `nmaj` (how many of those agreed with the majority) let you check
+that directly, and `p`/`sig` turn it into a formal test: `p` is the
+one-sided binomial p-value for observing `nmaj` or more agreements out
+of `n` if participants were really just guessing (50/50, since each
+judgment is a forced choice between two options), and `sig` flags
+`p < 0.05`. A triplet with only one or two judgments can never reach
+significance no matter how those few judgments came out –
+`icon_triplets`’ own 20 triplets with just a single judgment each all
+have `p = 0.5`, while 11 of the 20 triplets with 5 judgments each reach
+significance:
+
+``` r
+
+table(n = vmat$majority$n, sig = vmat$majority$sig)
+#>    sig
+#> n   FALSE TRUE
+#>   1    20    0
+#>   5     9   11
+```
 
 ``` r
 

@@ -22,11 +22,16 @@ make.vmat(triplist)
 Names list with two elements. `majority` is a data frame with one row
 per validation triplet, with columns `triplet` (the unique triplet code
 from `make.tripnames`), `majority` (the winning choice), `pmaj`
-(proportion of participants who selected it), and
-`Center`/`Left`/`Right` (the triplet's items, in the format `test.model`
-expects – see Details). `bysbj` is a matrix indicating, for each
-participant (rows) and validation triplet (columns), the choice the
-participant made.
+(proportion of participants who selected it), `n` (total number of
+judgments observed for this triplet, pooled across all participants),
+`nmaj` (how many of those `n` judgments agreed with `majority` – so
+`pmaj = nmaj / n`), `p` (the one-sided binomial test p-value for
+observing `nmaj` or more agreements out of `n` under a chance-guessing
+null, i.e. `P(X >= nmaj)` for `X ~ Binomial(n, 0.5)`; see Details for
+why 0.5), `sig` (`TRUE` if `p < 0.05`), and `Center`/`Left`/`Right` (the
+triplet's items, in the format `test.model` expects – see Details).
+`bysbj` is a matrix indicating, for each participant (rows) and
+validation triplet (columns), the choice the participant made.
 
 ## Details
 
@@ -42,6 +47,21 @@ passed directly to
 predicted response as an added `ModPred` column, and compare that to the
 human majority vote in `majority`.
 
+`p`/`sig` test whether a triplet's observed level of agreement is more
+than would be expected from participants guessing at random between the
+two options – a one-sided binomial test against `p = 0.5` (not the two
+options' own base rates, which need not be equal in general but are 0.5
+here specifically because each judgment is a forced choice between
+exactly two options, so pure guessing is 50/50 by construction). A
+triplet with only one or two judgments can therefore never reach
+significance (`nmaj <= 2` out of `n <= 2` has p-value \>= 0.25)
+regardless of how consistent those few judgments happen to be – `sig` is
+only a meaningful filter once `n` is large enough to distinguish real
+consistency from chance, so check `n`'s distribution (e.g. via
+[`find_frequent_triplets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md)
+if this validation set was itself built post-hoc from it) rather than
+trusting `sig` blindly at very low `n`.
+
 Where a participant judged a particular validation triplet the entries
 of `bysbj` will indicate the proportion of times the participant's
 decision agreed with the majority vote. (In most cases this will be 0 or
@@ -55,45 +75,45 @@ triplet, the entry in `bysbj`will be NA.
 ``` r
 vmat <- make.vmat(icon_triplets)
 vmat$majority
-#>              triplet majority pmaj Center  Left Right
-#> 1  fdfow_fnmyb_pdhos    fnmyb  1.0  fdfow fnmyb pdhos
-#> 2  fdmob_fdfow_pnhob    fdfow  1.0  fdmob fdfow pnhob
-#> 3  fdmob_fdmow_fdmyb    fdmyb  0.8  fdmob fdmow fdmyb
-#> 4  fdmob_fnmob_pdcos    fnmob  1.0  fdmob fnmob pdcos
-#> 5  fdmow_fdmyw_fnfyw    fdmyw  1.0  fdmow fdmyw fnfyw
-#> 6  fdmow_fnfyw_pncnb    fnfyw  1.0  fdmow fnfyw pncnb
-#> 7  fdmow_fnmyw_pdhnb    pdhnb  0.6  fdmow fnmyw pdhnb
-#> 8  fdmyb_fdfob_pdhos    fdfob  1.0  fdmyb fdfob pdhos
-#> 9  fdmyb_fnfyb_pdcns    fnfyb  0.6  fdmyb fnfyb pdcns
-#> 10 fdmyb_fnmyb_fnmyw    fnmyb  1.0  fdmyb fnmyb fnmyw
-#> 11 fdmyw_fdfow_fnfyw    fnfyw  1.0  fdmyw fdfow fnfyw
-#> 12 fdmyw_fnfob_fnmyw    fnmyw  1.0  fdmyw fnfob fnmyw
-#> 13 fdmyw_pncns_pnhns    pnhns  1.0  fdmyw pncns pnhns
-#> 14 fnfyb_fdmyb_pdcnb    fdmyb  1.0  fnfyb fdmyb pdcnb
-#> 15 fnmob_fdmob_fnmyb    fdmob  0.6  fnmob fdmob fnmyb
-#> 16 fnmob_fdmow_pdcns    fdmow  1.0  fnmob fdmow pdcns
-#> 17 fnmyb_fdfob_pdcns    fdfob  0.8  fnmyb fdfob pdcns
-#> 18 fnmyb_pnhnb_pnhos    pnhnb  1.0  fnmyb pnhnb pnhos
-#> 19 fnmyw_pdcnb_pnhos    pnhos  0.6  fnmyw pdcnb pnhos
-#> 20 pdcnb_fdmob_pdhnb    pdhnb  1.0  pdcnb fdmob pdhnb
-#> 21 pdcnb_pncos_pnhnb    pncos  1.0  pdcnb pncos pnhnb
-#> 22 pdcns_fnmob_fnmow    fnmob  0.8  pdcns fnmob fnmow
-#> 23 pdcns_pdcnb_pdcob    pdcnb  1.0  pdcns pdcnb pdcob
-#> 24 pdcns_pdcob_pdcos    pdcos  1.0  pdcns pdcob pdcos
-#> 25 pdcob_fdfob_pnhos    pnhos  0.6  pdcob fdfob pnhos
-#> 26 pdcob_fnfob_pnhob    pnhob  1.0  pdcob fnfob pnhob
-#> 27 pdcos_fnfow_pdcnb    pdcnb  1.0  pdcos fnfow pdcnb
-#> 28 pdcos_fnmob_pncnb    pncnb  1.0  pdcos fnmob pncnb
-#> 29 pdhnb_fdfow_pdhos    pdhos  1.0  pdhnb fdfow pdhos
-#> 30 pdhnb_fdmob_pdcnb    pdcnb  1.0  pdhnb fdmob pdcnb
-#> 31 pdhnb_pdcos_pnhos    pnhos  1.0  pdhnb pdcos pnhos
-#> 32 pdhob_fdfow_fnmob    fdfow  1.0  pdhob fdfow fnmob
-#> 33 pdhob_fdfyb_pnhob    pnhob  1.0  pdhob fdfyb pnhob
-#> 34 pdhob_pdcob_pnhns    pdcob  1.0  pdhob pdcob pnhns
-#> 35 pdhos_fnmow_pncnb    pncnb  1.0  pdhos fnmow pncnb
-#> 36 pncnb_fdmyb_pdcos    pdcos  1.0  pncnb fdmyb pdcos
-#> 37 pncnb_fnmow_pdhob    pdhob  0.6  pncnb fnmow pdhob
-#> 38 pncob_fnmow_pdcos    pdcos  1.0  pncob fnmow pdcos
-#> 39 pnhnb_fnmow_pncos    pncos  1.0  pnhnb fnmow pncos
-#> 40 pnhos_fnfob_pdhos    pdhos  1.0  pnhos fnfob pdhos
+#>              triplet majority pmaj n nmaj       p   sig Center  Left Right
+#> 1  fdfow_fnmyb_pdhos    fnmyb  1.0 1    1 0.50000 FALSE  fdfow fnmyb pdhos
+#> 2  fdmob_fdfow_pnhob    fdfow  1.0 5    5 0.03125  TRUE  fdmob fdfow pnhob
+#> 3  fdmob_fdmow_fdmyb    fdmyb  0.8 5    4 0.18750 FALSE  fdmob fdmow fdmyb
+#> 4  fdmob_fnmob_pdcos    fnmob  1.0 1    1 0.50000 FALSE  fdmob fnmob pdcos
+#> 5  fdmow_fdmyw_fnfyw    fdmyw  1.0 5    5 0.03125  TRUE  fdmow fdmyw fnfyw
+#> 6  fdmow_fnfyw_pncnb    fnfyw  1.0 1    1 0.50000 FALSE  fdmow fnfyw pncnb
+#> 7  fdmow_fnmyw_pdhnb    pdhnb  0.6 5    3 0.50000 FALSE  fdmow fnmyw pdhnb
+#> 8  fdmyb_fdfob_pdhos    fdfob  1.0 5    5 0.03125  TRUE  fdmyb fdfob pdhos
+#> 9  fdmyb_fnfyb_pdcns    fnfyb  0.6 5    3 0.50000 FALSE  fdmyb fnfyb pdcns
+#> 10 fdmyb_fnmyb_fnmyw    fnmyb  1.0 1    1 0.50000 FALSE  fdmyb fnmyb fnmyw
+#> 11 fdmyw_fdfow_fnfyw    fnfyw  1.0 1    1 0.50000 FALSE  fdmyw fdfow fnfyw
+#> 12 fdmyw_fnfob_fnmyw    fnmyw  1.0 1    1 0.50000 FALSE  fdmyw fnfob fnmyw
+#> 13 fdmyw_pncns_pnhns    pnhns  1.0 1    1 0.50000 FALSE  fdmyw pncns pnhns
+#> 14 fnfyb_fdmyb_pdcnb    fdmyb  1.0 5    5 0.03125  TRUE  fnfyb fdmyb pdcnb
+#> 15 fnmob_fdmob_fnmyb    fdmob  0.6 5    3 0.50000 FALSE  fnmob fdmob fnmyb
+#> 16 fnmob_fdmow_pdcns    fdmow  1.0 1    1 0.50000 FALSE  fnmob fdmow pdcns
+#> 17 fnmyb_fdfob_pdcns    fdfob  0.8 5    4 0.18750 FALSE  fnmyb fdfob pdcns
+#> 18 fnmyb_pnhnb_pnhos    pnhnb  1.0 5    5 0.03125  TRUE  fnmyb pnhnb pnhos
+#> 19 fnmyw_pdcnb_pnhos    pnhos  0.6 5    3 0.50000 FALSE  fnmyw pdcnb pnhos
+#> 20 pdcnb_fdmob_pdhnb    pdhnb  1.0 5    5 0.03125  TRUE  pdcnb fdmob pdhnb
+#> 21 pdcnb_pncos_pnhnb    pncos  1.0 1    1 0.50000 FALSE  pdcnb pncos pnhnb
+#> 22 pdcns_fnmob_fnmow    fnmob  0.8 5    4 0.18750 FALSE  pdcns fnmob fnmow
+#> 23 pdcns_pdcnb_pdcob    pdcnb  1.0 5    5 0.03125  TRUE  pdcns pdcnb pdcob
+#> 24 pdcns_pdcob_pdcos    pdcos  1.0 1    1 0.50000 FALSE  pdcns pdcob pdcos
+#> 25 pdcob_fdfob_pnhos    pnhos  0.6 5    3 0.50000 FALSE  pdcob fdfob pnhos
+#> 26 pdcob_fnfob_pnhob    pnhob  1.0 1    1 0.50000 FALSE  pdcob fnfob pnhob
+#> 27 pdcos_fnfow_pdcnb    pdcnb  1.0 1    1 0.50000 FALSE  pdcos fnfow pdcnb
+#> 28 pdcos_fnmob_pncnb    pncnb  1.0 1    1 0.50000 FALSE  pdcos fnmob pncnb
+#> 29 pdhnb_fdfow_pdhos    pdhos  1.0 1    1 0.50000 FALSE  pdhnb fdfow pdhos
+#> 30 pdhnb_fdmob_pdcnb    pdcnb  1.0 1    1 0.50000 FALSE  pdhnb fdmob pdcnb
+#> 31 pdhnb_pdcos_pnhos    pnhos  1.0 1    1 0.50000 FALSE  pdhnb pdcos pnhos
+#> 32 pdhob_fdfow_fnmob    fdfow  1.0 1    1 0.50000 FALSE  pdhob fdfow fnmob
+#> 33 pdhob_fdfyb_pnhob    pnhob  1.0 1    1 0.50000 FALSE  pdhob fdfyb pnhob
+#> 34 pdhob_pdcob_pnhns    pdcob  1.0 5    5 0.03125  TRUE  pdhob pdcob pnhns
+#> 35 pdhos_fnmow_pncnb    pncnb  1.0 5    5 0.03125  TRUE  pdhos fnmow pncnb
+#> 36 pncnb_fdmyb_pdcos    pdcos  1.0 5    5 0.03125  TRUE  pncnb fdmyb pdcos
+#> 37 pncnb_fnmow_pdhob    pdhob  0.6 5    3 0.50000 FALSE  pncnb fnmow pdhob
+#> 38 pncob_fnmow_pdcos    pdcos  1.0 1    1 0.50000 FALSE  pncob fnmow pdcos
+#> 39 pnhnb_fnmow_pncos    pncos  1.0 5    5 0.03125  TRUE  pnhnb fnmow pncos
+#> 40 pnhos_fnfob_pdhos    pdhos  1.0 1    1 0.50000 FALSE  pnhos fnfob pdhos
 ```

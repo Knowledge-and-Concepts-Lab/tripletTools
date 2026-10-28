@@ -199,9 +199,12 @@ Current version: **0.2.0**. Package URL:
 | [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md) | R/find_discriminating_triplets.R | Finds triplets where two embeddings of the same items make discrepant CKL predictions, for designing a follow-up human study |
 | [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md) | R/group_difference_test.R | Permutation test for whether two participant groups’ embeddings differ reliably; local (small-scale) companion to `inst/condor/condor_group_diff_workflow.py` |
 | [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md) | R/find_discrepant_items.R | Ranks items by how much their distance-to-others profile differs between two embeddings; alignment-free alternative to per-item Procrustes residuals |
+| [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md) | R/find_frequent_triplets.R | Ranks triplets by how many distinct participants judged them (left/right-independent, via [`make.tripnames()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.tripnames.md)), for retrofitting a post-hoc validation set onto legacy random-triplet data that predates the `sampleAlg == "validation"` convention |
+| [`assign_validation_from_frequency()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_validation_from_frequency.md) | R/assign_validation_from_frequency.R | Companion to [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md): sets `sampleAlg <- "validation"` on every matching trial for a given (already-thresholded) candidate set, with a per-participant cap on how many distinct triplets get promoted |
 | [`reduce_embedding_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/reduce_embedding_dimension.md) | R/reduce_embedding_dimension.R | Reduces an embedding fit at a generously high `d` to the lowest dimension (via PCA) that preserves most of its variance, and reports triplet-prediction accuracy before/after |
 | [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md) | R/estimate_intrinsic_dimension.R | Horn’s parallel analysis on the cMDS decomposition of a distance matrix (e.g. from [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)) — estimates how many dimensions carry real, permutation-irreducible structure vs. noise. Used by [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)’s `k_use` when not supplied directly. Also runs [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md) on the leading dimension by default (`test_dominance = TRUE`) |
 | [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md) | R/test_dominant_dimension.R | Simulation-based (not permutation-based) significance test for whether one cMDS dimension’s share of variance exceeds a no-true-structure null — specifically targets the single-dominant-axis case [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)’s own permutation test is conservative for |
+| [`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md) | R/make_vmat.R | Builds a subject-by-trial matrix and per-triplet majority vote from validation trials; also reports `n`/`nmaj`/`p`/`sig` – a one-sided binomial test of each triplet’s agreement level against chance (50/50) guessing |
 | [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md) | R/test_for_clusters.R | Hopkins statistic (is there cluster structure at all?) + `mclust` BIC comparison (how many clusters?) on a participant distance matrix; also returns `model_name`/`classification` — the winning BIC model’s covariance-structure type and its own MAP hard assignment, for comparing against a separate hierarchical-clustering-based partition |
 | [`test_cluster_stability()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_cluster_stability.md) | R/test_cluster_stability.R | Resampling (subsample-without-replacement) stability check for a chosen `hclust`+`cutree(k)` partition: refits on random participant subsets and compares each back to the full-data partition via Adjusted Rand Index, plus a per-participant co-clustering stability score |
 | [`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md) | R/generalized_procrustes.R | Iterative GPA (Gower, 1975): aligns *every* embedding in a list into one shared consensus frame simultaneously, unlike [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)’s pairwise-only alignment. Prerequisite for [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) |
@@ -2020,6 +2023,202 @@ back to the returned matrices.
   against the same grid with `mar = c(2.5, 1, 1, 1)` (packing tightly,
   with the `effective_n` density strip and red marker still rendering
   correctly, not clipped).
+- **[`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md)**
+  (new) – for retrofitting a post-hoc validation set onto legacy data
+  collected before the `sampleAlg == "validation"` convention existed,
+  where every triplet was instead sampled independently at random per
+  participant. The user’s stated question going in was whether this is
+  even feasible, given how fast the number of distinct triplets grows
+  with item count – for a study with only 10 items
+  (`10 * choose(9, 2) = 360` distinct `Center`/`{Left, Right}`
+  combinations), real cross-participant overlap is plausible even from
+  independent random sampling, unlike larger item sets. Counts, per
+  distinct triplet (identity via
+  [`make.tripnames()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.tripnames.md),
+  the same left/right-independent convention
+  [`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md)
+  uses for genuine validation trials – same `Center` + same unordered
+  `{Left, Right}` pair, but a different `Center` on the same three items
+  is a different question, counted separately), both `n_participants`
+  (distinct `worker_id`s who judged it – the primary ranking key) and
+  `n_trials` (total judgments, which can exceed `n_participants` if one
+  participant repeats a trial) – kept as two separate columns since
+  “repeated across participants” is what the user actually wants for
+  this purpose, not raw occurrence count, which a single chatty
+  participant could inflate. `sampleAlg == "check"` rows excluded by
+  default (`exclude_check = TRUE`). Returns the top `n` by frequency,
+  with `Center`/`Left`/`Right` columns in
+  [`test.model()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.md)/[`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)-ready
+  format (same first-occurrence-row extraction pattern as
+  [`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md),
+  for the same reason: parsing items back out of the joined triplet-name
+  string is ambiguous when item names themselves contain underscores).
+  Deliberately does not itself compute a majority-vote `Answer` for the
+  surfaced triplets (unlike
+  [`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md))
+  – that requires first deciding on a frequency/participant threshold
+  using the counts this function returns, which is exactly the judgment
+  call the user was trying to make feasibility of in the first place.
+  - **Real-data sanity check, not just synthetic unit tests**: ran it on
+    the already-bundled `icon_triplets`, which (being a modern dataset)
+    already has genuine `sampleAlg == "validation"` trials with a known
+    ground truth – a strong, free correctness check, since the
+    function’s own output can be compared directly against trials
+    already known to be deliberately repeated. Found something genuinely
+    informative in the process: `icon_triplets`’ own validation set
+    turns out not to be uniformly administered to all 6 participants –
+    of 40 nominal validation triplets, 20 were judged by exactly 5 of 6
+    participants and 20 by only 1 (confirmed directly, not assumed, by
+    checking a singleton’s raw rows: no other participant has *any*
+    trial on that same 3-item set, under any `Center` assignment, so it
+    isn’t a counted-separately center-swap hiding elsewhere – it’s a
+    genuine one-off). `find_frequent_triplets(icon_triplets, n = 20)`
+    recovers exactly those 20 five-participant triplets, confirmed via
+    exact set equality against the ground truth computed independently
+    from `sampleAlg == "validation"` – locked into the test suite as a
+    real-data regression test, not just the synthetic small-list cases.
+- **[`assign_validation_from_frequency()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_validation_from_frequency.md)**
+  (new) – companion to
+  [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md),
+  the other half of retrofitting a post-hoc validation set onto legacy
+  data: takes its (already-thresholded) candidate output and promotes
+  every matching trial’s `sampleAlg` to `"validation"`, deliberately not
+  touching `sampleSet` (that’s
+  [`set_validation_behavior()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/set_validation_behavior.md)’s
+  job, recommended as the natural next call in the docs rather than
+  duplicated here). The user explicitly asked for design recommendations
+  on two open questions: what counts as “often enough,” and how to cap
+  how many of one participant’s own trials get promoted. Resolved both
+  by **not** owning the frequency threshold at all –
+  [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md)
+  already exists specifically so a caller inspects its `n_participants`
+  column and decides a threshold deliberately (docs here suggest `>= 5`
+  as a reasonable starting point, matching the ballpark this package’s
+  own real bundled validation sets reach, but explicit that it depends
+  on sample size) – and by adding `max_per_participant` (default `Inf`,
+  i.e. no cap, since guessing a number without knowing a given study’s
+  typical trial count would be worse than not capping at all) with
+  concrete sizing guidance (~5-10% of a participant’s total trials)
+  rather than a silently-opinionated default.
+  - Three real design decisions, each resolved by reasoning about what
+    the cap is *for* rather than by what was simplest to implement: (1)
+    the cap counts **distinct triplets**, not raw rows – if a
+    participant happened to judge the same candidate triplet twice
+    (triplets are sampled independently at random in exactly the legacy
+    data this targets, so repeats do happen), both trials are promoted
+    together or not at all, since splitting such a pair would silently
+    destroy exactly the kind of repeated-trial self-consistency data
+    [`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md)’s
+    own docs call out as valuable. (2) which triplets get dropped once a
+    participant exceeds the cap is controlled by **`freq_triplets`’ own
+    row order** – since
+    [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md)
+    already returns candidates sorted by decreasing cross-participant
+    frequency, a chatty participant who matches many candidates keeps
+    the ones shared with the most *other* participants by default, which
+    is also exactly what you want for the resulting validation set’s own
+    majority votes to be well-supported (rather than, say, picking
+    arbitrarily and ending up with a validation set that’s broad for one
+    participant but thin everywhere else). (3) trials already marked
+    `sampleAlg == "check"` are never promoted, checked per-row
+    regardless of whether their triplet happens to appear in
+    `freq_triplets` (defensive against
+    `find_frequent_triplets(..., exclude_check = FALSE)` having let a
+    check-trial-derived triplet into the candidate set in the first
+    place).
+  - Verified end-to-end, not just unit-tested in isolation: built a
+    synthetic 8-participant/10-item “legacy” dataset (fully independent
+    per-participant random sampling, no deliberate repetition –
+    mirroring the user’s real scenario) and confirmed real
+    cross-participant overlap does emerge from chance alone at this item
+    count (up to 6/8 participants sharing a triplet purely
+    coincidentally), that the per-participant cap is respected exactly,
+    that repeated-trial pairs are never split by it, that check trials
+    are never touched, and – the real litmus test – that the promoted
+    result composes correctly with the existing pipeline:
+    `set_validation_behavior(result, "holdout")` correctly sets
+    `sampleSet <- NA` only for the newly-promoted trials, and
+    `get.hoacc(emb, ..., trialtype = "validation")` runs cleanly against
+    the result exactly as it would for genuine, deliberately-collected
+    validation trials.
+- **Real, pre-existing bug found and fixed in
+  [`make.tripnames()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.tripnames.md)
+  – broke on any dataset where `Center`/`Left`/`Right` are integer item
+  indices rather than string item codes, not just a
+  [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md)
+  problem.** Surfaced when the user ran
+  [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md)
+  on a real 73-participant dataset and got
+  `Error in 1:nitems : argument of length 0`. Root cause, confirmed by
+  direct reproduction rather than guessed from reading the code:
+  `opts <- as.matrix(tripdat[c("Left","Right")])` produces an
+  **integer** matrix when `Left`/`Right` are integer columns (as they
+  are in this dataset – items coded as raw numeric indices, a
+  legitimate, supported way to identify items that just happened never
+  to have been exercised against this function before); the next line,
+  `gsub(" ","",opts)`, requires character input, and R’s implicit
+  [`as.character()`](https://rdrr.io/r/base/character.html) coercion of
+  a matrix argument **silently drops its `dim` attribute**, flattening
+  it to a plain vector – confirmed directly with a minimal repro
+  (`gsub(" ","", matrix(1:4,2,2))` returns a dim-less character vector).
+  `dim(opts)[1]` then evaluates to `NULL`, and `1:NULL` is exactly what
+  throws “argument of length 0”. This affects
+  [`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md)
+  too (built directly on
+  [`make.tripnames()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.tripnames.md)),
+  not just the new function that happened to surface it – fixed at the
+  source rather than patched locally. Fix: `mode(opts) <- "character"`
+  (an in-place type coercion that preserves `dim`, unlike
+  [`as.character()`](https://rdrr.io/r/base/character.html)) before the
+  [`gsub()`](https://rdrr.io/r/base/grep.html) call; also made the
+  `Center` coercion explicit (`as.character(tripdat$Center)`) for
+  consistency, though that line was never actually broken (vectors have
+  no `dim` to lose). New regression test in `test-make_tripnames.R`
+  locks down the exact failure mode (multi-row integer-coded
+  `Center`/`Left`/`Right`, which is what actually exercises
+  `dim(opts)[1] > 1`; a single-row case wouldn’t have caught this).
+  Verified against a reconstruction of the user’s actual scenario (73
+  participants, 10 items, integer item codes, ~100 random trials each):
+  [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md)
+  now runs cleanly and finds real, strong cross-participant overlap (up
+  to 28/73 participants sharing a triplet) – confirming the user’s
+  original premise (small item counts make post-hoc validation-set
+  construction from purely-random legacy sampling genuinely viable)
+  actually holds once this bug is out of the way.
+- **[`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md)
+  gained `n`/`nmaj`/`p`/`sig` columns**, at the user’s request, directly
+  automating the manual binomial sanity-check they’d already been doing
+  by hand in their own notebook (the Gabor exp1 analysis: “For 38
+  participants, 25 or more agreeing with the majority is unlikely to
+  occur by chance (p \< 0.04)”). `n` and `nmaj` are just the
+  numerator/denominator already computed inside the existing per-triplet
+  loop (`sum(thisone)`/`max(thisone)`), newly exposed as their own
+  columns; `p` is the one-sided binomial p-value for observing `nmaj` or
+  more agreements out of `n` under a `p = 0.5` chance-guessing null
+  (`stats::pbinom(nmaj - 1, n, 0.5, lower.tail = FALSE)`, vectorized
+  across all triplets after the loop rather than folded into it) – 0.5
+  specifically because each judgment is a forced binary choice between
+  two options, so pure guessing is 50/50 by construction, not because
+  the two options are assumed equally likely to be the “true” answer for
+  other reasons. `sig` is simply `p < 0.05`. Verified the p-value
+  formula two ways: it matches
+  `stats::binom.test(nmaj, n, p = 0.5, alternative = "greater")$p.value`
+  exactly for a representative row (now locked into the test suite), and
+  reproduces the user’s own by-hand number precisely
+  (`pbinom(24, 38, 0.5, lower.tail = FALSE) = 0.0365`, consistent with
+  their “p \< 0.04” claim). Explicitly documented in the function’s own
+  roxygen that `sig` is not a meaningful filter at very low `n` – a
+  triplet with only 1-2 judgments can never reach significance
+  regardless of outcome (`Binomial(1, 0.5)` tops out at p = 0.5) –
+  illustrated live in `overview_vignette.Rmd`‘s existing
+  validation-agreement section using `icon_triplets`’ own real split (20
+  triplets with a single judgment, all non-significant by construction;
+  of the 20 triplets with 5 judgments each, 11 reach significance),
+  verified by actually rendering the vignette rather than assuming the
+  added chunk’s output. New columns are purely additive – inserted after
+  the existing `pmaj` column and before the already-appended
+  `Center`/`Left`/`Right` block, so the existing positional test
+  (`vmat[[1]][1,3]` for `pmaj`) was unaffected and needed no change.
 - **The pkgdown GitHub Actions build broke on push, right after
   `trajectory_vignette.Rmd` was committed** – found via the GitHub
   Actions REST API (not the HTML page – `gh` CLI isn’t installed here)
