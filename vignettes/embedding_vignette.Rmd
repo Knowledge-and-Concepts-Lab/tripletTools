@@ -24,6 +24,7 @@ This vignette explains how to compute similarity embeddings from triplet judgmen
 | `setup_python_env()` | One-time installation of the Python environment |
 | `estimate_dimensionality()` | Fits embeddings across a range of dimensions to help choose `d` |
 | `run_group_embedding_from_list()` | Trains a single embedding on all participants' data combined |
+| `estimate_group_alpha()` | Jointly refines a group embedding's choice-model shape parameter and geometry, starting from a `run_group_embedding_from_list()` fit |
 | `run_embeddings_from_list()` | Trains one embedding per participant plus a group embedding |
 
 All functions accept data in the named-list format used throughout `tripletTools` (e.g. `icon_triplets`).
@@ -162,6 +163,34 @@ The group embedding can also be used with the full set of `tripletTools` analysi
 acc <- get.hoacc(grp$embedding, icon_triplets[[1]])
 cat("Hold-out accuracy (participant 1):", round(acc, 3), "\n")
 ```
+
+### Jointly estimating a group-level choice-model shape
+
+`run_group_embedding_from_list()` always fits under the crowd-kernel choice model — equivalent to fixing a Student-t shape parameter \(\alpha = 1\) on the continuum used throughout this package's recovery/validation work (\(\alpha \to \infty\) is the Gaussian limit). `estimate_group_alpha()` takes that fit as a starting point and alternates between re-estimating \(\alpha\) by profiled maximum likelihood (scored only on genuinely held-out `sampleAlg == "validation"` trials, never the ones used to fit the embedding) and refitting the embedding under the new \(\alpha\), until \(\alpha\) stops moving:
+
+```{r group-alpha}
+joint <- estimate_group_alpha(
+  triplet_list = icon_triplets,
+  warm_start   = grp$embedding
+)
+```
+
+```{r group-alpha-result}
+joint$history
+#>   iter    alpha    ll_val   acc_val epoch delta_log_alpha
+#> 1    1 1.810775 -45.41351 0.8083333 49999       0.5937550
+#> 2    2 2.976404 -43.69648 0.8083333 49999       0.4969608
+#> 3    3 4.145498 -42.65783 0.8083333 22100       0.3313072
+#> 4    4 4.892369 -42.36380 0.8083333 20600       0.1656536
+#> 5    5 5.773799 -42.55344 0.8166667 20600       0.1656536
+#> 6    6 5.773799 -43.17600 0.8083333 49999       0.0000000
+
+cat(sprintf("Final alpha = %.2f, 95%% CI = [%.2f, %.0f]\n",
+            joint$alpha, joint$ci[1], joint$ci[2]))
+#> Final alpha = 5.77, 95% CI = [2.98, 2000000]
+```
+
+On this dataset the estimate moves well away from the crowd-kernel default — six iterations, alpha climbing from 1 to about 5.8 — suggesting `icon_triplets`' judgments behave somewhat more like the Gaussian end of the continuum than like pure crowd-kernel noise. The confidence interval is very wide on the upper end, though: with only 6 participants there isn't much data to pin down alpha precisely once it's well above 1, where the Student-t kernel is already close to Gaussian and the profile likelihood flattens out. Always check `ci` before treating the point estimate as settled, especially on a small dataset like this one — see `?estimate_group_alpha` for why there's no shrinkage or pooling to fall back on here, unlike the per-participant joint estimation in `vignette("condor_workflows_vignette")`.
 
 ---
 
