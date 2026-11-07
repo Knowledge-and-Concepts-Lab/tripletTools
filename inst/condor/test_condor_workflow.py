@@ -10,11 +10,13 @@ no extra dependency beyond PyYAML (condor_workflow.py's own requirement) to
 run. It is not invoked by devtools::test()/R CMD check -- it's a
 developer-facing check for the Python side of the Condor workflow.
 """
+import csv
 import statistics
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import condor_workflow as cw  # noqa: E402
@@ -183,6 +185,31 @@ class TestJobGridRandomState(unittest.TestCase):
         # fraction=1.0 is index i=2, restart=2 -> 1 + 1000 + 2 = 1003
         self.assertIn((1.0, 2, 1003), jobs)
 
+    def test_final_fit_random_state_formula(self):
+        seed = 1
+        n_restarts = 3
+        jobs = [(restart, seed + (restart - 1) * 1000, restart - 1)
+                for restart in range(1, n_restarts + 1)]
+        # No d/fraction term, unlike the other two stages -- there is only
+        # one d at this stage. restart=1 -> 1 + 0*1000 = 1 (matches prior
+        # single-restart behavior, where seed was passed directly).
+        self.assertIn((1, 1, 0), jobs)
+        # restart=3 -> 1 + 2*1000 = 2001
+        self.assertIn((3, 2001, 2), jobs)
+
+
+class TestPickBestRestart(unittest.TestCase):
+    def test_picks_lowest_loss_index(self):
+        results = [{"loss": 0.50}, {"loss": 0.30}, {"loss": 0.40}]
+        self.assertEqual(cw.pick_best_restart(results), 1)
+
+    def test_single_restart(self):
+        self.assertEqual(cw.pick_best_restart([{"loss": 0.50}]), 0)
+
+    def test_ties_keep_the_first_occurrence(self):
+        results = [{"loss": 0.30}, {"loss": 0.30}, {"loss": 0.50}]
+        self.assertEqual(cw.pick_best_restart(results), 0)
+
 
 class TestSubmitFileGeneration(unittest.TestCase):
     def test_write_submit_file_single_job(self):
@@ -320,6 +347,88 @@ class TestSubmitJobsWithRetry(unittest.TestCase):
                 build_and_submit=build_and_submit, label="test", batch_size=2,
             )
             self.assertEqual(calls, [["0", "1"], ["2", "3"], ["4"]])
+
+
+class TestRunFinalStage(unittest.TestCase):
+    """End-to-end test of run_final_stage()'s job-grid restructuring (one
+    Condor job per restart, aggregated in Python afterwards) -- the one
+    piece of this new logic submit_jobs_with_retry()/pick_best_restart()'s
+    own isolated unit tests don't cover: that run_final_stage() correctly
+    reads every job's own result file, picks the lowest-loss one via
+    pick_best_restart(), and copies *that* job's embedding/history to
+    best_embedding.csv/best_embedding_history.csv. condor_submit/
+    condor_wait themselves are mocked out via submit_and_wait() and
+    queue_from_block(); nothing here touches a real HTCondor cluster."""
+
+    def test_picks_lowest_loss_restart_and_writes_outputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            data_path = work_dir / "data.csv"
+            data_path.write_text("dummy")
+            config = {"final_fit": {"n_restarts": 3}}
+            losses = {0: 0.50, 1: 0.30, 2: 0.42}  # job_index 1 (restart 2) wins
+
+            captured_rows = {}
+            real_queue_from_block = cw.queue_from_block
+
+            def fake_queue_from_block(varnames, rows):
+                captured_rows["rows"] = rows
+                return real_queue_from_block(varnames, rows)
+
+            def fake_submit_and_wait(submit_path, log_path, label):
+                for restart, random_state, job_index in captured_rows["rows"]:
+                    stage_dir = submit_path.parent
+                    (stage_dir / f"embedding_{job_index}.csv").write_text(
+                        f"item,dim_0\nfoo,{job_index}\n")
+                    (stage_dir / f"embedding_{job_index}_history.csv").write_text(
+                        "epoch\n0\n")
+                    with open(stage_dir / f"embedding_{job_index}_result.csv",
+                              "w", newline="") as f:
+                        writer = csv.DictWriter(f, fieldnames=["restart", "seed", "loss"])
+                        writer.writeheader()
+                        writer.writerow({"restart": restart, "seed": random_state,
+                                          "loss": losses[job_index]})
+
+            with mock.patch.object(cw, "submit_and_wait", side_effect=fake_submit_and_wait), \
+                 mock.patch.object(cw, "queue_from_block", side_effect=fake_queue_from_block):
+                cw.run_final_stage(work_dir, data_path, config, seed=1, best_d=3,
+                                    geometry="euclidean", radius=1, norm_penalty=0,
+                                    container_image="docker://fake")
+
+            # job_index 1 (restart 2, the lowest loss) must be the one kept.
+            self.assertEqual((work_dir / "best_embedding.csv").read_text(),
+                              "item,dim_0\nfoo,1\n")
+            self.assertEqual((work_dir / "best_embedding_history.csv").read_text(),
+                              "epoch\n0\n")
+
+            with open(work_dir / "best_embedding_restarts.csv", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 3)
+            self.assertEqual({r["restart"] for r in rows}, {"1", "2", "3"})
+
+    def test_single_restart_default_preserves_prior_behavior(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            data_path = work_dir / "data.csv"
+            data_path.write_text("dummy")
+            config = {}  # n_restarts defaults to 1
+
+            def fake_submit_and_wait(submit_path, log_path, label):
+                stage_dir = submit_path.parent
+                (stage_dir / "embedding_0.csv").write_text("item,dim_0\nfoo,0\n")
+                (stage_dir / "embedding_0_history.csv").write_text("epoch\n0\n")
+                with open(stage_dir / "embedding_0_result.csv", "w", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=["restart", "seed", "loss"])
+                    writer.writeheader()
+                    writer.writerow({"restart": 1, "seed": 1, "loss": 0.5})
+
+            with mock.patch.object(cw, "submit_and_wait", side_effect=fake_submit_and_wait):
+                cw.run_final_stage(work_dir, data_path, config, seed=1, best_d=3,
+                                    geometry="euclidean", radius=1, norm_penalty=0,
+                                    container_image="docker://fake")
+
+            self.assertEqual((work_dir / "best_embedding.csv").read_text(),
+                              "item,dim_0\nfoo,0\n")
 
 
 if __name__ == "__main__":

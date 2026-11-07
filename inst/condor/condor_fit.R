@@ -41,16 +41,22 @@
 #
 # --fraction is only used for stage=learning_curve; pass NA otherwise.
 #
-# --n_restarts_final is only used for stage=final (optional, default 1 for
-# backward compatibility with configs/calls predating this argument): fits
-# that many independent restarts -- each its own restart_seed = base_seed +
-# (r - 1) * 1000, the same restart-seed formula used by the
-# dimensionality/learning_curve stages -- and keeps whichever restart gets
-# the lowest test loss. Unlike those two stages, this loop runs inside a
-# single job/process rather than as separate Condor jobs: the final fit is
-# a one-time cost (not multiplied across a d grid), so there is no need for
-# Condor-level parallelism here, and keeping it in-process avoids having to
-# invent a second output-aggregation convention just for this one job.
+# stage=final: condor_workflow.py submits one job per restart (a
+# `queue ... from (...)` block, exactly like the dimensionality/
+# learning_curve stages) rather than one job doing every restart serially,
+# so that restarts actually run on separate execute nodes -- a final-fit
+# restart on a large dataset can be slow, and distributing them is how that
+# stage gets real wall-clock speedup from extra restarts rather than paying
+# for all of them back to back in one job. Each job here fits exactly ONE
+# restart (seeded by --random_state, computed by condor_workflow.py the
+# same way as the other two stages: base_seed + (restart - 1) * 1000) and
+# writes its own embedding/history/result files; condor_workflow.py reads
+# every job's result file afterwards, picks the lowest-loss restart, and
+# copies *that* job's embedding/history to the final best_embedding.csv/
+# best_embedding_history.csv -- the restart-selection logic lives in Python
+# here, unlike stages 1-2 where summarize_dimensionality()/
+# summarize_learning_curve() do comparable aggregation but never need to
+# pick a single "winning" row to promote to a top-level file.
 
 parse_args <- function(raw) {
   bad <- !grepl("^--[^=]+=", raw)
@@ -96,48 +102,35 @@ fraction     <- if (opt$fraction %in% c("NA", "")) NA_real_ else as.numeric(opt$
 triplet_list <- get.combined(opt$triplet_data)
 
 if (opt$stage == "final") {
-  # Full-dataset production fit. Uses run_group_embedding_from_list()
-  # directly (its own train/test handling, including a 70/30 fallback if
-  # sampleSet isn't usable) rather than prepare_triplet_matrices(), the
-  # same as a local, non-Condor call to that function would.
-  n_restarts_final <- if (!is.null(opt$n_restarts_final)) as.integer(opt$n_restarts_final) else 1L
+  # Full-dataset production fit -- one restart (see header comment above).
+  # Uses run_group_embedding_from_list() directly (its own train/test
+  # handling, including a 70/30 fallback if sampleSet isn't usable) rather
+  # than prepare_triplet_matrices(), the same as a local, non-Condor call
+  # to that function would. seed = random_state (not base_seed): each
+  # restart's job gets its own random_state from condor_workflow.py, and
+  # unlike the dimensionality/learning_curve stages, this stage has no
+  # separate internal_test split that needs base_seed to stay fixed across
+  # jobs -- run_group_embedding_from_list()'s own train/test split comes
+  # from triplet_list's sampleSet column, identical for every job here.
+  out <- run_group_embedding_from_list(
+    triplet_list = triplet_list,
+    d            = d,
+    max_epochs   = max_epochs,
+    tolerance    = tolerance,
+    tol_window   = tol_window,
+    device       = device,
+    seed         = random_state,
+    geometry     = geometry,
+    radius       = radius,
+    norm_penalty = norm_penalty
+  )
+  message(sprintf("[final restart %d] seed=%d, test loss=%.6f", restart, random_state, out$loss))
 
-  best <- NULL
-  best_restart <- NA_integer_
-  restart_summary <- data.frame(restart = integer(0), seed = integer(0), loss = numeric(0))
-  for (r in seq_len(n_restarts_final)) {
-    restart_seed <- base_seed + (r - 1L) * 1000L
-    out_r <- run_group_embedding_from_list(
-      triplet_list = triplet_list,
-      d            = d,
-      max_epochs   = max_epochs,
-      tolerance    = tolerance,
-      tol_window   = tol_window,
-      device       = device,
-      seed         = restart_seed,
-      geometry     = geometry,
-      radius       = radius,
-      norm_penalty = norm_penalty
-    )
-    message(sprintf("[final restart %d/%d] seed=%d, test loss=%.6f",
-                     r, n_restarts_final, restart_seed, out_r$loss))
-    restart_summary <- rbind(restart_summary, data.frame(
-      restart = r, seed = restart_seed, loss = out_r$loss
-    ))
-    if (is.null(best) || out_r$loss < best$loss) {
-      best <- out_r
-      best_restart <- r
-    }
-  }
-  if (n_restarts_final > 1L) {
-    message(sprintf("[final] keeping restart %d/%d (lowest test loss = %.6f)",
-                     best_restart, n_restarts_final, best$loss))
-  }
-
-  embedding_out <- cbind(item = rownames(best$embedding), as.data.frame(best$embedding))
+  embedding_out <- cbind(item = rownames(out$embedding), as.data.frame(out$embedding))
   write.csv(embedding_out, opt$output, row.names = FALSE)
-  write.csv(best$history, sub("\\.csv$", "_history.csv", opt$output), row.names = FALSE)
-  write.csv(restart_summary, sub("\\.csv$", "_restarts.csv", opt$output), row.names = FALSE)
+  write.csv(out$history, sub("\\.csv$", "_history.csv", opt$output), row.names = FALSE)
+  write.csv(data.frame(restart = restart, seed = random_state, loss = out$loss),
+            sub("\\.csv$", "_result.csv", opt$output), row.names = FALSE)
   quit(status = 0)
 }
 

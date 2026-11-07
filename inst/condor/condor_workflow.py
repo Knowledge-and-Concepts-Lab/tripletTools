@@ -27,6 +27,13 @@ run of those functions:
     learning_curve: random_state = seed + (restart - 1) * 1000 + i
         where i is the 1-based index of the fraction in the sorted,
         deduplicated fraction grid (not the fraction's value).
+    final_fit:      random_state = seed + (restart - 1) * 1000
+        (no d/fraction term -- there is only one d at this stage).
+        One Condor job per restart, submitted together like stages 1-2 and
+        run on whichever execute nodes Condor assigns, so n_restarts > 1
+        restarts run with real wall-clock parallelism rather than back to
+        back in a single job; the restart with the lowest test loss is
+        kept as best_embedding.csv/best_embedding_history.csv.
 
 Each job also independently derives split_seed = seed + (restart - 1) * 1000
 (computed inside condor_fit.R, not passed as its own CLI argument) to draw
@@ -306,6 +313,15 @@ def submit_jobs_with_retry(stage_dir, jobs, output_path_fn, build_and_submit, la
             )
 
 
+def pick_best_restart(results):
+    """Index of the lowest-loss row in `results` (one row per final-fit
+    restart, as read_result_row() returns them) -- factored out as a pure
+    function so the selection rule run_final_stage() uses to pick which
+    restart's embedding/history to promote to best_embedding.csv is
+    directly unit-testable without mocking condor_submit/condor_wait."""
+    return min(range(len(results)), key=lambda i: results[i]["loss"])
+
+
 def write_csv(path, rows):
     if not rows:
         path.write_text("")
@@ -516,23 +532,31 @@ def run_learning_curve_stage(work_dir, data_path, config, seed, best_d, norm_pen
 
 
 def run_final_stage(work_dir, data_path, config, seed, best_d, geometry, radius,
-                     norm_penalty, container_image):
+                     norm_penalty, container_image, batch_size=None):
     ff_cfg = config.get("final_fit") or {}
     stage_dir = work_dir / "stage3_final"
     stage_dir.mkdir(parents=True, exist_ok=True)
 
-    # n_restarts (default 1, matching condor_fit.R's own default for
-    # backward compatibility): fits that many independent restarts inside
-    # the single final job and keeps the lowest-test-loss one -- see
-    # condor_fit.R's header comment for why this stays a single Condor job
-    # rather than a job-per-restart grid like stages 1-2.
+    # n_restarts (default 1, preserving prior single-fit behavior): one
+    # Condor job per restart, submitted together as a `queue ... from (...)`
+    # block -- exactly like stages 1-2 -- rather than looping over restarts
+    # inside a single job, so Condor can actually run them on separate
+    # execute nodes. That parallelism is the point here: a final-fit restart
+    # on a large dataset can be slow, and distributing n_restarts of them is
+    # how this stage gets real wall-clock speedup rather than paying for all
+    # of them back to back. job_index names each job's own output files
+    # independently of Condor's own $(Process) number, same rationale as
+    # stage 1 (see submit_jobs_with_retry()): a retry resubmitting only a
+    # subset of jobs must not let Condor reassign low Process numbers to
+    # different jobs and overwrite already-good results under the same name.
     n_restarts = int(get_config(ff_cfg, "n_restarts", config, 1))
+    jobs = [(restart, seed + (restart - 1) * 1000, restart - 1)
+            for restart in range(1, n_restarts + 1)]
 
-    arguments = (
+    fixed_args = (
         f"condor_fit.R --stage=final --triplet_data={data_path.name} "
-        f"--output=embedding.csv --d={best_d} --fraction=NA --restart=1 "
-        f"--base_seed={seed} --random_state={seed} "
-        f"--n_restarts_final={n_restarts} "
+        f"--output=embedding_$(job_index).csv --d={best_d} --fraction=NA "
+        f"--base_seed={seed} "
         # internal_test_frac is required by condor_fit.R's arg parser for
         # every stage but is not used by stage=final (which relies on
         # run_group_embedding_from_list()'s own train/test handling).
@@ -541,31 +565,42 @@ def run_final_stage(work_dir, data_path, config, seed, best_d, geometry, radius,
         f"--tolerance={get_config(ff_cfg, 'tolerance', config, 1e-4)} "
         f"--tol_window={get_config(ff_cfg, 'tol_window', config, 10000)} "
         f"--device={get_config(ff_cfg, 'device', config, 'cpu')} "
-        f"--geometry={geometry} --radius={radius} --norm_penalty={norm_penalty}"
+        f"--geometry={geometry} --radius={radius} --norm_penalty={norm_penalty} "
+        f"--restart=$(restart) --random_state=$(random_state)"
     )
 
-    submit_path = stage_dir / "final.sub"
-    write_submit_file(
-        submit_path,
-        container_image=container_image,
-        arguments=arguments,
-        transfer_input_files=f"{CONDOR_FIT_R}, {data_path}",
-        log=str(stage_dir / "final.log"),
-        output=str(stage_dir / "final.out"),
-        error=str(stage_dir / "final.err"),
-        resources=resources_config(ff_cfg, config),
-        initialdir=str(stage_dir),
+    def build_and_submit(jobs_subset):
+        submit_path = stage_dir / "final.sub"
+        write_submit_file(
+            submit_path,
+            container_image=container_image,
+            arguments=fixed_args,
+            transfer_input_files=f"{CONDOR_FIT_R}, {data_path}",
+            log=str(stage_dir / "final.log"),
+            output=str(stage_dir / "final_$(Process).out"),
+            error=str(stage_dir / "final_$(Process).err"),
+            resources=resources_config(ff_cfg, config),
+            initialdir=str(stage_dir),
+            queue_statement=queue_from_block(
+                ["restart", "random_state", "job_index"], jobs_subset
+            ),
+        )
+        submit_and_wait(submit_path, stage_dir / "final.log", "Stage 3 (final embedding)")
+
+    submit_jobs_with_retry(
+        stage_dir, jobs, output_path_fn=lambda j: stage_dir / f"embedding_{j[2]}_result.csv",
+        build_and_submit=build_and_submit, label="Stage 3 (final embedding)",
+        batch_size=batch_size,
     )
 
-    submit_and_wait(submit_path, stage_dir / "final.log", "Stage 3 (final embedding)")
+    results = [read_result_row(stage_dir / f"embedding_{i}_result.csv") for i in range(len(jobs))]
+    best_idx = pick_best_restart(results)
 
+    write_csv(work_dir / "best_embedding_restarts.csv", results)
     (work_dir / "best_embedding.csv").write_text(
-        (stage_dir / "embedding.csv").read_text())
+        (stage_dir / f"embedding_{best_idx}.csv").read_text())
     (work_dir / "best_embedding_history.csv").write_text(
-        (stage_dir / "embedding_history.csv").read_text())
-    restarts_path = stage_dir / "embedding_restarts.csv"
-    if restarts_path.exists():
-        (work_dir / "best_embedding_restarts.csv").write_text(restarts_path.read_text())
+        (stage_dir / f"embedding_{best_idx}_history.csv").read_text())
 
 
 # ---------------------------------------------------------------------------
@@ -623,7 +658,7 @@ def main():
     )
     run_final_stage(
         work_dir, args.triplet_data, config, seed, best_d, geometry, radius,
-        norm_penalty, container_image,
+        norm_penalty, container_image, batch_size=batch_size,
     )
 
     manifest = [
