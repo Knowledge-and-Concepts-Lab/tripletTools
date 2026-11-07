@@ -25,6 +25,7 @@ This vignette explains how to compute similarity embeddings from triplet judgmen
 | `estimate_dimensionality()` | Fits embeddings across a range of dimensions to help choose `d` |
 | `run_group_embedding_from_list()` | Trains a single embedding on all participants' data combined |
 | `estimate_group_alpha()` | Jointly refines a group embedding's choice-model shape parameter and geometry, starting from a `run_group_embedding_from_list()` fit |
+| `run_group_embedding_workflow()` | Chains the three functions above into this package's standard group-embedding recipe: select `d`, fit a dedicated final embedding (with restarts), refine its choice-model shape |
 | `run_embeddings_from_list()` | Trains one embedding per participant plus a group embedding |
 
 All functions accept data in the named-list format used throughout `tripletTools` (e.g. `icon_triplets`).
@@ -191,6 +192,28 @@ cat(sprintf("Final alpha = %.2f, 95%% CI = [%.2f, %.0f]\n",
 ```
 
 On this dataset the estimate moves well away from the crowd-kernel default — six iterations, alpha climbing from 1 to about 5.8 — suggesting `icon_triplets`' judgments behave somewhat more like the Gaussian end of the continuum than like pure crowd-kernel noise. The confidence interval is very wide on the upper end, though: with only 6 participants there isn't much data to pin down alpha precisely once it's well above 1, where the Student-t kernel is already close to Gaussian and the profile likelihood flattens out. Always check `ci` before treating the point estimate as settled, especially on a small dataset like this one — see `?estimate_group_alpha` for why there's no shrinkage or pooling to fall back on here, unlike the per-participant joint estimation in `vignette("condor_workflows_vignette")`.
+
+### Locking down the standard group-embedding workflow
+
+The three steps above — select a dimensionality, fit the production embedding, refine its choice-model shape — are exactly this package's standard recipe for a group embedding, and `run_group_embedding_workflow()` chains them for you:
+
+```{r group-workflow, eval = FALSE}
+out <- run_group_embedding_workflow(
+  triplet_list     = icon_triplets,
+  dims             = 1:6,
+  n_restarts_dim   = 10L,   # estimate_dimensionality()'s own n_restarts
+  n_restarts_final = 5L     # independent restarts for the dedicated final fit
+)
+
+out$best_d           # selected dimensionality
+out$final_fit$embedding  # crowd-kernel (alpha = 1) production embedding at best_d
+out$refit$embedding      # choice-model-refit embedding
+out$refit$alpha          # estimated choice-model shape parameter
+```
+
+Two things this wrapper does beyond simply calling the three functions in sequence, in case you are assembling the pipeline yourself instead: the final fit (step 2) is a *dedicated* refit at `best_d` — run `n_restarts_final` times from independent random initializations, keeping whichever restart gets the lowest test loss — not a reuse of whichever embedding happened to win during the dimensionality search itself. That search already spends its own restart budget on every dimension in `dims`, so a dedicated final-fit step is the cheapest place in the whole workflow to spend *extra* restart budget on the one embedding that is actually used downstream. See `?run_group_embedding_workflow`'s *Why a dedicated final fit* section for the full reasoning, which mirrors `inst/condor/condor_workflow.py`'s own three-stage architecture (`vignette("condor_workflows_vignette")`) — that Condor workflow's final stage gained the identical restart-and-keep-lowest-loss logic (`final_fit.n_restarts` in its own config) for the same reason.
+
+If `triplet_list` has no `sampleAlg == "validation"` trials yet, pass `refit_alpha = FALSE` to stop after the final fit (`out$refit` is then `NULL`) rather than hitting `estimate_group_alpha()`'s clear error about missing validation trials.
 
 ---
 

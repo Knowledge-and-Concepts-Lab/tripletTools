@@ -521,10 +521,18 @@ def run_final_stage(work_dir, data_path, config, seed, best_d, geometry, radius,
     stage_dir = work_dir / "stage3_final"
     stage_dir.mkdir(parents=True, exist_ok=True)
 
+    # n_restarts (default 1, matching condor_fit.R's own default for
+    # backward compatibility): fits that many independent restarts inside
+    # the single final job and keeps the lowest-test-loss one -- see
+    # condor_fit.R's header comment for why this stays a single Condor job
+    # rather than a job-per-restart grid like stages 1-2.
+    n_restarts = int(get_config(ff_cfg, "n_restarts", config, 1))
+
     arguments = (
         f"condor_fit.R --stage=final --triplet_data={data_path.name} "
         f"--output=embedding.csv --d={best_d} --fraction=NA --restart=1 "
         f"--base_seed={seed} --random_state={seed} "
+        f"--n_restarts_final={n_restarts} "
         # internal_test_frac is required by condor_fit.R's arg parser for
         # every stage but is not used by stage=final (which relies on
         # run_group_embedding_from_list()'s own train/test handling).
@@ -555,6 +563,9 @@ def run_final_stage(work_dir, data_path, config, seed, best_d, geometry, radius,
         (stage_dir / "embedding.csv").read_text())
     (work_dir / "best_embedding_history.csv").write_text(
         (stage_dir / "embedding_history.csv").read_text())
+    restarts_path = stage_dir / "embedding_restarts.csv"
+    if restarts_path.exists():
+        (work_dir / "best_embedding_restarts.csv").write_text(restarts_path.read_text())
 
 
 # ---------------------------------------------------------------------------

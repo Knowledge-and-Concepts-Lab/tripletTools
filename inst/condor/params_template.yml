@@ -125,6 +125,16 @@ learning_curve:
 # embedding, so give it a generous epoch budget if you can afford to.
 final_fit:
   # max_epochs: 100000
+  # Number of independent random restarts to fit inside this one job,
+  # keeping whichever gets the lowest test loss (same lowest-test-loss
+  # selection rule stages 1-2 already use for restart comparisons). Unlike
+  # dimensionality/learning_curve's n_restarts, this loop runs serially
+  # inside the single final job rather than as separate Condor jobs --
+  # it's a one-time cost (not multiplied across a d grid), so the simplest
+  # thing that guards against a single restart landing in a bad local
+  # optimum is enough; no extra Condor-level parallelism is needed. Default
+  # 1 preserves prior behavior exactly.
+  n_restarts: 1
   resources:
     request_cpus: 1
     request_memory: 8GB

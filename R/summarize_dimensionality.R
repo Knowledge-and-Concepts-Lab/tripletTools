@@ -57,7 +57,16 @@ summarize_dimensionality <- function(results, n_restarts, best_d_norm_penalty = 
     best_d_norm_penalty * (summary_df$max_norm_ratio - 1)
 
   best_idx  <- which.min(summary_df$penalized_loss)
-  best_se   <- summary_df$sd_loss[best_idx] / sqrt(n_restarts)
+  best_sd   <- summary_df$sd_loss[best_idx]
+  # sd_loss is NA when n_restarts == 1 (sd() of a single value is undefined,
+  # not a real "no variability" 0) -- without this guard, best_se/threshold/
+  # eligible all silently become NA downstream, best_d ends up all-NA rather
+  # than flagging any dimension TRUE, and callers that `which(summary$best_d)`
+  # get zero matches with no error. With no replication to estimate a
+  # standard error from, the most defensible fallback is to treat it as 0:
+  # the one-SE band collapses to just the single minimum-loss dimension,
+  # which is the best this rule can do without replication.
+  best_se   <- if (is.na(best_sd)) 0 else best_sd / sqrt(n_restarts)
   threshold <- summary_df$penalized_loss[best_idx] + best_se
   eligible  <- summary_df$d[summary_df$penalized_loss <= threshold]
   summary_df$best_d <- summary_df$d == min(eligible)

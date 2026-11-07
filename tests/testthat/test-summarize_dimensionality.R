@@ -43,6 +43,29 @@ test_that("summarize_dimensionality's best_d applies the one-SE parsimony rule",
   expect_false(any(summary_df$best_d[summary_df$d != 2]))
 })
 
+test_that("best_d is still flagged when n_restarts = 1 (sd_loss is NA)", {
+  # Regression test: sd(x) for a single value is NA, not 0. best_se was
+  # previously computed as sd_loss / sqrt(n_restarts) unconditionally, so
+  # with n_restarts = 1 that NA propagated through threshold/eligible, and
+  # summary_df$best_d ended up all-NA instead of flagging any dimension
+  # TRUE -- silently breaking any caller that does
+  # which(summary_df$best_d)[1] (e.g. run_group_embedding_workflow()).
+  results <- data.frame(
+    d          = 1:3,
+    restart    = 1L,
+    loss       = c(0.50, 0.30, 0.28),
+    accuracy   = 0.8,
+    norm_ratio = 1
+  )
+
+  summary_df <- summarize_dimensionality(results, n_restarts = 1L)
+
+  expect_true(all(is.na(summary_df$sd_loss)))
+  expect_false(anyNA(summary_df$best_d))
+  expect_true(summary_df$best_d[summary_df$d == 3])
+  expect_false(any(summary_df$best_d[summary_df$d != 3]))
+})
+
 test_that("best_d_norm_penalty can flip best_d away from a high-norm_ratio dimension", {
   # Equal-variance (sd = 0) groups so the one-SE rule contributes nothing,
   # isolating the effect of the norm penalty itself.
