@@ -577,9 +577,9 @@ dataset (item names in the <code>item</code> column)</td>
 <tr class="odd">
 <td><code>best_embedding_restarts.csv</code></td>
 <td>One row per final-fit restart (<code>restart</code>,
-<code>seed</code>, <code>loss</code>) when
-<code>final_fit.n_restarts</code> &gt; 1 — see below; absent when
-<code>n_restarts</code> is left at its default of 1</td>
+<code>seed</code>, <code>loss</code>), always written (one row when
+<code>final_fit.n_restarts</code> is left at its default of 1) — see
+below</td>
 </tr>
 <tr class="even">
 <td><code>run_manifest.txt</code></td>
@@ -599,17 +599,28 @@ rationale behind <code>internal_test_frac</code> and why the final
 embedding is a dedicated fit rather than a reused learning-curve
 restart.</p>
 <p><code>final_fit.n_restarts</code> (default <code>1</code>, preserving
-prior behavior) fits that many independent random restarts <em>inside
-the one final-fit Condor job</em> and keeps whichever gets the lowest
-test loss, rather than submitting a restart grid of separate jobs the
-way stages 1-2 do: the final fit is a one-time cost, not multiplied
-across a dimension grid, so there is no real parallelism to gain from
-spreading its restarts across jobs, and running them serially inside the
-single job avoids inventing a second output-aggregation convention just
-for this one case. <code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code> (the
-local, non-Condor equivalent of this same three-step recipe — see
+prior behavior) submits that many Condor jobs for stage 3 — one restart
+each, as a single <code>queue ... from (...)</code> block, exactly like
+stages 1-2 — rather than looping over restarts inside one job. This is
+deliberate, not just consistency for its own sake: a single final-fit
+restart on a large dataset can take a long time, so spreading
+<code>n_restarts</code> of them across separate execute nodes gives
+genuine wall-clock speedup (an <code>n_restarts</code>-fold speedup if
+the pool has that many free slots to run them on simultaneously), where
+running them back to back in one job would not.
+<code>condor_workflow.py</code> reads every restart’s own result file
+afterwards and copies whichever got the lowest test loss to
+<code>best_embedding.csv</code>/<code>best_embedding_history.csv</code>
+— the same lowest-test-loss selection rule stages 1-2 already use for
+restart comparisons, just applied directly rather than folded into a
+<code>summarize_*()</code>-style aggregate (there’s nothing to average
+over here, only one winner to pick).
+<code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code> (the local, non-Condor
+equivalent of this same three-step recipe — see
 <code><a href="../articles/embedding_vignette.html">vignette("embedding_vignette")</a></code>) applies the identical
-restart-and-keep-lowest-loss rule to its own dedicated final fit.</p>
+restart-and-keep-lowest-loss rule, but necessarily runs its restarts one
+after another in a single R session, since there is no cluster to
+distribute them across locally.</p>
 <div class="section level3">
 <h3 id="recomputing-a-summary-yourself-without-refitting-anything">Recomputing a summary yourself, without refitting anything<a class="anchor" aria-label="anchor" href="#recomputing-a-summary-yourself-without-refitting-anything"></a>
 </h3>

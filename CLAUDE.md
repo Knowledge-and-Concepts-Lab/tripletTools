@@ -3305,3 +3305,45 @@ back to the returned matrices.
     ([`knitr::knit()`](https://rdrr.io/pkg/knitr/man/knit.html)) to
     confirm they still build; full package test suite re-run and
     confirmed clean (zero failures) after all of the above.
+- **`condor_workflow.py`’s final-fit restarts (just above) redesigned
+  from a serial in-job loop into a Condor job-per-restart grid**, right
+  after shipping, once the user asked directly whether the serial
+  version’s restarts were actually dispatched across multiple execute
+  nodes – they weren’t, and for a large/slow dataset that matters: 5
+  restarts run serially is ~5x the wall-clock of 1, where 5 restarts run
+  as 5 separate jobs on a pool with free slots is close to 1x. Rebuilt
+  `run_final_stage()` to match stages 1-2’s own shape exactly: one
+  Condor job per restart (`seed + (restart-1)*1000`, no `d`/fraction
+  term since there’s only one `d` at this stage), submitted together via
+  `queue_from_block()`/`submit_jobs_with_retry()` (so the existing
+  held-job/missing-output retry machinery covers this stage too, which
+  the single-job version never needed). `condor_fit.R`’s final stage
+  reverted to fitting exactly one restart per invocation (seeded by
+  `--random_state`, now actually read for this stage rather than
+  ignored) and writes its own
+  `embedding_<job_index>.csv`/`_history.csv`/`_result.csv` trio instead
+  of looping internally; `run_final_stage()` reads every job’s
+  `_result.csv`, picks the lowest loss via a new pure,
+  directly-unit-tested helper (`pick_best_restart()`), and copies that
+  job’s embedding/history to
+  `best_embedding.csv`/`best_embedding_history.csv` as before –
+  `best_embedding_restarts.csv` is now always written (one row when
+  `n_restarts` is left at 1), not conditionally. `--n_restarts_final`
+  (the prior design’s CLI flag) is gone; `final_fit.n_restarts` now
+  controls job *count* instead of an in-job loop count. Verified at two
+  levels: an `Rscript condor_fit.R --stage=final ...` smoke test (same
+  `icon_all_triplets.csv` setup as before) confirms a single job now
+  correctly uses `--random_state` as its fit seed and writes the three
+  expected per-job files; a
+  mocked-`submit_and_wait()`/`queue_from_block()` Python test
+  (`TestRunFinalStage`, `test_condor_workflow.py`) exercises
+  `run_final_stage()` itself end to end – multiple simulated jobs each
+  writing their own result file, confirming the lowest-loss one’s
+  embedding/history is what actually lands in `best_embedding.csv` –
+  which is a real gap this suite didn’t have before (every existing test
+  there exercises pure helper functions or `submit_jobs_with_retry()`
+  directly, never a full stage-runner function).
+  `vignettes/condor_workflows_vignette.Rmd`’s `final_fit.n_restarts`
+  explanation and `CLAUDE.md`’s own entry above were both corrected to
+  describe the job-per-restart design rather than left describing the
+  superseded serial-in-job one.
