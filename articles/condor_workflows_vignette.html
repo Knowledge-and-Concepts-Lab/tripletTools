@@ -575,6 +575,13 @@ dataset (item names in the <code>item</code> column)</td>
 <code>norm_ratio</code>, …)</td>
 </tr>
 <tr class="odd">
+<td><code>best_embedding_restarts.csv</code></td>
+<td>One row per final-fit restart (<code>restart</code>,
+<code>seed</code>, <code>loss</code>) when
+<code>final_fit.n_restarts</code> &gt; 1 — see below; absent when
+<code>n_restarts</code> is left at its default of 1</td>
+</tr>
+<tr class="even">
 <td><code>run_manifest.txt</code></td>
 <td>Package version, input paths, <code>best_d</code>, and final loss,
 for provenance</td>
@@ -591,6 +598,18 @@ one coherent embedding space throughout;
 rationale behind <code>internal_test_frac</code> and why the final
 embedding is a dedicated fit rather than a reused learning-curve
 restart.</p>
+<p><code>final_fit.n_restarts</code> (default <code>1</code>, preserving
+prior behavior) fits that many independent random restarts <em>inside
+the one final-fit Condor job</em> and keeps whichever gets the lowest
+test loss, rather than submitting a restart grid of separate jobs the
+way stages 1-2 do: the final fit is a one-time cost, not multiplied
+across a dimension grid, so there is no real parallelism to gain from
+spreading its restarts across jobs, and running them serially inside the
+single job avoids inventing a second output-aggregation convention just
+for this one case. <code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code> (the
+local, non-Condor equivalent of this same three-step recipe — see
+<code><a href="../articles/embedding_vignette.html">vignette("embedding_vignette")</a></code>) applies the identical
+restart-and-keep-lowest-loss rule to its own dedicated final fit.</p>
 <div class="section level3">
 <h3 id="recomputing-a-summary-yourself-without-refitting-anything">Recomputing a summary yourself, without refitting anything<a class="anchor" aria-label="anchor" href="#recomputing-a-summary-yourself-without-refitting-anything"></a>
 </h3>

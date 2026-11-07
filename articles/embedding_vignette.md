@@ -13,6 +13,8 @@ functions:
 | [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md) | One-time installation of the Python environment |
 | [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) | Fits embeddings across a range of dimensions to help choose `d` |
 | [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) | Trains a single embedding on all participants’ data combined |
+| [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md) | Jointly refines a group embedding’s choice-model shape parameter and geometry, starting from a [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) fit |
+| [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md) | Chains the three functions above into this package’s standard group-embedding recipe: select `d`, fit a dedicated final embedding (with restarts), refine its choice-model shape |
 | [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) | Trains one embedding per participant plus a group embedding |
 
 All functions accept data in the named-list format used throughout
@@ -202,6 +204,106 @@ held-out judgments for participant 1:
 acc <- get.hoacc(grp$embedding, icon_triplets[[1]])
 cat("Hold-out accuracy (participant 1):", round(acc, 3), "\n")
 ```
+
+### Jointly estimating a group-level choice-model shape
+
+[`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
+always fits under the crowd-kernel choice model — equivalent to fixing a
+Student-t shape parameter $`\alpha = 1`$ on the continuum used
+throughout this package’s recovery/validation work
+($`\alpha \to \infty`$ is the Gaussian limit).
+[`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+takes that fit as a starting point and alternates between re-estimating
+$`\alpha`$ by profiled maximum likelihood (scored only on genuinely
+held-out `sampleAlg == "validation"` trials, never the ones used to fit
+the embedding) and refitting the embedding under the new $`\alpha`$,
+until $`\alpha`$ stops moving:
+
+``` r
+
+joint <- estimate_group_alpha(
+  triplet_list = icon_triplets,
+  warm_start   = grp$embedding
+)
+```
+
+``` r
+
+joint$history
+#>   iter    alpha    ll_val   acc_val epoch delta_log_alpha
+#> 1    1 1.810775 -45.41351 0.8083333 49999       0.5937550
+#> 2    2 2.976404 -43.69648 0.8083333 49999       0.4969608
+#> 3    3 4.145498 -42.65783 0.8083333 22100       0.3313072
+#> 4    4 4.892369 -42.36380 0.8083333 20600       0.1656536
+#> 5    5 5.773799 -42.55344 0.8166667 20600       0.1656536
+#> 6    6 5.773799 -43.17600 0.8083333 49999       0.0000000
+
+cat(sprintf("Final alpha = %.2f, 95%% CI = [%.2f, %.0f]\n",
+            joint$alpha, joint$ci[1], joint$ci[2]))
+#> Final alpha = 5.77, 95% CI = [2.98, 2000000]
+```
+
+On this dataset the estimate moves well away from the crowd-kernel
+default — six iterations, alpha climbing from 1 to about 5.8 —
+suggesting `icon_triplets`’ judgments behave somewhat more like the
+Gaussian end of the continuum than like pure crowd-kernel noise. The
+confidence interval is very wide on the upper end, though: with only 6
+participants there isn’t much data to pin down alpha precisely once it’s
+well above 1, where the Student-t kernel is already close to Gaussian
+and the profile likelihood flattens out. Always check `ci` before
+treating the point estimate as settled, especially on a small dataset
+like this one — see
+[`?estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+for why there’s no shrinkage or pooling to fall back on here, unlike the
+per-participant joint estimation in
+[`vignette("condor_workflows_vignette")`](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/condor_workflows_vignette.md).
+
+### Locking down the standard group-embedding workflow
+
+The three steps above — select a dimensionality, fit the production
+embedding, refine its choice-model shape — are exactly this package’s
+standard recipe for a group embedding, and
+[`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)
+chains them for you:
+
+``` r
+
+out <- run_group_embedding_workflow(
+  triplet_list     = icon_triplets,
+  dims             = 1:6,
+  n_restarts_dim   = 10L,   # estimate_dimensionality()'s own n_restarts
+  n_restarts_final = 5L     # independent restarts for the dedicated final fit
+)
+
+out$best_d           # selected dimensionality
+out$final_fit$embedding  # crowd-kernel (alpha = 1) production embedding at best_d
+out$refit$embedding      # choice-model-refit embedding
+out$refit$alpha          # estimated choice-model shape parameter
+```
+
+Two things this wrapper does beyond simply calling the three functions
+in sequence, in case you are assembling the pipeline yourself instead:
+the final fit (step 2) is a *dedicated* refit at `best_d` — run
+`n_restarts_final` times from independent random initializations,
+keeping whichever restart gets the lowest test loss — not a reuse of
+whichever embedding happened to win during the dimensionality search
+itself. That search already spends its own restart budget on every
+dimension in `dims`, so a dedicated final-fit step is the cheapest place
+in the whole workflow to spend *extra* restart budget on the one
+embedding that is actually used downstream. See
+[`?run_group_embedding_workflow`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)’s
+*Why a dedicated final fit* section for the full reasoning, which
+mirrors `inst/condor/condor_workflow.py`’s own three-stage architecture
+([`vignette("condor_workflows_vignette")`](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/condor_workflows_vignette.md))
+— that Condor workflow’s final stage gained the identical
+restart-and-keep-lowest-loss logic (`final_fit.n_restarts` in its own
+config) for the same reason.
+
+If `triplet_list` has no `sampleAlg == "validation"` trials yet, pass
+`refit_alpha = FALSE` to stop after the final fit (`out$refit` is then
+`NULL`) rather than hitting
+[`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)’s
+clear error about missing validation trials.
 
 ------------------------------------------------------------------------
 

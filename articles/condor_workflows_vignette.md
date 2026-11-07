@@ -441,6 +441,7 @@ This produces, in `output_dir`:
 | `learning_curve_results.csv` / `learning_curve_summary.csv` | [`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)’s `results`/`summary`, at the `best_d` selected above, one Condor job per (fraction, restart) |
 | `best_embedding.csv` | The final embedding, fit at `best_d` on the *full* dataset (item names in the `item` column) |
 | `best_embedding_history.csv` | That final fit’s per-epoch training history (loss, accuracy, `norm_ratio`, …) |
+| `best_embedding_restarts.csv` | One row per final-fit restart (`restart`, `seed`, `loss`) when `final_fit.n_restarts` \> 1 — see below; absent when `n_restarts` is left at its default of 1 |
 | `run_manifest.txt` | Package version, input paths, `best_d`, and final loss, for provenance |
 
 `seed`, `geometry`, `radius`, and `norm_penalty` apply to all three
@@ -452,6 +453,20 @@ stages, so they describe one coherent embedding space throughout;
 for the full statistical rationale behind `internal_test_frac` and why
 the final embedding is a dedicated fit rather than a reused
 learning-curve restart.
+
+`final_fit.n_restarts` (default `1`, preserving prior behavior) fits
+that many independent random restarts *inside the one final-fit Condor
+job* and keeps whichever gets the lowest test loss, rather than
+submitting a restart grid of separate jobs the way stages 1-2 do: the
+final fit is a one-time cost, not multiplied across a dimension grid, so
+there is no real parallelism to gain from spreading its restarts across
+jobs, and running them serially inside the single job avoids inventing a
+second output-aggregation convention just for this one case.
+[`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)
+(the local, non-Condor equivalent of this same three-step recipe — see
+[`vignette("embedding_vignette")`](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/embedding_vignette.md))
+applies the identical restart-and-keep-lowest-loss rule to its own
+dedicated final fit.
 
 ### Recomputing a summary yourself, without refitting anything
 

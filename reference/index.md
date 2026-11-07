@@ -30,6 +30,9 @@
   : Triplet-based embedding of 213 emotion words
 - [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
   : Estimate the latent dimensionality of a triplet dataset
+- [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+  : Jointly estimate a group-level choice-model shape and refine the
+  group embedding
 - [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
   : Estimate how many dimensions of a distance matrix reflect real
   structure
@@ -133,6 +136,9 @@
   : Run the embedding pipeline from a triplet data list
 - [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
   : Compute a group-level embedding from a triplet data list
+- [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)
+  : Standard group-embedding workflow: dimensionality, final fit,
+  choice-model refit
 - [`sample_internal_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
   : Split a triplet matrix into a fitting subset and an internal-test
   subset

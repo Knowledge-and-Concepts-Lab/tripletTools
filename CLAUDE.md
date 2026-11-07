@@ -186,6 +186,8 @@ Current version: **0.2.0**. Package URL:
 | [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md) | R/setup_python_env.R | One-time conda env creation |
 | [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) | R/train_embedding.R | Low-level: fit one embedding from matrices |
 | [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) | R/run_embeddings.R | Group embedding from triplet list |
+| [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md) | R/estimate_group_alpha.R | Takes a group embedding fit by [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) (alpha = 1 / crowd-kernel mu = 1) as a warm start, then coordinate-ascends between profiled-MLE alpha re-estimation (on held-out `sampleAlg == "validation"` trials only) and embedding refitting (via `_fit_offline()`, bypassing the CKL-only [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) wrapper) until alpha converges. Group-level analogue of `condor_joint_manifold_workflow.py`’s per-participant joint estimation, without that workflow’s shrinkage/pooling machinery (only one alpha to estimate, nothing to shrink toward) |
+| [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md) | R/run_group_embedding_workflow.R | Chains this package’s standard group-embedding recipe end to end: [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) (select `d`) -\> a *dedicated* [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) final fit at that `d` (several random restarts, keeps the lowest test loss) -\> [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md) (choice-model/embedding refit). The local, non-Condor equivalent of `condor_workflow.py`’s three-stage architecture; `refit_alpha = FALSE` stops after the final fit |
 | [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) | R/run_embeddings.R | Per-participant (+ optional group, via `compute_group`) embeddings |
 | [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md) | R/run_embeddings.R | Lower-level CSV-based pipeline; [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) calls this internally (writes a temp pre-indexed CSV, then calls it) – [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) does *not*, it calls [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) directly instead |
 | [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) | R/estimate_dimensionality.R | Grid search over d with random restarts |
@@ -3138,3 +3140,168 @@ back to the returned matrices.
   [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
   check were ever affected, since neither reads
   `final_smoothed_embeddings` through this code path.
+- **[`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)**
+  (new) – group-level analogue of `condor_joint_manifold_workflow.py`’s
+  per-participant joint estimation, motivated by the user’s own
+  observation that
+  [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
+  always fits under the crowd-kernel choice model (alpha = 1) and asking
+  whether the same coordinate-ascent idea (re-estimate alpha, refit the
+  embedding, repeat) could apply at the group level too. Simpler than
+  the per-participant version: only one alpha and one embedding to
+  estimate, so no cross-participant pooling or empirical-Bayes shrinkage
+  is needed – alpha is just a direct profiled-MLE estimate from the
+  whole pooled dataset each iteration. Takes an already-fit group
+  embedding
+  ([`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)’s
+  own `warm_start` argument already supports exactly this) and
+  alternates: (1) fix the embedding, profile-MLE a new alpha over a grid
+  using only genuinely held-out `sampleAlg == "validation"` trials –
+  never the trials the embedding was just fit on, to avoid alpha chasing
+  training noise the embedding has already been shaped to fit; (2) fix
+  alpha, refit the embedding via `_fit_offline()` (bypassing
+  [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)’s
+  CKL-only wrapper, same `TSTE`/`module__alpha` pattern as
+  `condor_recovery_fit.R`/`condor_joint_manifold_fit.R`), warm-started
+  from the previous iteration. Stops once alpha stops moving
+  (`tol_log_alpha`, log scale) or after `max_outer` iterations.
+  - **Validated before being written into the package**, not just
+    assumed to work: first tried standalone on the real Gabor Experiment
+    1 pooled data (36 items, 20,520 fit trials, 2,280 validation trials)
+    already used by `triplet_choice_and_loss.Rmd`’s “Estimating a
+    population-level alpha” section, which independently estimates alpha
+    assuming the *known* orientation-circle ground truth. The joint
+    (no-known-geometry) estimate landed at alpha = 1.10 (95% CI \[0.67,
+    1.53\]), overlapping comfortably with the oracle’s 0.93 (95% CI
+    \[0.79, 1.10\]) – both consistent with each other and with
+    crowd-kernel alpha = 1. Converged in only 2 outer iterations since
+    alpha barely moved from its alpha = 1 starting point, which
+    validates landing in the right place but doesn’t exercise the
+    iteration mechanism under real movement. Separately validated on a
+    small simulated dataset (15 items, 6,000 fit + 1,200 validation
+    trials) with a known generating alpha = 20, chosen specifically to
+    be far from the loop’s alpha = 1 starting point: the trajectory
+    genuinely traveled (1 -\> 15.6 -\> 21.7 -\> converged over 3
+    iterations), landed at alpha = 21.7 (true 20.0, 95% CI \[11.2,
+    307.7\]), and the recovered embedding itself matched the true
+    geometry at Procrustes correlation 0.96 – confirming both alpha and
+    the embedding are being recovered jointly, correctly, not just one
+    or the other by coincidence. The wide upper CI bound is an expected
+    feature of this family (the Student-t kernel converges to Gaussian
+    as alpha grows, flattening the profile likelihood), not a bug.
+  - **Real bug caught by a first real smoke test inside the package**
+    (not present in the standalone validation scripts above, which
+    happened not to exercise this path): building the embedding-refit
+    train/test split as `combined$sampleSet == "train"`/`"test"`
+    directly crashed with a Python `IndexError` on an out-of-bounds
+    int32 index. Root cause: `sampleSet` is `NA` for check trials and,
+    under this package’s holdout convention, for validation trials too –
+    `NA == "train"` evaluates to `NA`, not `FALSE`, and subsetting a
+    data frame with a logical vector containing `NA` inserts an all-`NA`
+    row, which becomes `-2147483648` once cast to int32.
+    [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
+    avoids this correctly by filtering `!is.na(sampleSet)` first; this
+    new function’s first draft didn’t. Fixed by guarding both
+    comparisons with `!is.na(combined$sampleSet) &`. Locked down with a
+    regression test (`test-estimate_group_alpha.R`) whose fixture
+    includes a `sampleSet = NA` validation block specifically to
+    exercise this path, plus tests for the two clear-error cases (no
+    validation trials present; `warm_start` with no row names).
+- **A locked-down standard group-embedding workflow**, prompted by the
+  user wanting to settle one canonical recipe rather than reconstruct
+  the dimensionality-search -\> final-fit -\> alpha-refit sequence by
+  hand each time. Design questions resolved along the way, each grounded
+  by actually reading the existing `condor_workflow.py`/`condor_fit.R`
+  final stage rather than guessed at:
+  - *Refit at the selected d, or reuse the dimensionality search’s own
+    winning embedding?* Refit – and this was already the existing,
+    established behavior of `condor_fit.R`’s `stage == "final"` block
+    (confirmed by reading it directly), not a new design choice: it
+    already calls
+    [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
+    fresh on the full dataset rather than reusing a
+    dimensionality-search artifact, so the final embedding isn’t tied to
+    whatever (necessarily small, since multiplied across every `d`)
+    restart budget the search spent per dimension.
+  - *Resample the test set during dimensionality search, or keep one
+    fixed set?* Already resolved by the existing architecture, also
+    confirmed by reading
+    [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)’s
+    own docs/code rather than assumed: the *outer* `sampleSet`
+    train/test split is assigned once upstream and reused unchanged
+    across all three stages (dimensionality search, learning curve,
+    final fit) – `sampleSet == "test"` is never touched until the final
+    fit. Within the `"train"` pool, each restart already draws its own
+    fresh `internal_test` resample (matched across every `d` for a given
+    restart, so dimension comparisons stay apples-to-apples) – i.e. the
+    package already had a principled answer to “resample, but don’t let
+    resampling noise contaminate the d-comparison” before this question
+    was asked.
+  - *Multiple random restarts at the final fit, like the
+    dimensionality/learning-curve stages already do?* Yes – this was a
+    real, previously-unaddressed gap: `condor_fit.R`’s
+    `stage == "final"` block did a single `seed = base_seed` fit with no
+    restart loop at all, and
+    [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
+    itself has no restart parameter. Added a restart loop
+    (`n_restarts_final` restarts, each `seed + (r-1)*1000`, keep lowest
+    test loss) to both `condor_fit.R`’s final stage (new optional
+    `--n_restarts_final` CLI arg, default 1 for backward compatibility;
+    writes a new `embedding_restarts.csv` alongside the existing
+    embedding/history files) and `condor_workflow.py`’s
+    `run_final_stage()` (`final_fit.n_restarts` config field, copies
+    `best_embedding_restarts.csv` to `output_dir` when
+    `n_restarts > 1`). Deliberately a restart loop *inside the one
+    existing final-fit job*, not a Condor-level job-per-restart grid
+    like stages 1-2 – the final fit is a one-time cost, so there’s no
+    parallelism to gain from spreading restarts across jobs, and this
+    avoids inventing a second output-aggregation convention for just
+    this one stage. Smoke-tested directly against
+    `inst/extdata/icon_all_triplets.csv` (tiny epoch budget): confirmed
+    multiple restarts run with distinct seeds, the restarts-summary CSV
+    lists each one’s loss, the kept embedding matches the lowest-loss
+    restart, and omitting `--n_restarts_final` entirely reproduces the
+    exact prior single-fit behavior (same `restart_seed == base_seed`
+    for restart 1).
+  - **[`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)**
+    (new) – the local, non-Condor function chaining all three steps
+    ([`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
+    -\> dedicated restarted final fit -\>
+    [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)),
+    returning `dimensionality`/`best_d`/`final_fit`/`refit`.
+    `refit_alpha = FALSE` skips step 3 (e.g. no validation trials yet).
+    Errors immediately, before any fitting, if `geometry = "sphere"` and
+    `refit_alpha = TRUE`, since
+    [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+    does not currently support spherical geometry – silently falling
+    back to a Euclidean refit when a spherical embedding was requested
+    would be a worse failure mode than a clear upfront error.
+  - **Real, independent bug found while testing this (in
+    [`summarize_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.md),
+    not the new function itself)**: with `n_restarts = 1`, `sd_loss` is
+    `NA` (the [`sd()`](https://rdrr.io/r/stats/sd.html) of a single
+    value is undefined, not 0) – `best_se <- sd_loss / sqrt(n_restarts)`
+    then propagated that `NA` through `threshold`/`eligible`, leaving
+    `summary_df$best_d` entirely `NA` rather than flagging any dimension
+    `TRUE`. Silent downstream: any caller doing
+    `which(summary$best_d)[1]` (exactly what
+    [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)
+    does) got zero matches with no indication why. Fixed by treating a
+    `NA` `best_sd` as `best_se = 0` – with no replication to estimate a
+    standard error from, the one-SE band correctly collapses to just the
+    single minimum-loss dimension, the best this rule can do without
+    replication. New regression test in
+    `test-summarize_dimensionality.R` (`n_restarts = 1`, asserts
+    `best_d` is never `NA` and correctly flags the true minimum-loss
+    dimension).
+  - Illustrated in `vignettes/embedding_vignette.Rmd`’s new “Locking
+    down the standard group-embedding workflow” subsection (right after
+    the existing
+    [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+    section) and documented in
+    `vignettes/condor_workflows_vignette.Rmd`’s Workflow 1 section
+    (`final_fit.n_restarts`, the new `best_embedding_restarts.csv`
+    output). Both vignettes re-knit
+    ([`knitr::knit()`](https://rdrr.io/pkg/knitr/man/knit.html)) to
+    confirm they still build; full package test suite re-run and
+    confirmed clean (zero failures) after all of the above.
