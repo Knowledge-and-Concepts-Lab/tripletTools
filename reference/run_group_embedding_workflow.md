@@ -20,8 +20,13 @@ producing a production group embedding:
     [`estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
     takes the winning final fit as a warm start and coordinate-ascends
     between re-estimating the Student-t/crowd-kernel shape \\\alpha\\
-    and refitting the embedding under it, using held-out
-    `sampleAlg == "validation"` trials to profile \\\alpha\\.
+    and refitting the embedding under it, profiling \\\alpha\\ on a
+    split of the `sampleSet == "test"` pool reserved just for that (see
+    [`estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)'s
+    *Where alpha is profiled from* section) – any real
+    `sampleAlg == "validation"` trials are left untouched throughout
+    this whole function, free to serve as an honest final-quality check
+    afterward.
 
 ## Usage
 
@@ -42,6 +47,7 @@ run_group_embedding_workflow(
   norm_penalty = 0,
   best_d_norm_penalty = NULL,
   refit_alpha = TRUE,
+  alpha_test_frac = 0.5,
   max_outer = 15L,
   tol_log_alpha = 0.05,
   alpha_grid = 10^seq(log10(2e-04), log10(2e+06), length.out = 140),
@@ -56,10 +62,11 @@ run_group_embedding_workflow(
   A named list of data frames, one per participant, as returned by
   [`get.combined`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md).
   Must contain a usable `sampleSet` column (see
-  [`assign_sample_sets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md))
-  and, if `refit_alpha = TRUE`, genuine `sampleAlg == "validation"`
-  trials (see
-  [`estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)).
+  [`assign_sample_sets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md));
+  `sampleAlg == "validation"` trials are not required even when
+  `refit_alpha = TRUE` (see
+  [`estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)),
+  and are left untouched if present.
 
 - dims:
 
@@ -122,10 +129,10 @@ run_group_embedding_workflow(
 - refit_alpha:
 
   Logical; if `TRUE` (default), run step 3. Set to `FALSE` to stop after
-  the final fit (step 2) – e.g. when `triplet_list` has no
-  `sampleAlg == "validation"` trials yet.
+  the final fit (step 2), e.g. for a quicker crowd-kernel-only
+  production embedding.
 
-- max_outer, tol_log_alpha, alpha_grid:
+- alpha_test_frac, max_outer, tol_log_alpha, alpha_grid:
 
   Forwarded to
   [`estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
@@ -226,7 +233,7 @@ out$final_fit$embedding       # crowd-kernel (alpha = 1) production embedding
 out$refit$embedding           # choice-model-refit embedding
 out$refit$alpha               # estimated choice-model shape parameter
 
-# Stop after the final fit (e.g. no validation trials available yet)
+# Stop after the final fit, e.g. for a quicker crowd-kernel-only embedding
 out2 <- run_group_embedding_workflow(icon_triplets, refit_alpha = FALSE)
 out2$refit  # NULL
 } # }

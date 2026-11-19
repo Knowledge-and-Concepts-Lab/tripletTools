@@ -138,7 +138,7 @@ repdist <- get.rep.dist(color_emb_ind)
 ``` r
 
 test_for_clusters(repdist, max_clusters = 5, seed = 3)
-#> Package 'mclust' version 6.1.3
+#> Package 'mclust' version 6.1.4
 #> Type 'citation("mclust")' for citing this R package in publications.
 #> Dimensions used (k_use): 1
 #> Hopkins statistic: 0.605 (p = 0.02146 for H0: no clustering)
@@ -413,7 +413,7 @@ manifold position.
 The crossover survives: the left-end embedding predicts best for
 participants near the left end of the manifold, the right-end embedding
 predicts best for everyone else, and which one wins tracks manifold
-position almost perfectly (R² = 0.31, from a simple linear regression of
+position almost perfectly (R² = 0.43, from a simple linear regression of
 the accuracy difference on position – barely smaller than what the
 leakage-prone naive version would have reported). This is a genuine,
 strong individual-differences effect – in a domain (color similarity)

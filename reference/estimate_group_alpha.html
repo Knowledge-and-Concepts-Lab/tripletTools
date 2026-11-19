@@ -95,6 +95,7 @@ cross-participant pooling or empirical-Bayes shrinkage is needed.</p>
 <span>  seed <span class="op">=</span> <span class="fl">222L</span>,</span>
 <span>  device <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  norm_penalty <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  alpha_test_frac <span class="op">=</span> <span class="fl">0.5</span>,</span>
 <span>  max_outer <span class="op">=</span> <span class="fl">15L</span>,</span>
 <span>  tol_log_alpha <span class="op">=</span> <span class="fl">0.05</span>,</span>
 <span>  alpha_grid <span class="op">=</span> <span class="fl">10</span><span class="op">^</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log10</a></span><span class="op">(</span><span class="fl">2e-04</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log10</a></span><span class="op">(</span><span class="fl">2e+06</span><span class="op">)</span>, length.out <span class="op">=</span> <span class="fl">140</span><span class="op">)</span>,</span>
@@ -110,8 +111,8 @@ cross-participant pooling or empirical-Bayes shrinkage is needed.</p>
 <dd><p>A named list of data frames, one per participant, as
 returned by <code><a href="get.combined.html">get.combined</a></code> – the same object passed to
 <code><a href="run_group_embedding_from_list.html">run_group_embedding_from_list</a></code> to produce <code>warm_start</code>.
-Must contain genuine <code>sampleAlg == "validation"</code> trials (see
-Details).</p></dd>
+Must contain a usable <code>sampleSet</code> column (see Details); no longer
+requires <code>sampleAlg == "validation"</code> trials (see the section above).</p></dd>
 
 
 <dt id="arg-warm-start">warm_start<a class="anchor" aria-label="anchor" href="#arg-warm-start"></a></dt>
@@ -133,8 +134,18 @@ applied to every embedding-refit step.</p></dd>
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
 <dd><p>Integer random seed, used for the train/test shuffling
 fallback (when <code>triplet_list</code> has no usable <code>sampleSet</code>
-split) and as the embedding fit's <code>random_state</code> at every outer
-iteration.</p></dd>
+split), for the <code>alpha_test_frac</code> split of the <code>test</code> pool
+(see above), and as the embedding fit's <code>random_state</code> at every
+outer iteration.</p></dd>
+
+
+<dt id="arg-alpha-test-frac">alpha_test_frac<a class="anchor" aria-label="anchor" href="#arg-alpha-test-frac"></a></dt>
+<dd><p>Proportion of the <code>sampleSet == "test"</code> pool
+set aside to profile \(\alpha\), drawn once (not re-split per outer
+iteration) via <code><a href="sample_internal_test.html">sample_internal_test</a></code>. The remaining
+<code>1 - alpha_test_frac</code> continues to do early stopping for the
+embedding refit. Must satisfy <code>0 &lt; alpha_test_frac &lt; 1</code>. Default
+<code>0.5</code>.</p></dd>
 
 
 <dt id="arg-max-outer">max_outer<a class="anchor" aria-label="anchor" href="#arg-max-outer"></a></dt>
@@ -154,13 +165,14 @@ maximum-likelihood step at each iteration.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
-<dd><p>Logical; print one line of progress per outer iteration.
+<dd><p>Logical; print the alpha-test/checkpoint-selection split
+sizes once up front, then one line of progress per outer iteration.
 Default <code>TRUE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A named list with five elements:</p><dl><dt><code>embedding</code></dt>
+    <p>A named list with seven elements:</p><dl><dt><code>embedding</code></dt>
 <dd><p>Numeric matrix, the final refit embedding (item
 names as row names, <code>dim_0</code>/<code>dim_1</code>/... columns).</p></dd>
 
@@ -176,29 +188,66 @@ names as row names, <code>dim_0</code>/<code>dim_1</code>/... columns).</p></dd>
 
 <dt><code>history</code></dt>
 <dd><p>Data frame with one row per outer iteration:
-<code>iter</code>, <code>alpha</code>, <code>ll_val</code> (validation log-likelihood
-at the re-estimated \(\alpha\)), <code>acc_val</code> (validation
-accuracy), <code>epoch</code> (embedding-refit stopping epoch), and
-<code>delta_log_alpha</code>.</p></dd>
+<code>iter</code>, <code>alpha</code>, <code>ll_alpha_test</code> (log-likelihood on the
+alpha-test pool at the re-estimated \(\alpha\)), <code>acc_alpha_test</code>
+(accuracy on that same pool), <code>epoch</code> (embedding-refit stopping
+epoch), and <code>delta_log_alpha</code>.</p></dd>
+
+<dt><code>n_test_fit</code></dt>
+<dd><p>Row count of the sub-pool used for the embedding
+refit's own early stopping.</p></dd>
+
+<dt><code>n_alpha_test</code></dt>
+<dd><p>Row count of the sub-pool used to profile
+\(\alpha\).</p></dd>
 
 
 </dl></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>\(\alpha\) is re-estimated at each iteration using only
-<code>sampleAlg == "validation"</code> trials – genuinely held out, never used
-to fit the embedding at any iteration. This is deliberate: profiling
-\(\alpha\) on the same trials the embedding was just optimized against
-would let the \(\alpha\) estimate chase training noise the embedding
-has already been shaped to fit, rather than measuring real choice-model
-shape. <code>triplet_list</code> must therefore contain real validation trials
-(see <code><a href="set_validation_behavior.html">set_validation_behavior</a></code>/<code><a href="assign_sample_sets.html">assign_sample_sets</a></code>
-to designate some, or <code><a href="find_frequent_triplets.html">find_frequent_triplets</a></code>/
-<code><a href="assign_validation_from_frequency.html">assign_validation_from_frequency</a></code> to retrofit a validation
-set onto legacy data that predates that convention).</p>
-<p>Iteration stops once the re-estimated \(\alpha\) changes by less than
+    <p>Iteration stops once the re-estimated \(\alpha\) changes by less than
 <code>tol_log_alpha</code> (on the log scale) from the previous iteration, or
 after <code>max_outer</code> iterations, whichever comes first.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="where-alpha-is-profiled-from-and-why-not-samplealg-validation-">Where alpha is profiled from, and why not sampleAlg == "validation"<a class="anchor" aria-label="anchor" href="#where-alpha-is-profiled-from-and-why-not-samplealg-validation-"></a></h2>
+
+
+<p>\(\alpha\) must be re-estimated at each iteration on trials that never
+influenced the embedding – profiling it on the same trials the embedding
+was just shaped to fit (directly, via the gradient step, or indirectly,
+via early-stopping checkpoint selection) would let the \(\alpha\)
+estimate chase sample-specific noise rather than measuring real
+choice-model shape. An earlier version of this function used
+<code>sampleAlg == "validation"</code> trials for this, since those are this
+package's existing convention for a trial pool nothing else ever touches.
+That has a real cost on datasets where validation trials are the whole
+point of calling this function in the first place: it leaves nothing
+genuinely untouched afterward to report the finished (embedding,
+\(\alpha\)) pair's quality against, since the one trial pool designed
+for that (<code><a href="get.hoacc.html">get.hoacc</a></code>'s <code>trialtype = "validation"</code>) has
+itself just been used as a tuning input.</p>
+<p>The actual requirement for a clean \(\alpha\)-profiling pool is
+disjointness from whatever selected the embedding – it does not have to
+be literally labeled <code>sampleAlg == "validation"</code>. This function
+instead splits the <code>sampleSet == "test"</code> pool itself (via
+<code><a href="sample_internal_test.html">sample_internal_test</a></code>, the same mechanism
+<code><a href="estimate_dimensionality.html">estimate_dimensionality</a></code> uses to carve <code>internal_test</code>
+out of <code>sampleSet == "train"</code>) into two disjoint parts, fixed once
+for the whole coordinate-ascent run: <code>alpha_test_frac</code> of it is set
+aside purely to profile \(\alpha\) (step 1), and the rest continues to
+do early stopping/checkpoint selection for the embedding refit (step 2),
+exactly the role the full <code>test</code> pool would otherwise play. Neither
+sub-pool ever touches <code>train</code>. Any real <code>sampleAlg ==
+"validation"</code> trials in <code>triplet_list</code> are therefore left completely
+untouched by this function – free to serve afterward as an honest,
+never-used final-quality check on the finished model.</p>
+<p>The cost is the mirror image of the problem this solves: splitting
+<code>test</code> further means less data for checkpoint selection, which gets
+somewhat noisier. On a dataset with abundant randomly-sampled trials (the
+usual case for the legacy data this is meant to help with) that's a far
+better place to absorb the cost than shrinking an already-scarce
+validation pool.</p>
     </div>
     <div class="section level2">
     <h2 id="what-this-does-and-does-not-estimate">What this does and does not estimate<a class="anchor" aria-label="anchor" href="#what-this-does-and-does-not-estimate"></a></h2>
@@ -212,9 +261,9 @@ identified. Check <code>ci</code> (the final iteration's 95\<!-- % profile-likel
 confidence interval) before trusting the point estimate, especially on a
 small dataset or at large \(\alpha\) (the Student-t kernel converges to
 Gaussian as \(\alpha\) grows, so the profile likelihood flattens and
-\(\alpha\) becomes harder to pin down precisely, even though validation
-accuracy itself is structurally insensitive to \(\alpha\) for this
-choice-model family and so cannot reveal this on its own).</p>
+\(\alpha\) becomes harder to pin down precisely, even though
+alpha-test accuracy itself is structurally insensitive to \(\alpha\)
+for this choice-model family and so cannot reveal this on its own).</p>
     </div>
 
     <div class="section level2">
@@ -224,6 +273,11 @@ choice-model family and so cannot reveal this on its own).</p>
 <span class="r-in"><span><span class="va">joint</span> <span class="op">&lt;-</span> <span class="fu">estimate_group_alpha</span><span class="op">(</span><span class="va">icon_triplets</span>, warm_start <span class="op">=</span> <span class="va">grp</span><span class="op">$</span><span class="va">embedding</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">joint</span><span class="op">$</span><span class="va">alpha</span></span></span>
 <span class="r-in"><span><span class="va">joint</span><span class="op">$</span><span class="va">history</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Any real sampleAlg == "validation" trials in icon_triplets are left</span></span></span>
+<span class="r-in"><span><span class="co"># untouched by the call above -- safe to use afterward for an honest</span></span></span>
+<span class="r-in"><span><span class="co"># final check, e.g.:</span></span></span>
+<span class="r-in"><span><span class="co"># get.hoacc(joint$embedding, icon_triplets[[1]], trialtype = "validation")</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>

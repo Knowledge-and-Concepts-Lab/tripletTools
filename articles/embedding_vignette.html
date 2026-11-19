@@ -288,13 +288,22 @@ on the continuum used throughout this package’s recovery/validation work
 is the Gaussian limit). <code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code> takes that
 fit as a starting point and alternates between re-estimating
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
-by profiled maximum likelihood (scored only on genuinely held-out
-<code>sampleAlg == "validation"</code> trials, never the ones used to
-fit the embedding) and refitting the embedding under the new
+by profiled maximum likelihood and refitting the embedding under the new
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>,
 until
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
-stops moving:</p>
+stops moving.
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
+is profiled on a dedicated split of the <code>sampleSet == "test"</code>
+pool (<code>alpha_test_frac</code>, default half), not on
+<code>sampleAlg == "validation"</code> trials — see
+<code><a href="../reference/estimate_group_alpha.html">?estimate_group_alpha</a></code>’s <em>Where alpha is profiled
+from</em> section for why: any real validation trials are left
+completely untouched by this call, free to serve afterward as an honest,
+never-used check on the finished model (e.g. via
+<code>get.hoacc(..., trialtype = "validation")</code>), which a scarce
+validation pool can’t do if it’s also been used to tune
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">joint</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_group_alpha.html">estimate_group_alpha</a></span><span class="op">(</span></span>
 <span>  triplet_list <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
@@ -302,30 +311,40 @@ stops moving:</p>
 <span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">joint</span><span class="op">$</span><span class="va">history</span></span>
-<span><span class="co">#&gt;   iter    alpha    ll_val   acc_val epoch delta_log_alpha</span></span>
-<span><span class="co">#&gt; 1    1 1.810775 -45.41351 0.8083333 49999       0.5937550</span></span>
-<span><span class="co">#&gt; 2    2 2.976404 -43.69648 0.8083333 49999       0.4969608</span></span>
-<span><span class="co">#&gt; 3    3 4.145498 -42.65783 0.8083333 22100       0.3313072</span></span>
-<span><span class="co">#&gt; 4    4 4.892369 -42.36380 0.8083333 20600       0.1656536</span></span>
-<span><span class="co">#&gt; 5    5 5.773799 -42.55344 0.8166667 20600       0.1656536</span></span>
-<span><span class="co">#&gt; 6    6 5.773799 -43.17600 0.8083333 49999       0.0000000</span></span>
+<span><span class="co">#&gt;   iter     alpha ll_alpha_test acc_alpha_test epoch delta_log_alpha</span></span>
+<span><span class="co">#&gt; 1    1 0.9334579     -32.76954      0.6769231 49999       0.0688594</span></span>
+<span><span class="co">#&gt; 2    2 0.9334579     -32.60672      0.6769231 49999       0.0000000</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"Final alpha = %.2f, 95%% CI = [%.2f, %.0f]\n"</span>,</span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"Final alpha = %.2f, 95%% CI = [%.2f, %.2f]\n"</span>,</span>
 <span>            <span class="va">joint</span><span class="op">$</span><span class="va">alpha</span>, <span class="va">joint</span><span class="op">$</span><span class="va">ci</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>, <span class="va">joint</span><span class="op">$</span><span class="va">ci</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Final alpha = 5.77, 95% CI = [2.98, 2000000]</span></span></code></pre></div>
-<p>On this dataset the estimate moves well away from the crowd-kernel
-default — six iterations, alpha climbing from 1 to about 5.8 —
-suggesting <code>icon_triplets</code>’ judgments behave somewhat more
-like the Gaussian end of the continuum than like pure crowd-kernel
-noise. The confidence interval is very wide on the upper end, though:
-with only 6 participants there isn’t much data to pin down alpha
-precisely once it’s well above 1, where the Student-t kernel is already
-close to Gaussian and the profile likelihood flattens out. Always check
-<code>ci</code> before treating the point estimate as settled,
-especially on a small dataset like this one — see
-<code><a href="../reference/estimate_group_alpha.html">?estimate_group_alpha</a></code> for why there’s no shrinkage or
-pooling to fall back on here, unlike the per-participant joint
-estimation in <code><a href="../articles/condor_workflows_vignette.html">vignette("condor_workflows_vignette")</a></code>.</p>
+<span><span class="co">#&gt; Final alpha = 0.93, 95% CI = [0.00, 4.15]</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"Embedding-refit pool: %d, alpha-profiling pool: %d\n"</span>,</span>
+<span>            <span class="va">joint</span><span class="op">$</span><span class="va">n_test_fit</span>, <span class="va">joint</span><span class="op">$</span><span class="va">n_alpha_test</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Embedding-refit pool: 66, alpha-profiling pool: 65</span></span></code></pre></div>
+<p>On this dataset
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
+barely moves — two iterations, settling at 0.93, essentially the
+crowd-kernel default it started from. That’s a genuinely different (and
+quieter) picture than profiling on a separate, smaller validation set
+gave in earlier versions of this example: it’s not a discrepancy to be
+explained away, just a reminder that <em>which</em> held-out trials
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
+is profiled against is itself a real methodological choice with real
+consequences for the answer, which is exactly why this function now
+documents and controls that choice explicitly via
+<code>alpha_test_frac</code> rather than silently depending on whatever
+validation trials happen to exist. The confidence interval here is still
+wide (0.00 to 4.15) given only 65 alpha-profiling trials on 6
+participants — this dataset simply doesn’t carry enough information to
+pin
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
+down tightly either way. Always check <code>ci</code> before treating
+the point estimate as settled, especially on a small dataset like this
+one — see <code><a href="../reference/estimate_group_alpha.html">?estimate_group_alpha</a></code> for why there’s no
+shrinkage or pooling to fall back on here, unlike the per-participant
+joint estimation in
+<code><a href="../articles/condor_workflows_vignette.html">vignette("condor_workflows_vignette")</a></code>.</p>
 </div>
 <div class="section level3">
 <h3 id="locking-down-the-standard-group-embedding-workflow">Locking down the standard group-embedding workflow<a class="anchor" aria-label="anchor" href="#locking-down-the-standard-group-embedding-workflow"></a>
@@ -364,12 +383,13 @@ architecture (<code><a href="../articles/condor_workflows_vignette.html">vignett
 Condor workflow’s final stage gained the identical
 restart-and-keep-lowest-loss logic (<code>final_fit.n_restarts</code> in
 its own config) for the same reason.</p>
-<p>If <code>triplet_list</code> has no
-<code>sampleAlg == "validation"</code> trials yet, pass
-<code>refit_alpha = FALSE</code> to stop after the final fit
-(<code>out$refit</code> is then <code>NULL</code>) rather than hitting
-<code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code>’s clear error about missing
-validation trials.</p>
+<p>Pass <code>refit_alpha = FALSE</code> to stop after the final fit
+(<code>out$refit</code> is then <code>NULL</code>) if you just want a
+quicker crowd-kernel-only production embedding —
+<code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code> no longer requires
+<code>sampleAlg == "validation"</code> trials (see the previous
+section), so this is purely a time/thoroughness tradeoff now, not a data
+requirement.</p>
 <hr>
 </div>
 </div>

@@ -462,7 +462,7 @@ clusters:
 ``` r
 
 test_for_clusters(repdist, max_clusters = 3, seed = 3)
-#> Package 'mclust' version 6.1.3
+#> Package 'mclust' version 6.1.4
 #> Type 'citation("mclust")' for citing this R package in publications.
 #> Dimensions used (k_use): 1
 #> Hopkins statistic: 0.828 (p = 0.005436 for H0: no clustering)

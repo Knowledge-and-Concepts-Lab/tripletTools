@@ -214,10 +214,17 @@ throughout this package’s recovery/validation work
 ($`\alpha \to \infty`$ is the Gaussian limit).
 [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
 takes that fit as a starting point and alternates between re-estimating
-$`\alpha`$ by profiled maximum likelihood (scored only on genuinely
-held-out `sampleAlg == "validation"` trials, never the ones used to fit
-the embedding) and refitting the embedding under the new $`\alpha`$,
-until $`\alpha`$ stops moving:
+$`\alpha`$ by profiled maximum likelihood and refitting the embedding
+under the new $`\alpha`$, until $`\alpha`$ stops moving. $`\alpha`$ is
+profiled on a dedicated split of the `sampleSet == "test"` pool
+(`alpha_test_frac`, default half), not on `sampleAlg == "validation"`
+trials — see
+[`?estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)’s
+*Where alpha is profiled from* section for why: any real validation
+trials are left completely untouched by this call, free to serve
+afterward as an honest, never-used check on the finished model (e.g. via
+`get.hoacc(..., trialtype = "validation")`), which a scarce validation
+pool can’t do if it’s also been used to tune $`\alpha`$.
 
 ``` r
 
@@ -230,27 +237,32 @@ joint <- estimate_group_alpha(
 ``` r
 
 joint$history
-#>   iter    alpha    ll_val   acc_val epoch delta_log_alpha
-#> 1    1 1.810775 -45.41351 0.8083333 49999       0.5937550
-#> 2    2 2.976404 -43.69648 0.8083333 49999       0.4969608
-#> 3    3 4.145498 -42.65783 0.8083333 22100       0.3313072
-#> 4    4 4.892369 -42.36380 0.8083333 20600       0.1656536
-#> 5    5 5.773799 -42.55344 0.8166667 20600       0.1656536
-#> 6    6 5.773799 -43.17600 0.8083333 49999       0.0000000
+#>   iter     alpha ll_alpha_test acc_alpha_test epoch delta_log_alpha
+#> 1    1 0.9334579     -32.76954      0.6769231 49999       0.0688594
+#> 2    2 0.9334579     -32.60672      0.6769231 49999       0.0000000
 
-cat(sprintf("Final alpha = %.2f, 95%% CI = [%.2f, %.0f]\n",
+cat(sprintf("Final alpha = %.2f, 95%% CI = [%.2f, %.2f]\n",
             joint$alpha, joint$ci[1], joint$ci[2]))
-#> Final alpha = 5.77, 95% CI = [2.98, 2000000]
+#> Final alpha = 0.93, 95% CI = [0.00, 4.15]
+
+cat(sprintf("Embedding-refit pool: %d, alpha-profiling pool: %d\n",
+            joint$n_test_fit, joint$n_alpha_test))
+#> Embedding-refit pool: 66, alpha-profiling pool: 65
 ```
 
-On this dataset the estimate moves well away from the crowd-kernel
-default — six iterations, alpha climbing from 1 to about 5.8 —
-suggesting `icon_triplets`’ judgments behave somewhat more like the
-Gaussian end of the continuum than like pure crowd-kernel noise. The
-confidence interval is very wide on the upper end, though: with only 6
-participants there isn’t much data to pin down alpha precisely once it’s
-well above 1, where the Student-t kernel is already close to Gaussian
-and the profile likelihood flattens out. Always check `ci` before
+On this dataset $`\alpha`$ barely moves — two iterations, settling at
+0.93, essentially the crowd-kernel default it started from. That’s a
+genuinely different (and quieter) picture than profiling on a separate,
+smaller validation set gave in earlier versions of this example: it’s
+not a discrepancy to be explained away, just a reminder that *which*
+held-out trials $`\alpha`$ is profiled against is itself a real
+methodological choice with real consequences for the answer, which is
+exactly why this function now documents and controls that choice
+explicitly via `alpha_test_frac` rather than silently depending on
+whatever validation trials happen to exist. The confidence interval here
+is still wide (0.00 to 4.15) given only 65 alpha-profiling trials on 6
+participants — this dataset simply doesn’t carry enough information to
+pin $`\alpha`$ down tightly either way. Always check `ci` before
 treating the point estimate as settled, especially on a small dataset
 like this one — see
 [`?estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
@@ -299,11 +311,13 @@ mirrors `inst/condor/condor_workflow.py`’s own three-stage architecture
 restart-and-keep-lowest-loss logic (`final_fit.n_restarts` in its own
 config) for the same reason.
 
-If `triplet_list` has no `sampleAlg == "validation"` trials yet, pass
-`refit_alpha = FALSE` to stop after the final fit (`out$refit` is then
-`NULL`) rather than hitting
-[`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)’s
-clear error about missing validation trials.
+Pass `refit_alpha = FALSE` to stop after the final fit (`out$refit` is
+then `NULL`) if you just want a quicker crowd-kernel-only production
+embedding —
+[`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+no longer requires `sampleAlg == "validation"` trials (see the previous
+section), so this is purely a time/thoroughness tradeoff now, not a data
+requirement.
 
 ------------------------------------------------------------------------
 

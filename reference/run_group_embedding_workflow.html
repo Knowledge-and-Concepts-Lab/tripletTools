@@ -13,8 +13,12 @@ final fit section below.
 Choice-model refit. estimate_group_alpha
 takes the winning final fit as a warm start and coordinate-ascends
 between re-estimating the Student-t/crowd-kernel shape \(\alpha\) and
-refitting the embedding under it, using held-out
-sampleAlg == &quot;validation&quot; trials to profile \(\alpha\).
+refitting the embedding under it, profiling \(\alpha\) on a split of
+the sampleSet == &quot;test&quot; pool reserved just for that (see
+estimate_group_alpha's Where alpha is profiled
+from section) – any real sampleAlg == &quot;validation&quot; trials are
+left untouched throughout this whole function, free to serve as an
+honest final-quality check afterward.
 
 "><meta property="og:description" content="Chains together the three steps of this package's standard recipe for
 producing a production group embedding:
@@ -30,8 +34,12 @@ final fit section below.
 Choice-model refit. estimate_group_alpha
 takes the winning final fit as a warm start and coordinate-ascends
 between re-estimating the Student-t/crowd-kernel shape \(\alpha\) and
-refitting the embedding under it, using held-out
-sampleAlg == &quot;validation&quot; trials to profile \(\alpha\).
+refitting the embedding under it, profiling \(\alpha\) on a split of
+the sampleSet == &quot;test&quot; pool reserved just for that (see
+estimate_group_alpha's Where alpha is profiled
+from section) – any real sampleAlg == &quot;validation&quot; trials are
+left untouched throughout this whole function, free to serve as an
+honest final-quality check afterward.
 
 "></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -89,8 +97,12 @@ final fit</em> section below.</p></li>
 <li><p><strong>Choice-model refit.</strong> <code><a href="estimate_group_alpha.html">estimate_group_alpha</a></code>
 takes the winning final fit as a warm start and coordinate-ascends
 between re-estimating the Student-t/crowd-kernel shape \(\alpha\) and
-refitting the embedding under it, using held-out
-<code>sampleAlg == "validation"</code> trials to profile \(\alpha\).</p></li>
+refitting the embedding under it, profiling \(\alpha\) on a split of
+the <code>sampleSet == "test"</code> pool reserved just for that (see
+<code><a href="estimate_group_alpha.html">estimate_group_alpha</a></code>'s <em>Where alpha is profiled
+from</em> section) – any real <code>sampleAlg == "validation"</code> trials are
+left untouched throughout this whole function, free to serve as an
+honest final-quality check afterward.</p></li>
 </ol></div>
 
     <div class="section level2">
@@ -111,6 +123,7 @@ refitting the embedding under it, using held-out
 <span>  norm_penalty <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  best_d_norm_penalty <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  refit_alpha <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  alpha_test_frac <span class="op">=</span> <span class="fl">0.5</span>,</span>
 <span>  max_outer <span class="op">=</span> <span class="fl">15L</span>,</span>
 <span>  tol_log_alpha <span class="op">=</span> <span class="fl">0.05</span>,</span>
 <span>  alpha_grid <span class="op">=</span> <span class="fl">10</span><span class="op">^</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log10</a></span><span class="op">(</span><span class="fl">2e-04</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log10</a></span><span class="op">(</span><span class="fl">2e+06</span><span class="op">)</span>, length.out <span class="op">=</span> <span class="fl">140</span><span class="op">)</span>,</span>
@@ -125,9 +138,10 @@ refitting the embedding under it, using held-out
 <dl><dt id="arg-triplet-list">triplet_list<a class="anchor" aria-label="anchor" href="#arg-triplet-list"></a></dt>
 <dd><p>A named list of data frames, one per participant, as
 returned by <code><a href="get.combined.html">get.combined</a></code>.  Must contain a usable
-<code>sampleSet</code> column (see <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>) and, if
-<code>refit_alpha = TRUE</code>, genuine <code>sampleAlg == "validation"</code>
-trials (see <code><a href="estimate_group_alpha.html">estimate_group_alpha</a></code>).</p></dd>
+<code>sampleSet</code> column (see <code><a href="assign_sample_sets.html">assign_sample_sets</a></code>);
+<code>sampleAlg == "validation"</code> trials are not required even when
+<code>refit_alpha = TRUE</code> (see <code><a href="estimate_group_alpha.html">estimate_group_alpha</a></code>), and
+are left untouched if present.</p></dd>
 
 
 <dt id="arg-dims">dims<a class="anchor" aria-label="anchor" href="#arg-dims"></a></dt>
@@ -184,11 +198,11 @@ Default <code>NULL</code> (equal to <code>norm_penalty</code>).</p></dd>
 
 <dt id="arg-refit-alpha">refit_alpha<a class="anchor" aria-label="anchor" href="#arg-refit-alpha"></a></dt>
 <dd><p>Logical; if <code>TRUE</code> (default), run step 3.  Set to
-<code>FALSE</code> to stop after the final fit (step 2) – e.g. when
-<code>triplet_list</code> has no <code>sampleAlg == "validation"</code> trials yet.</p></dd>
+<code>FALSE</code> to stop after the final fit (step 2), e.g. for a quicker
+crowd-kernel-only production embedding.</p></dd>
 
 
-<dt id="arg-max-outer-tol-log-alpha-alpha-grid">max_outer, tol_log_alpha, alpha_grid<a class="anchor" aria-label="anchor" href="#arg-max-outer-tol-log-alpha-alpha-grid"></a></dt>
+<dt id="arg-alpha-test-frac-max-outer-tol-log-alpha-alpha-grid">alpha_test_frac, max_outer, tol_log_alpha, alpha_grid<a class="anchor" aria-label="anchor" href="#arg-alpha-test-frac-max-outer-tol-log-alpha-alpha-grid"></a></dt>
 <dd><p>Forwarded to
 <code><a href="estimate_group_alpha.html">estimate_group_alpha</a></code> (step 3); ignored if
 <code>refit_alpha = FALSE</code>.</p></dd>
@@ -284,7 +298,7 @@ for a given restart so dimension comparisons stay apples-to-apples.</p>
 <span class="r-in"><span><span class="va">out</span><span class="op">$</span><span class="va">refit</span><span class="op">$</span><span class="va">embedding</span>           <span class="co"># choice-model-refit embedding</span></span></span>
 <span class="r-in"><span><span class="va">out</span><span class="op">$</span><span class="va">refit</span><span class="op">$</span><span class="va">alpha</span>               <span class="co"># estimated choice-model shape parameter</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Stop after the final fit (e.g. no validation trials available yet)</span></span></span>
+<span class="r-in"><span><span class="co"># Stop after the final fit, e.g. for a quicker crowd-kernel-only embedding</span></span></span>
 <span class="r-in"><span><span class="va">out2</span> <span class="op">&lt;-</span> <span class="fu">run_group_embedding_workflow</span><span class="op">(</span><span class="va">icon_triplets</span>, refit_alpha <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">out2</span><span class="op">$</span><span class="va">refit</span>  <span class="co"># NULL</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>

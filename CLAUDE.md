@@ -186,7 +186,7 @@ Current version: **0.2.0**. Package URL:
 | [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md) | R/setup_python_env.R | One-time conda env creation |
 | [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) | R/train_embedding.R | Low-level: fit one embedding from matrices |
 | [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) | R/run_embeddings.R | Group embedding from triplet list |
-| [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md) | R/estimate_group_alpha.R | Takes a group embedding fit by [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) (alpha = 1 / crowd-kernel mu = 1) as a warm start, then coordinate-ascends between profiled-MLE alpha re-estimation (on held-out `sampleAlg == "validation"` trials only) and embedding refitting (via `_fit_offline()`, bypassing the CKL-only [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) wrapper) until alpha converges. Group-level analogue of `condor_joint_manifold_workflow.py`’s per-participant joint estimation, without that workflow’s shrinkage/pooling machinery (only one alpha to estimate, nothing to shrink toward) |
+| [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md) | R/estimate_group_alpha.R | Takes a group embedding fit by [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) (alpha = 1 / crowd-kernel mu = 1) as a warm start, then coordinate-ascends between profiled-MLE alpha re-estimation and embedding refitting (via `_fit_offline()`, bypassing the CKL-only [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) wrapper) until alpha converges. Alpha is profiled on an `alpha_test_frac` split of the `sampleSet == "test"` pool (not `sampleAlg == "validation"` trials, which are no longer required and are left untouched if present – see the function’s own “Where alpha is profiled from” docs). Group-level analogue of `condor_joint_manifold_workflow.py`’s per-participant joint estimation, without that workflow’s shrinkage/pooling machinery (only one alpha to estimate, nothing to shrink toward) |
 | [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md) | R/run_group_embedding_workflow.R | Chains this package’s standard group-embedding recipe end to end: [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) (select `d`) -\> a *dedicated* [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) final fit at that `d` (several random restarts, keeps the lowest test loss) -\> [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md) (choice-model/embedding refit). The local, non-Condor equivalent of `condor_workflow.py`’s three-stage architecture; `refit_alpha = FALSE` stops after the final fit |
 | [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) | R/run_embeddings.R | Per-participant (+ optional group, via `compute_group`) embeddings |
 | [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md) | R/run_embeddings.R | Lower-level CSV-based pipeline; [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) calls this internally (writes a temp pre-indexed CSV, then calls it) – [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) does *not*, it calls [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) directly instead |
@@ -3347,3 +3347,83 @@ back to the returned matrices.
   explanation and `CLAUDE.md`’s own entry above were both corrected to
   describe the job-per-restart design rather than left describing the
   superseded serial-in-job one.
+- **[`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+  no longer profiles alpha on `sampleAlg == "validation"` trials – it
+  splits the `sampleSet == "test"` pool instead, and genuine validation
+  trials are left completely untouched.** Prompted by the user pointing
+  out a real problem with the original design while planning a real
+  Condor run on legacy data: if validation trials are consumed as
+  alpha’s tuning input, there’s nothing left afterward that’s both (a)
+  never touched by anything upstream and (b) usable to honestly report
+  the finished model’s quality – exactly the “double-dipping” failure
+  mode this package already fixed once for `sampleSet == "test"`
+  vs. early stopping (see the
+  [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)/[`set_validation_behavior()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/set_validation_behavior.md)
+  `"holdout"` entry earlier in this file), just recurring one level up.
+  The user asked directly why `test` trials couldn’t instead be split in
+  two – one sub-pool for the embedding-refit’s own early stopping (as
+  now), a second, disjoint sub-pool for alpha – given legacy datasets
+  like the one about to be run typically have abundant randomly-sampled
+  trials and only scarce (or no) validation trials. Confirmed this is
+  sound and actually the better design: the property that makes a pool
+  valid for alpha-profiling is disjointness from whatever selected the
+  embedding, not literal `sampleAlg == "validation"` labeling, and
+  carving the new pool from `test` (not `train`) is specifically
+  required – carving from `train` would let alpha get profiled on data
+  the embedding was directly gradient-fit to minimize loss on, worse
+  contamination than the original problem.
+  - New `alpha_test_frac` argument (default `0.5`) splits
+    `sampleSet == "test"` once, fixed for the whole coordinate-ascent
+    run (not re-drawn per outer iteration), via
+    [`sample_internal_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
+    – the exact same mechanism
+    [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
+    already uses to carve `internal_test` out of `sampleSet == "train"`
+    per restart, just applied to a different source pool for a different
+    reason (checked this distinction explicitly before implementing,
+    since
+    [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)’s
+    `internal_test` is carved from `train`, not `test` – carrying that
+    detail over uncritically would have reproduced the very “profiled on
+    gradient-fit data” problem just ruled out). `sampleAlg` is no longer
+    read by this function at all.
+  - This removes the function’s own former hard requirement for
+    validation trials entirely (the
+    `'No sampleAlg == "validation" trials found...'` error is gone) – a
+    genuine bonus for legacy data that has none, not just a side effect
+    of the redesign.
+    [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)
+    updated to match: its own validation-trial-requirement language
+    removed, `alpha_test_frac` added as a pass-through parameter.
+  - `history`’s `ll_val`/`acc_val` columns renamed to
+    `ll_alpha_test`/`acc_alpha_test` (reflects what they now actually
+    measure); two new top-level return fields,
+    `n_test_fit`/`n_alpha_test`, report the split sizes for
+    transparency. Both are genuine breaking changes to the return shape,
+    accepted deliberately given this is a small lab-internal package
+    (same precedent as the `train_with_validation` -\> `validation_mode`
+    rename earlier in this file).
+  - Re-ran the `icon_triplets` example used in
+    `vignettes/embedding_vignette.Rmd` end to end under the new design
+    and got a materially different, not just differently-labeled,
+    result: alpha barely moves now (1 -\> 0.93 in two iterations, 95% CI
+    \[0.00, 4.15\] on 65 alpha-profiling trials), versus the old
+    validation-trial-profiled run’s alpha = 5.77 (95% CI \[2.98,
+    2000000\]) over six iterations. Documented this explicitly in the
+    vignette as a real example of *which* held-out trials alpha is
+    profiled against being a consequential methodological choice in its
+    own right, not a discrepancy to paper over – exactly the kind of
+    thing this redesign now makes an explicit, controllable argument
+    (`alpha_test_frac`) instead of an silent accident of whatever
+    validation trials happened to exist.
+  - Verified: full package test suite re-run clean (zero failures) after
+    the rename/requirement changes; both affected test files
+    (`test-estimate_group_alpha.R`,
+    `test-run_group_embedding_workflow.R`) extended with new regression
+    tests – running with zero validation trials present now succeeds
+    (previously the designed-for error case), and `alpha_test_frac`
+    produces the expected disjoint split sizes
+    (`n_test_fit + n_alpha_test == n_test`,
+    `n_alpha_test == floor(alpha_test_frac * n_test)`) at two different
+    fractions. `vignettes/embedding_vignette.Rmd` re-knit to confirm it
+    still builds with the corrected prose and real re-run numbers.

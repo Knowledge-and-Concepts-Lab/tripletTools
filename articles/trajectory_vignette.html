@@ -195,7 +195,7 @@ and, if so, how many clusters (BIC):</p>
 <code class="sourceCode R"><span><span class="va">repdist</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/get.rep.dist.html">get.rep.dist</a></span><span class="op">(</span><span class="va">color_emb_ind</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/test_for_clusters.html">test_for_clusters</a></span><span class="op">(</span><span class="va">repdist</span>, max_clusters <span class="op">=</span> <span class="fl">5</span>, seed <span class="op">=</span> <span class="fl">3</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Package 'mclust' version 6.1.3</span></span>
+<span><span class="co">#&gt; Package 'mclust' version 6.1.4</span></span>
 <span><span class="co">#&gt; Type 'citation("mclust")' for citing this R package in publications.</span></span>
 <span><span class="co">#&gt; Dimensions used (k_use): 1</span></span>
 <span><span class="co">#&gt; Hopkins statistic: 0.605 (p = 0.02146 for H0: no clustering)</span></span>
@@ -429,7 +429,7 @@ manifold position.
 <p>The crossover survives: the left-end embedding predicts best for
 participants near the left end of the manifold, the right-end embedding
 predicts best for everyone else, and which one wins tracks manifold
-position almost perfectly (R<sup>2</sup> = 0.31, from a simple linear
+position almost perfectly (R<sup>2</sup> = 0.43, from a simple linear
 regression of the accuracy difference on position – barely smaller than
 what the leakage-prone naive version would have reported). This is a
 genuine, strong individual-differences effect – in a domain (color
