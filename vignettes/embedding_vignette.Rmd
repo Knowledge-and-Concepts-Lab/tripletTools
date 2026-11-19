@@ -167,7 +167,7 @@ cat("Hold-out accuracy (participant 1):", round(acc, 3), "\n")
 
 ### Jointly estimating a group-level choice-model shape
 
-`run_group_embedding_from_list()` always fits under the crowd-kernel choice model — equivalent to fixing a Student-t shape parameter \(\alpha = 1\) on the continuum used throughout this package's recovery/validation work (\(\alpha \to \infty\) is the Gaussian limit). `estimate_group_alpha()` takes that fit as a starting point and alternates between re-estimating \(\alpha\) by profiled maximum likelihood (scored only on genuinely held-out `sampleAlg == "validation"` trials, never the ones used to fit the embedding) and refitting the embedding under the new \(\alpha\), until \(\alpha\) stops moving:
+`run_group_embedding_from_list()` always fits under the crowd-kernel choice model — equivalent to fixing a Student-t shape parameter \(\alpha = 1\) on the continuum used throughout this package's recovery/validation work (\(\alpha \to \infty\) is the Gaussian limit). `estimate_group_alpha()` takes that fit as a starting point and alternates between re-estimating \(\alpha\) by profiled maximum likelihood and refitting the embedding under the new \(\alpha\), until \(\alpha\) stops moving. \(\alpha\) is profiled on a dedicated split of the `sampleSet == "test"` pool (`alpha_test_frac`, default half), not on `sampleAlg == "validation"` trials — see `?estimate_group_alpha`'s *Where alpha is profiled from* section for why: any real validation trials are left completely untouched by this call, free to serve afterward as an honest, never-used check on the finished model (e.g. via `get.hoacc(..., trialtype = "validation")`), which a scarce validation pool can't do if it's also been used to tune \(\alpha\).
 
 ```{r group-alpha}
 joint <- estimate_group_alpha(
@@ -178,20 +178,20 @@ joint <- estimate_group_alpha(
 
 ```{r group-alpha-result}
 joint$history
-#>   iter    alpha    ll_val   acc_val epoch delta_log_alpha
-#> 1    1 1.810775 -45.41351 0.8083333 49999       0.5937550
-#> 2    2 2.976404 -43.69648 0.8083333 49999       0.4969608
-#> 3    3 4.145498 -42.65783 0.8083333 22100       0.3313072
-#> 4    4 4.892369 -42.36380 0.8083333 20600       0.1656536
-#> 5    5 5.773799 -42.55344 0.8166667 20600       0.1656536
-#> 6    6 5.773799 -43.17600 0.8083333 49999       0.0000000
+#>   iter     alpha ll_alpha_test acc_alpha_test epoch delta_log_alpha
+#> 1    1 0.9334579     -32.76954      0.6769231 49999       0.0688594
+#> 2    2 0.9334579     -32.60672      0.6769231 49999       0.0000000
 
-cat(sprintf("Final alpha = %.2f, 95%% CI = [%.2f, %.0f]\n",
+cat(sprintf("Final alpha = %.2f, 95%% CI = [%.2f, %.2f]\n",
             joint$alpha, joint$ci[1], joint$ci[2]))
-#> Final alpha = 5.77, 95% CI = [2.98, 2000000]
+#> Final alpha = 0.93, 95% CI = [0.00, 4.15]
+
+cat(sprintf("Embedding-refit pool: %d, alpha-profiling pool: %d\n",
+            joint$n_test_fit, joint$n_alpha_test))
+#> Embedding-refit pool: 66, alpha-profiling pool: 65
 ```
 
-On this dataset the estimate moves well away from the crowd-kernel default — six iterations, alpha climbing from 1 to about 5.8 — suggesting `icon_triplets`' judgments behave somewhat more like the Gaussian end of the continuum than like pure crowd-kernel noise. The confidence interval is very wide on the upper end, though: with only 6 participants there isn't much data to pin down alpha precisely once it's well above 1, where the Student-t kernel is already close to Gaussian and the profile likelihood flattens out. Always check `ci` before treating the point estimate as settled, especially on a small dataset like this one — see `?estimate_group_alpha` for why there's no shrinkage or pooling to fall back on here, unlike the per-participant joint estimation in `vignette("condor_workflows_vignette")`.
+On this dataset \(\alpha\) barely moves — two iterations, settling at 0.93, essentially the crowd-kernel default it started from. That's a genuinely different (and quieter) picture than profiling on a separate, smaller validation set gave in earlier versions of this example: it's not a discrepancy to be explained away, just a reminder that *which* held-out trials \(\alpha\) is profiled against is itself a real methodological choice with real consequences for the answer, which is exactly why this function now documents and controls that choice explicitly via `alpha_test_frac` rather than silently depending on whatever validation trials happen to exist. The confidence interval here is still wide (0.00 to 4.15) given only 65 alpha-profiling trials on 6 participants — this dataset simply doesn't carry enough information to pin \(\alpha\) down tightly either way. Always check `ci` before treating the point estimate as settled, especially on a small dataset like this one — see `?estimate_group_alpha` for why there's no shrinkage or pooling to fall back on here, unlike the per-participant joint estimation in `vignette("condor_workflows_vignette")`.
 
 ### Locking down the standard group-embedding workflow
 
@@ -213,7 +213,7 @@ out$refit$alpha          # estimated choice-model shape parameter
 
 Two things this wrapper does beyond simply calling the three functions in sequence, in case you are assembling the pipeline yourself instead: the final fit (step 2) is a *dedicated* refit at `best_d` — run `n_restarts_final` times from independent random initializations, keeping whichever restart gets the lowest test loss — not a reuse of whichever embedding happened to win during the dimensionality search itself. That search already spends its own restart budget on every dimension in `dims`, so a dedicated final-fit step is the cheapest place in the whole workflow to spend *extra* restart budget on the one embedding that is actually used downstream. See `?run_group_embedding_workflow`'s *Why a dedicated final fit* section for the full reasoning, which mirrors `inst/condor/condor_workflow.py`'s own three-stage architecture (`vignette("condor_workflows_vignette")`) — that Condor workflow's final stage gained the identical restart-and-keep-lowest-loss logic (`final_fit.n_restarts` in its own config) for the same reason.
 
-If `triplet_list` has no `sampleAlg == "validation"` trials yet, pass `refit_alpha = FALSE` to stop after the final fit (`out$refit` is then `NULL`) rather than hitting `estimate_group_alpha()`'s clear error about missing validation trials.
+Pass `refit_alpha = FALSE` to stop after the final fit (`out$refit` is then `NULL`) if you just want a quicker crowd-kernel-only production embedding — `estimate_group_alpha()` no longer requires `sampleAlg == "validation"` trials (see the previous section), so this is purely a time/thoroughness tradeoff now, not a data requirement.
 
 ---
 

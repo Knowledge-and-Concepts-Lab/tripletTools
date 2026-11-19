@@ -10,9 +10,11 @@ true_coords <- matrix(cbind(seq_len(n_items), 0), n_items, 2,
                        dimnames = list(items, c("x", "y")))
 
 # Same fixture convention as test-estimate_group_alpha.R: a fixed
-# sampleAlg == "validation" block (sampleSet = NA, the package's holdout
-# convention), internally consistent with true_coords, appended to every
-# participant's data frame.
+# sampleSet = NA block, internally consistent with true_coords, appended to
+# every participant's data frame. No longer required for refit_alpha = TRUE
+# to work (see the test below using trips_novval directly), but still useful
+# for exercising a realistic NA-sampleSet shape alongside the rest of the
+# data.
 add_validation_block <- function(trips, true_coords, n_val = 20L, seed = 99L) {
   items <- rownames(true_coords)
   set.seed(seed)
@@ -79,9 +81,7 @@ test_that("runs end to end with refit_alpha = TRUE and returns well-formed outpu
   expect_length(out$refit$ci, 2L)
 })
 
-test_that("refit_alpha = FALSE skips step 3 and works without validation trials", {
-  # trips_novval has no sampleAlg == "validation" trials at all -- this must
-  # still succeed, since step 3 is skipped entirely.
+test_that("refit_alpha = FALSE skips step 3", {
   out <- run_group_embedding_workflow(
     trips_novval,
     dims = 1:2, n_restarts_dim = 2L, n_restarts_final = 1L,
@@ -91,6 +91,22 @@ test_that("refit_alpha = FALSE skips step 3 and works without validation trials"
   expect_null(out$refit)
   expect_false(is.null(out$final_fit))
   expect_equal(sort(rownames(out$final_fit$embedding)), sort(items))
+})
+
+test_that("refit_alpha = TRUE also works without any sampleAlg == 'validation' trials", {
+  # estimate_group_alpha() no longer requires genuine validation trials --
+  # it profiles alpha from a split of the sampleSet == "test" pool instead
+  # (see its own "Where alpha is profiled from" roxygen section) -- so this
+  # must succeed on trips_novval directly, not just with refit_alpha = FALSE.
+  out <- run_group_embedding_workflow(
+    trips_novval,
+    dims = 1:2, n_restarts_dim = 2L, n_restarts_final = 1L,
+    max_epochs = 50L, tol_window = 20L, seed = 1L,
+    max_outer = 2L, verbose = FALSE
+  )
+  expect_false(is.null(out$refit))
+  expect_true(is.finite(out$refit$alpha) && out$refit$alpha > 0)
+  expect_equal(sort(rownames(out$refit$embedding)), sort(items))
 })
 
 test_that("multiple final-fit restarts keep the lowest test loss", {

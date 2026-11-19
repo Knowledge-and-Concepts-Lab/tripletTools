@@ -9,18 +9,14 @@ items <- paste0("item", seq_len(n_items))
 true_coords <- matrix(cbind(seq_len(n_items), 0), n_items, 2,
                        dimnames = list(items, c("x", "y")))
 
-# make_structured_triplet_list() only ever produces sampleAlg == "random"
-# trials. estimate_group_alpha() requires genuine sampleAlg == "validation"
-# trials (never used to fit the embedding, only to profile alpha), so a
-# fixed validation block -- sampleSet = NA, matching the package's usual
-# holdout convention -- is appended to every participant's data frame.
-# Answers are computed from the same true_coords rule used for the
-# random/train-test trials, so the validation block is internally
-# consistent with them.
-add_validation_block <- function(trips, true_coords, n_val = 20L, seed = 99L) {
+# A sampleSet = NA block (check trials and, historically, holdout-validation
+# trials both look like this) -- still useful here to exercise the
+# NA-sampleSet regression (see below), even though estimate_group_alpha()
+# no longer reads sampleAlg at all.
+add_na_sampleset_block <- function(trips, true_coords, n_block = 20L, seed = 99L) {
   items <- rownames(true_coords)
   set.seed(seed)
-  center <- sample(items, n_val, replace = TRUE)
+  center <- sample(items, n_block, replace = TRUE)
   left   <- vapply(center, function(c) sample(setdiff(items, c), 1), character(1))
   right  <- mapply(function(c, l) sample(setdiff(items, c(c, l)), 1), center, left)
   d_left  <- sqrt(rowSums((true_coords[center, , drop = FALSE] - true_coords[left, , drop = FALSE])^2))
@@ -40,15 +36,7 @@ add_validation_block <- function(trips, true_coords, n_val = 20L, seed = 99L) {
 trips_novval <- make_structured_triplet_list(true_coords, n_participants = 4, n_trials = 80, seed = 1)
 names(trips_novval) <- paste0("p", 1:4)
 
-trips <- add_validation_block(trips_novval, true_coords)
-
-test_that("errors clearly when triplet_list has no validation trials", {
-  warm_start <- matrix(rnorm(n_items * 2), n_items, 2, dimnames = list(items, c("dim_0", "dim_1")))
-  expect_error(
-    estimate_group_alpha(trips_novval, warm_start = warm_start, max_outer = 1L),
-    "validation"
-  )
-})
+trips <- add_na_sampleset_block(trips_novval, true_coords)
 
 test_that("errors clearly when warm_start has no row names", {
   warm_start <- matrix(rnorm(n_items * 2), n_items, 2)
@@ -56,6 +44,19 @@ test_that("errors clearly when warm_start has no row names", {
     estimate_group_alpha(trips, warm_start = warm_start, max_outer = 1L),
     "warm_start"
   )
+})
+
+test_that("runs end to end without any sampleAlg == 'validation' trials", {
+  # This used to be the error case (no validation trials found); now alpha
+  # is profiled from a split of the test pool instead, so no validation
+  # trials are required at all.
+  grp <- run_group_embedding_from_list(trips_novval, d = 2L, max_epochs = 50L, tol_window = 20L, seed = 1L)
+  joint <- estimate_group_alpha(
+    trips_novval, warm_start = grp$embedding,
+    max_epochs = 50L, tol_window = 20L, max_outer = 2L, seed = 1L, verbose = FALSE
+  )
+  expect_equal(sort(rownames(joint$embedding)), sort(items))
+  expect_true(is.finite(joint$alpha) && joint$alpha > 0)
 })
 
 # Epoch/iteration counts here are as small as possible while still
@@ -70,11 +71,11 @@ test_that("estimate_group_alpha() runs end to end and returns well-formed output
   # Regression check: a previous version of this function computed
   # train/test row selection as `combined$sampleSet == "train"`/`"test"`
   # directly, without first excluding sampleSet == NA rows (check trials
-  # and, as here, holdout validation trials) -- `NA == "train"` is `NA`,
-  # not `FALSE`, and subsetting a data frame with a logical vector
+  # and, in this fixture, an extra NA-sampleSet block) -- `NA == "train"` is
+  # `NA`, not `FALSE`, and subsetting a data frame with a logical vector
   # containing NA inserts an all-NA row, which crashed the Python call
-  # with an out-of-bounds index once cast to int32. This fixture's
-  # validation block (sampleSet = NA) exercises exactly that path.
+  # with an out-of-bounds index once cast to int32. This fixture's extra
+  # block (sampleSet = NA) exercises exactly that path.
   joint <- estimate_group_alpha(
     trips, warm_start = grp$embedding,
     max_epochs = 50L, tol_window = 20L, max_outer = 2L, seed = 1L, verbose = FALSE
@@ -91,7 +92,30 @@ test_that("estimate_group_alpha() runs end to end and returns well-formed output
 
   expect_true(nrow(joint$history) >= 1L && nrow(joint$history) <= 2L)
   expect_true(all(joint$history$alpha > 0))
-  expect_true(all(is.finite(joint$history$ll_val)))
-  expect_true(all(joint$history$acc_val >= 0 & joint$history$acc_val <= 1))
+  expect_true(all(is.finite(joint$history$ll_alpha_test)))
+  expect_true(all(joint$history$acc_alpha_test >= 0 & joint$history$acc_alpha_test <= 1))
   expect_true(all(joint$history$delta_log_alpha >= 0))
+})
+
+test_that("alpha_test_frac splits the test pool into disjoint sub-pools of the expected sizes", {
+  grp <- run_group_embedding_from_list(trips_novval, d = 2L, max_epochs = 50L, tol_window = 20L, seed = 1L)
+
+  n_test_total <- sum(do.call(rbind, trips_novval)$sampleSet == "test", na.rm = TRUE)
+
+  joint_half <- estimate_group_alpha(
+    trips_novval, warm_start = grp$embedding,
+    max_epochs = 50L, tol_window = 20L, max_outer = 1L, seed = 1L,
+    alpha_test_frac = 0.5, verbose = FALSE
+  )
+  expect_equal(joint_half$n_test_fit + joint_half$n_alpha_test, n_test_total)
+  expect_equal(joint_half$n_alpha_test, floor(0.5 * n_test_total))
+
+  joint_small <- estimate_group_alpha(
+    trips_novval, warm_start = grp$embedding,
+    max_epochs = 50L, tol_window = 20L, max_outer = 1L, seed = 1L,
+    alpha_test_frac = 0.2, verbose = FALSE
+  )
+  expect_equal(joint_small$n_test_fit + joint_small$n_alpha_test, n_test_total)
+  expect_equal(joint_small$n_alpha_test, floor(0.2 * n_test_total))
+  expect_lt(joint_small$n_alpha_test, joint_half$n_alpha_test)
 })

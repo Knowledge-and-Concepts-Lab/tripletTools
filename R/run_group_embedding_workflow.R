@@ -15,8 +15,12 @@
 #'   \item \strong{Choice-model refit.} \code{\link{estimate_group_alpha}}
 #'     takes the winning final fit as a warm start and coordinate-ascends
 #'     between re-estimating the Student-t/crowd-kernel shape \eqn{\alpha} and
-#'     refitting the embedding under it, using held-out
-#'     \code{sampleAlg == "validation"} trials to profile \eqn{\alpha}.
+#'     refitting the embedding under it, profiling \eqn{\alpha} on a split of
+#'     the \code{sampleSet == "test"} pool reserved just for that (see
+#'     \code{\link{estimate_group_alpha}}'s \emph{Where alpha is profiled
+#'     from} section) -- any real \code{sampleAlg == "validation"} trials are
+#'     left untouched throughout this whole function, free to serve as an
+#'     honest final-quality check afterward.
 #' }
 #'
 #' @section Why a dedicated final fit:
@@ -60,9 +64,10 @@
 #'
 #' @param triplet_list A named list of data frames, one per participant, as
 #'   returned by \code{\link{get.combined}}.  Must contain a usable
-#'   \code{sampleSet} column (see \code{\link{assign_sample_sets}}) and, if
-#'   \code{refit_alpha = TRUE}, genuine \code{sampleAlg == "validation"}
-#'   trials (see \code{\link{estimate_group_alpha}}).
+#'   \code{sampleSet} column (see \code{\link{assign_sample_sets}});
+#'   \code{sampleAlg == "validation"} trials are not required even when
+#'   \code{refit_alpha = TRUE} (see \code{\link{estimate_group_alpha}}), and
+#'   are left untouched if present.
 #' @param dims Integer vector of dimensionalities to evaluate in step 1.
 #'   Default \code{1:8}.
 #' @param n_restarts_dim Random restarts per dimension in step 1, forwarded to
@@ -93,9 +98,9 @@
 #' @param best_d_norm_penalty Forwarded to \code{\link{estimate_dimensionality}}.
 #'   Default \code{NULL} (equal to \code{norm_penalty}).
 #' @param refit_alpha Logical; if \code{TRUE} (default), run step 3.  Set to
-#'   \code{FALSE} to stop after the final fit (step 2) -- e.g. when
-#'   \code{triplet_list} has no \code{sampleAlg == "validation"} trials yet.
-#' @param max_outer,tol_log_alpha,alpha_grid Forwarded to
+#'   \code{FALSE} to stop after the final fit (step 2), e.g. for a quicker
+#'   crowd-kernel-only production embedding.
+#' @param alpha_test_frac,max_outer,tol_log_alpha,alpha_grid Forwarded to
 #'   \code{\link{estimate_group_alpha}} (step 3); ignored if
 #'   \code{refit_alpha = FALSE}.
 #' @param verbose Logical; print a progress line at the start of each step and
@@ -134,7 +139,7 @@
 #' out$refit$embedding           # choice-model-refit embedding
 #' out$refit$alpha               # estimated choice-model shape parameter
 #'
-#' # Stop after the final fit (e.g. no validation trials available yet)
+#' # Stop after the final fit, e.g. for a quicker crowd-kernel-only embedding
 #' out2 <- run_group_embedding_workflow(icon_triplets, refit_alpha = FALSE)
 #' out2$refit  # NULL
 #' }
@@ -153,6 +158,7 @@ run_group_embedding_workflow <- function(triplet_list,
                                           norm_penalty = 0,
                                           best_d_norm_penalty = NULL,
                                           refit_alpha = TRUE,
+                                          alpha_test_frac = 0.5,
                                           max_outer = 15L,
                                           tol_log_alpha = 0.05,
                                           alpha_grid = 10^seq(log10(2e-4), log10(2e6), length.out = 140),
@@ -236,12 +242,13 @@ run_group_embedding_workflow <- function(triplet_list,
       tolerance     = tolerance,
       tol_window    = tol_window,
       seed          = seed,
-      device        = device,
-      norm_penalty  = norm_penalty,
-      max_outer     = max_outer,
-      tol_log_alpha = tol_log_alpha,
-      alpha_grid    = alpha_grid,
-      verbose       = verbose
+      device          = device,
+      norm_penalty    = norm_penalty,
+      alpha_test_frac = alpha_test_frac,
+      max_outer       = max_outer,
+      tol_log_alpha   = tol_log_alpha,
+      alpha_grid      = alpha_grid,
+      verbose         = verbose
     )
   }
 

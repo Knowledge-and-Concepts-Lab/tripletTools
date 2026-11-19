@@ -13,6 +13,7 @@ estimate_group_alpha(
   seed = 222L,
   device = NULL,
   norm_penalty = 0,
+  alpha_test_frac = 0.5,
   max_outer = 15L,
   tol_log_alpha = 0.05,
   alpha_grid = 10^seq(log10(2e-04), log10(2e+06), length.out = 140),
@@ -23,8 +24,8 @@ estimate_group_alpha(
 \item{triplet_list}{A named list of data frames, one per participant, as
 returned by \code{\link{get.combined}} -- the same object passed to
 \code{\link{run_group_embedding_from_list}} to produce \code{warm_start}.
-Must contain genuine \code{sampleAlg == "validation"} trials (see
-Details).}
+Must contain a usable \code{sampleSet} column (see Details); no longer
+requires \code{sampleAlg == "validation"} trials (see the section above).}
 
 \item{warm_start}{Numeric matrix giving the starting embedding: one row
 per item (row names = item names) and \code{d} columns, typically the
@@ -40,8 +41,16 @@ applied to every embedding-refit step.}
 
 \item{seed}{Integer random seed, used for the train/test shuffling
 fallback (when \code{triplet_list} has no usable \code{sampleSet}
-split) and as the embedding fit's \code{random_state} at every outer
-iteration.}
+split), for the \code{alpha_test_frac} split of the \code{test} pool
+(see above), and as the embedding fit's \code{random_state} at every
+outer iteration.}
+
+\item{alpha_test_frac}{Proportion of the \code{sampleSet == "test"} pool
+set aside to profile \eqn{\alpha}, drawn once (not re-split per outer
+iteration) via \code{\link{sample_internal_test}}. The remaining
+\code{1 - alpha_test_frac} continues to do early stopping for the
+embedding refit. Must satisfy \code{0 < alpha_test_frac < 1}. Default
+\code{0.5}.}
 
 \item{max_outer}{Maximum number of coordinate-ascent iterations. Default
 \code{15}.}
@@ -53,11 +62,12 @@ iterations. Default \code{0.05}.}
 \item{alpha_grid}{Candidate \eqn{\alpha} values for the profiled
 maximum-likelihood step at each iteration.}
 
-\item{verbose}{Logical; print one line of progress per outer iteration.
+\item{verbose}{Logical; print the alpha-test/checkpoint-selection split
+sizes once up front, then one line of progress per outer iteration.
 Default \code{TRUE}.}
 }
 \value{
-A named list with five elements:
+A named list with seven elements:
 \describe{
 \item{\code{embedding}}{Numeric matrix, the final refit embedding (item
 names as row names, \code{dim_0}/\code{dim_1}/... columns).}
@@ -66,10 +76,14 @@ names as row names, \code{dim_0}/\code{dim_1}/... columns).}
 \item{\code{ci}}{95\\% profile-likelihood confidence interval for
 \eqn{\alpha} at the final iteration.}
 \item{\code{history}}{Data frame with one row per outer iteration:
-\code{iter}, \code{alpha}, \code{ll_val} (validation log-likelihood
-at the re-estimated \eqn{\alpha}), \code{acc_val} (validation
-accuracy), \code{epoch} (embedding-refit stopping epoch), and
-\code{delta_log_alpha}.}
+\code{iter}, \code{alpha}, \code{ll_alpha_test} (log-likelihood on the
+alpha-test pool at the re-estimated \eqn{\alpha}), \code{acc_alpha_test}
+(accuracy on that same pool), \code{epoch} (embedding-refit stopping
+epoch), and \code{delta_log_alpha}.}
+\item{\code{n_test_fit}}{Row count of the sub-pool used for the embedding
+refit's own early stopping.}
+\item{\code{n_alpha_test}}{Row count of the sub-pool used to profile
+\eqn{\alpha}.}
 }
 }
 \description{
@@ -89,22 +103,51 @@ there is only one \eqn{\alpha} and one embedding to estimate, so no
 cross-participant pooling or empirical-Bayes shrinkage is needed.
 }
 \details{
-\eqn{\alpha} is re-estimated at each iteration using only
-\code{sampleAlg == "validation"} trials -- genuinely held out, never used
-to fit the embedding at any iteration. This is deliberate: profiling
-\eqn{\alpha} on the same trials the embedding was just optimized against
-would let the \eqn{\alpha} estimate chase training noise the embedding
-has already been shaped to fit, rather than measuring real choice-model
-shape. \code{triplet_list} must therefore contain real validation trials
-(see \code{\link{set_validation_behavior}}/\code{\link{assign_sample_sets}}
-to designate some, or \code{\link{find_frequent_triplets}}/
-\code{\link{assign_validation_from_frequency}} to retrofit a validation
-set onto legacy data that predates that convention).
-
 Iteration stops once the re-estimated \eqn{\alpha} changes by less than
 \code{tol_log_alpha} (on the log scale) from the previous iteration, or
 after \code{max_outer} iterations, whichever comes first.
 }
+\section{Where alpha is profiled from, and why not sampleAlg == "validation"}{
+
+\eqn{\alpha} must be re-estimated at each iteration on trials that never
+influenced the embedding -- profiling it on the same trials the embedding
+was just shaped to fit (directly, via the gradient step, or indirectly,
+via early-stopping checkpoint selection) would let the \eqn{\alpha}
+estimate chase sample-specific noise rather than measuring real
+choice-model shape. An earlier version of this function used
+\code{sampleAlg == "validation"} trials for this, since those are this
+package's existing convention for a trial pool nothing else ever touches.
+That has a real cost on datasets where validation trials are the whole
+point of calling this function in the first place: it leaves nothing
+genuinely untouched afterward to report the finished (embedding,
+\eqn{\alpha}) pair's quality against, since the one trial pool designed
+for that (\code{\link{get.hoacc}}'s \code{trialtype = "validation"}) has
+itself just been used as a tuning input.
+
+The actual requirement for a clean \eqn{\alpha}-profiling pool is
+disjointness from whatever selected the embedding -- it does not have to
+be literally labeled \code{sampleAlg == "validation"}. This function
+instead splits the \code{sampleSet == "test"} pool itself (via
+\code{\link{sample_internal_test}}, the same mechanism
+\code{\link{estimate_dimensionality}} uses to carve \code{internal_test}
+out of \code{sampleSet == "train"}) into two disjoint parts, fixed once
+for the whole coordinate-ascent run: \code{alpha_test_frac} of it is set
+aside purely to profile \eqn{\alpha} (step 1), and the rest continues to
+do early stopping/checkpoint selection for the embedding refit (step 2),
+exactly the role the full \code{test} pool would otherwise play. Neither
+sub-pool ever touches \code{train}. Any real \code{sampleAlg ==
+"validation"} trials in \code{triplet_list} are therefore left completely
+untouched by this function -- free to serve afterward as an honest,
+never-used final-quality check on the finished model.
+
+The cost is the mirror image of the problem this solves: splitting
+\code{test} further means less data for checkpoint selection, which gets
+somewhat noisier. On a dataset with abundant randomly-sampled trials (the
+usual case for the legacy data this is meant to help with) that's a far
+better place to absorb the cost than shrinking an already-scarce
+validation pool.
+}
+
 \section{What this does and does not estimate}{
 
 Unlike the per-participant joint workflow, there is no population of
@@ -115,9 +158,9 @@ identified. Check \code{ci} (the final iteration's 95\\% profile-likelihood
 confidence interval) before trusting the point estimate, especially on a
 small dataset or at large \eqn{\alpha} (the Student-t kernel converges to
 Gaussian as \eqn{\alpha} grows, so the profile likelihood flattens and
-\eqn{\alpha} becomes harder to pin down precisely, even though validation
-accuracy itself is structurally insensitive to \eqn{\alpha} for this
-choice-model family and so cannot reveal this on its own).
+\eqn{\alpha} becomes harder to pin down precisely, even though
+alpha-test accuracy itself is structurally insensitive to \eqn{\alpha}
+for this choice-model family and so cannot reveal this on its own).
 }
 
 \examples{
@@ -126,5 +169,10 @@ grp <- run_group_embedding_from_list(icon_triplets, d = 3L)
 joint <- estimate_group_alpha(icon_triplets, warm_start = grp$embedding)
 joint$alpha
 joint$history
+
+# Any real sampleAlg == "validation" trials in icon_triplets are left
+# untouched by the call above -- safe to use afterward for an honest
+# final check, e.g.:
+# get.hoacc(joint$embedding, icon_triplets[[1]], trialtype = "validation")
 }
 }
