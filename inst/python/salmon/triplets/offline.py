@@ -157,7 +157,7 @@ class OfflineEmbedding(BaseEstimator):
         self.initialized_ = True
         return self
 
-    def partial_fit(self, X_train):
+    def partial_fit(self, X_train, sample_weight=None):
         """
         Fit this optimizer for (approximately) one pass through the training data.
 
@@ -166,12 +166,19 @@ class OfflineEmbedding(BaseEstimator):
         X_train : array-like
             The responses with shape ``(n_questions, 3)``.
             Each question is organized as ``[head, winner, loser]``.
+        sample_weight : array-like, optional
+            Per-triplet weight, same length and row order as ``X_train``.
+            Multiplies into each triplet's loss before averaging, so e.g. a
+            kernel-weighted pooled fit (many participants' triplets, weighted
+            by closeness to one query point) can be run through the same
+            optimizer as an ordinary unweighted fit. ``None`` (the default)
+            reproduces the unweighted behavior exactly.
 
         """
         if not (hasattr(self, "initialized_") and self.initialized_):
             self.initialize(X_train)
 
-        self._partial_fit(X_train)
+        self._partial_fit(X_train, sample_weight=sample_weight)
         return self
 
     def fit(self, X_train, X_test, embedding=None, get_stats=None, **stats_kwargs):
@@ -255,12 +262,12 @@ class OfflineEmbedding(BaseEstimator):
             loss = float(module_.losses(win2, lose2).mean().item())
         return acc, loss
 
-    def _partial_fit(self, X_train):
+    def _partial_fit(self, X_train, sample_weight=None):
         _start = time()
         _n_ans = len(X_train)
         k = deepcopy(self._meta["pf_calls"])
 
-        self.opt_.partial_fit(X_train)
+        self.opt_.partial_fit(X_train, sample_weight=sample_weight)
         self._meta["pf_calls"] += 1
         self._meta.update(deepcopy(self.opt_.meta_))
 

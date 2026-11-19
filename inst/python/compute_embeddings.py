@@ -33,7 +33,8 @@ def _rotate_by_variance(embedding):
 
 def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print_every,
                   device, noise_model="CKL", embedding=None, random_state=None,
-                  module_kwargs=None, stage_label=None, norm_penalty=0.0):
+                  module_kwargs=None, stage_label=None, norm_penalty=0.0,
+                  sample_weight=None):
     """
     Run one early-stopped OfflineEmbedding fit. Shared by the plain Euclidean
     path and each stage of the spherical warm-start recipe in
@@ -48,6 +49,16 @@ def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print
         reduces this to plain test_loss, reproducing prior behavior
         exactly. The returned ``lowest_loss`` is always the raw test_loss
         of whichever checkpoint was selected, not the penalized value.
+
+    sample_weight: array-like, optional. Per-triplet weight (same length
+        and row order as ``X_train``), e.g. a kernel weight by a
+        participant's closeness to some query point for a pooled,
+        weighted-likelihood fit across several participants' triplets at
+        once. Only affects the gradient step (``model.partial_fit``);
+        ``train_loss``/``train_acc`` below are still plain, unweighted
+        averages over ``X_train`` -- a deliberately simple diagnostic,
+        not a claim about what the optimizer actually minimized.
+        ``None`` (the default) reproduces unweighted behavior exactly.
 
     Returns the same 5-tuple as ``train_embedding_model``.
     """
@@ -81,7 +92,7 @@ def _fit_offline(X_train, X_test, n, d, max_epochs, tolerance, tol_window, print
     train_acc = train_loss = test_acc = test_loss = norm_ratio = float("nan")
 
     for epoch in range(max_epochs):
-        model.partial_fit(X_train)
+        model.partial_fit(X_train, sample_weight=sample_weight)
 
         if epoch % score_every == 0 or epoch == max_epochs - 1:
             train_acc, train_loss = model._score(X_train)
@@ -325,7 +336,16 @@ def process_all_workers(input_file, additional_data_file, output_dir,
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    df = pd.read_csv(input_file)
+    # dtype=str on worker_id: pandas otherwise infers an int64 column for
+    # any all-digit worker_id (even quoted in the CSV text), silently
+    # dropping leading zeros -- the same bug class already fixed on the R
+    # side in get.combined(), but here on the read that feeds this per-
+    # worker loop. A worker_id corrupted this way (e.g. "0080102887" read
+    # back as "80102887") no longer matches that same participant's correct
+    # worker_id anywhere downstream that compares against the original
+    # string (e.g. condor_joint_manifold_workflow.py's triplet/embedding
+    # worker_id intersection), silently dropping that participant.
+    df = pd.read_csv(input_file, dtype={"worker_id": str})
     additional_data = pd.read_csv(additional_data_file)
     if "Unnamed: 0" in additional_data.columns:
         additional_data = additional_data.rename(columns={"Unnamed: 0": "index"})

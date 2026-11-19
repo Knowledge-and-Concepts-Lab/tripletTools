@@ -132,6 +132,43 @@ test_that("compute_group = FALSE skips the group embedding entirely", {
   }
 })
 
+test_that("a leading-zero numeric-looking worker_id is not silently truncated", {
+  # Regression test for a real bug: process_all_workers() read its input CSV
+  # via pd.read_csv(input_file) with no dtype hint, so pandas infers an
+  # int64 dtype for an all-digit worker_id column -- silently dropping any
+  # leading zero (e.g. "0080102887" read back as the integer 80102887, then
+  # str()'d to "80102887") even though the CSV text itself, written by R,
+  # has the leading zero intact. This is the same bug class already fixed
+  # on the R-reading side in get.combined() (colClasses forcing worker_id to
+  # character), but here on the Python-reading side that feeds this
+  # per-worker loop -- confirmed to matter downstream in practice: the
+  # condor_joint_manifold_workflow.py orchestrator intersects triplet-file
+  # worker_ids against embedding-file worker_ids, and a worker_id corrupted
+  # this way in the embeddings output no longer matches its own correct,
+  # zero-padded worker_id in the (separately-written) triplet file, so that
+  # participant is silently dropped from the whole workflow.
+  # The whole worker_id column must be all-digit for pandas to infer int64
+  # in the first place -- a mix with non-numeric IDs (e.g. "p1") keeps the
+  # column as object dtype and never triggers the bug, so every participant
+  # here gets a purely numeric-looking worker_id, not just the one with a
+  # leading zero.
+  lz_trips <- make_fake_triplet_list(n_participants = 2L, n_items = 5L, n_trials = 30L, seed = 4L)
+  lz_trips[[1]]$worker_id <- "0012345678"
+  names(lz_trips)[1] <- "0012345678"
+  lz_trips[[2]]$worker_id <- "9988776655"
+  names(lz_trips)[2] <- "9988776655"
+
+  out_dir <- tempfile("run_embeddings_leading_zero_")
+  res <- run_embeddings_from_list(
+    triplet_list = lz_trips,
+    output_dir   = out_dir,
+    d            = 2L, max_epochs = 20L, tol_window = 10L, seed = 1L
+  )
+
+  expect_true("0012345678" %in% names(res$individual))
+  expect_false(any(grepl("^12345678$", names(res$individual))))
+})
+
 test_that("string worker IDs (unaffected by the dtype bug) still work", {
   trips <- make_fake_triplet_list(n_participants = 2L, n_items = 5L, n_trials = 30L, seed = 2L)
   out_dir <- tempfile("run_embeddings_string_")
