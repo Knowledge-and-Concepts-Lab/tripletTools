@@ -8,13 +8,48 @@
 #
 # Usage (all arguments are --key=value, order doesn't matter):
 #   Rscript condor_fit.R \
-#     --stage=dimensionality|learning_curve|final \
+#     --stage=dimensionality|learning_curve|final|alpha|final_final \
 #     --triplet_data=triplet_data.csv \
 #     --output=result.csv \
 #     --d=3 --fraction=NA --restart=1 \
 #     --base_seed=1 --random_state=1003 --internal_test_frac=0.1 \
 #     --max_epochs=50000 --tolerance=1e-4 --tol_window=10000 \
-#     --device=cpu --geometry=euclidean --radius=1 --norm_penalty=0
+#     --device=cpu --geometry=euclidean --radius=1 --norm_penalty=0 \
+#     --warm_start=NA --alpha_test_frac=0.5 --max_outer=15 --tol_log_alpha=0.05 --alpha=NA
+#
+# Every argument above is required for every stage (even ones a given stage
+# ignores -- e.g. --fraction is unused outside stage=learning_curve), the
+# same convention already established by --internal_test_frac/--geometry
+# being required-but-unused for stage=final. This keeps argument parsing
+# the same simple flat list across all five stages rather than branching it
+# per stage.
+#
+# stage=alpha and stage=final_final (added alongside the original three,
+# see the dimensionality/learning_curve/final comments below for those):
+# together they're the Condor-scale version of run_group_embedding_workflow()'s
+# steps 3-4 (vignette("embedding_vignette")) -- see that function's roxygen
+# for the full rationale (profiling alpha on a disjoint test sub-pool,
+# folding it back into training once alpha is fixed, fitting the real
+# production embedding with several random-seed restarts at that point).
+#
+# stage=alpha: ONE Condor job runs the entire estimate_group_alpha()
+# coordinate-ascent loop -- unlike the other stages, there is nothing to
+# parallelize within this stage (one embedding, one alpha; see that
+# function's own docstring). Needs --warm_start (stage=final's own
+# best_embedding.csv) in addition to --triplet_data. Writes --output
+# (the refit embedding) plus the usual _history.csv/_result.csv siblings
+# (_result.csv here holds alpha/log_alpha/ci_lo/ci_hi/n_test_fit/
+# n_alpha_test, not restart/seed/loss), and a fixed-name
+# triplet_data_folded.csv (via fold_alpha_test_to_train() +
+# write_triplet_list()) -- the data the final_final stage fits on.
+#
+# stage=final_final: like stage=final (one restart per job, job-per-restart
+# parallelism at the Condor level), but reads triplet_data_folded.csv
+# (not the original triplet_data.csv) and a fixed --alpha instead of
+# fitting under the CKL default -- bypasses train_embedding()'s CKL-only
+# wrapper via fit_group_embedding_restarts_at_alpha(..., n_restarts = 1L),
+# the same _fit_offline()-direct pattern stage=alpha (and
+# estimate_group_alpha() itself) already uses.
 #
 # --base_seed vs --random_state: base_seed must be identical across every
 # job in a stage -- it's what prepare_triplet_matrices() uses to build the
@@ -74,13 +109,14 @@ opt <- parse_args(commandArgs(trailingOnly = TRUE))
 required <- c("stage", "triplet_data", "output", "d", "fraction", "restart",
               "base_seed", "random_state", "internal_test_frac", "max_epochs",
               "tolerance", "tol_window", "device", "geometry", "radius",
-              "norm_penalty")
+              "norm_penalty", "warm_start", "alpha_test_frac", "max_outer",
+              "tol_log_alpha", "alpha")
 missing <- setdiff(required, names(opt))
 if (length(missing)) {
   stop("Missing required arguments: ", paste0("--", missing, collapse = ", "), call. = FALSE)
 }
-if (!opt$stage %in% c("dimensionality", "learning_curve", "final")) {
-  stop("--stage must be one of: dimensionality, learning_curve, final", call. = FALSE)
+if (!opt$stage %in% c("dimensionality", "learning_curve", "final", "alpha", "final_final")) {
+  stop("--stage must be one of: dimensionality, learning_curve, final, alpha, final_final", call. = FALSE)
 }
 
 suppressPackageStartupMessages(library(tripletTools))
@@ -125,6 +161,81 @@ if (opt$stage == "final") {
     norm_penalty = norm_penalty
   )
   message(sprintf("[final restart %d] seed=%d, test loss=%.6f", restart, random_state, out$loss))
+
+  embedding_out <- cbind(item = rownames(out$embedding), as.data.frame(out$embedding))
+  write.csv(embedding_out, opt$output, row.names = FALSE)
+  write.csv(out$history, sub("\\.csv$", "_history.csv", opt$output), row.names = FALSE)
+  write.csv(data.frame(restart = restart, seed = random_state, loss = out$loss),
+            sub("\\.csv$", "_result.csv", opt$output), row.names = FALSE)
+  quit(status = 0)
+}
+
+if (opt$stage == "alpha") {
+  # One job runs the entire estimate_group_alpha() coordinate-ascent loop
+  # (see header comment above for why this stage has no restart grid).
+  # seed = base_seed: there is no restart dimension here to derive a
+  # per-job random_state from, unlike the other stages.
+  warm_start_df <- read.csv(opt$warm_start)
+  dim_cols <- grep("^dim_", names(warm_start_df), value = TRUE)
+  warm_start <- as.matrix(warm_start_df[, dim_cols, drop = FALSE])
+  rownames(warm_start) <- warm_start_df$item
+
+  joint <- estimate_group_alpha(
+    triplet_list    = triplet_list,
+    warm_start      = warm_start,
+    max_epochs      = max_epochs,
+    tolerance       = tolerance,
+    tol_window      = tol_window,
+    device          = device,
+    norm_penalty    = norm_penalty,
+    seed            = base_seed,
+    alpha_test_frac = as.numeric(opt$alpha_test_frac),
+    max_outer       = as.integer(opt$max_outer),
+    tol_log_alpha   = as.numeric(opt$tol_log_alpha)
+  )
+  message(sprintf("[alpha] alpha=%.6g (log_alpha=%.4f), n_test_fit=%d, n_alpha_test=%d",
+                   joint$alpha, joint$log_alpha, joint$n_test_fit, joint$n_alpha_test))
+
+  embedding_out <- cbind(item = rownames(joint$embedding), as.data.frame(joint$embedding))
+  write.csv(embedding_out, opt$output, row.names = FALSE)
+  write.csv(joint$history, sub("\\.csv$", "_history.csv", opt$output), row.names = FALSE)
+  write.csv(data.frame(alpha = joint$alpha, log_alpha = joint$log_alpha,
+                        ci_lo = joint$ci[1], ci_hi = joint$ci[2],
+                        n_test_fit = joint$n_test_fit, n_alpha_test = joint$n_alpha_test),
+            sub("\\.csv$", "_result.csv", opt$output), row.names = FALSE)
+
+  # Alpha has done its only job (estimating itself); the sub-pool it was
+  # profiled on has nothing left to stay held out from -- fold it back into
+  # training for the final_final stage. Fixed filename (not derived from
+  # --output): this stage is always exactly one job, so there's no
+  # per-job-index collision risk the way embedding_$(job_index).csv avoids
+  # for the restart-grid stages.
+  folded <- fold_alpha_test_to_train(triplet_list, joint$alpha_test_rows)
+  write_triplet_list(folded, "triplet_data_folded.csv")
+  quit(status = 0)
+}
+
+if (opt$stage == "final_final") {
+  # One restart per job (see header comment above) at the now-fixed --alpha,
+  # on the already-folded triplet_data_folded.csv (passed in as
+  # --triplet_data by condor_workflow.py for this stage). n_restarts = 1L:
+  # this job IS one restart; the restart grid itself lives at the Condor
+  # level (one job per restart, same as stage=final).
+  out <- fit_group_embedding_restarts_at_alpha(
+    triplet_list = triplet_list,
+    d            = d,
+    alpha        = as.numeric(opt$alpha),
+    n_restarts   = 1L,
+    seed         = random_state,
+    max_epochs   = max_epochs,
+    tolerance    = tolerance,
+    tol_window   = tol_window,
+    device       = device,
+    norm_penalty = norm_penalty,
+    verbose      = FALSE
+  )
+  message(sprintf("[final_final restart %d] seed=%d, alpha=%s, test loss=%.6f",
+                   restart, random_state, opt$alpha, out$loss))
 
   embedding_out <- cbind(item = rownames(out$embedding), as.data.frame(out$embedding))
   write.csv(embedding_out, opt$output, row.names = FALSE)

@@ -431,5 +431,129 @@ class TestRunFinalStage(unittest.TestCase):
                               "item,dim_0\nfoo,0\n")
 
 
+class TestRunAlphaStage(unittest.TestCase):
+    """run_alpha_stage() is a single Condor job (no restart grid, unlike
+    every other stage) -- this checks it reads back alpha_embedding_result.csv
+    correctly, promotes the four expected files to work_dir, and returns
+    (alpha, folded_path) for run_final_final_stage() to consume. No real
+    HTCondor cluster or R needed: submit_and_wait() is mocked out."""
+
+    def test_reads_alpha_and_promotes_outputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            data_path = work_dir / "data.csv"
+            data_path.write_text("dummy")
+            (work_dir / "best_embedding.csv").write_text("item,dim_0\nfoo,0.1\n")
+            config = {"alpha_stage": {"alpha_test_frac": 0.4}}
+
+            def fake_submit_and_wait(submit_path, log_path, label):
+                stage_dir = submit_path.parent
+                (stage_dir / "alpha_embedding.csv").write_text("item,dim_0\nfoo,0.2\n")
+                (stage_dir / "alpha_embedding_history.csv").write_text("iter\n1\n")
+                (stage_dir / "triplet_data_folded.csv").write_text("worker_id\np1\n")
+                with open(stage_dir / "alpha_embedding_result.csv", "w", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=[
+                        "alpha", "log_alpha", "ci_lo", "ci_hi", "n_test_fit", "n_alpha_test"])
+                    writer.writeheader()
+                    writer.writerow({"alpha": 2.5, "log_alpha": 0.9163, "ci_lo": 1.1,
+                                      "ci_hi": 5.0, "n_test_fit": 30, "n_alpha_test": 20})
+
+            with mock.patch.object(cw, "submit_and_wait", side_effect=fake_submit_and_wait):
+                alpha, folded_path = cw.run_alpha_stage(
+                    work_dir, data_path, config, seed=1, best_d=3, norm_penalty=0,
+                    container_image="docker://fake")
+
+            self.assertAlmostEqual(alpha, 2.5)
+            self.assertEqual(folded_path, work_dir / "triplet_data_folded.csv")
+            self.assertEqual((work_dir / "alpha_embedding.csv").read_text(), "item,dim_0\nfoo,0.2\n")
+            self.assertEqual((work_dir / "alpha_history.csv").read_text(), "iter\n1\n")
+            self.assertEqual((work_dir / "triplet_data_folded.csv").read_text(), "worker_id\np1\n")
+
+            with open(work_dir / "alpha_result.csv", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["alpha"], "2.5")
+            self.assertEqual(rows[0]["n_alpha_test"], "20")
+
+
+class TestRunFinalFinalStage(unittest.TestCase):
+    """Mirrors TestRunFinalStage: checks run_final_final_stage() reads every
+    restart job's own result file, picks the lowest-loss one via
+    pick_best_restart(), and copies that job's embedding/history to
+    best_final_embedding.csv/best_final_embedding_history.csv -- distinct
+    filenames from stage 3's best_embedding.csv, which is only the alpha=1
+    warm start, not the production embedding."""
+
+    def test_picks_lowest_loss_restart_and_writes_outputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            folded_path = work_dir / "triplet_data_folded.csv"
+            folded_path.write_text("dummy")
+            config = {"final_final_fit": {"n_restarts": 3}}
+            losses = {0: 0.50, 1: 0.30, 2: 0.42}  # job_index 1 (restart 2) wins
+
+            captured_rows = {}
+            real_queue_from_block = cw.queue_from_block
+
+            def fake_queue_from_block(varnames, rows):
+                captured_rows["rows"] = rows
+                return real_queue_from_block(varnames, rows)
+
+            def fake_submit_and_wait(submit_path, log_path, label):
+                for restart, random_state, job_index in captured_rows["rows"]:
+                    stage_dir = submit_path.parent
+                    (stage_dir / f"embedding_{job_index}.csv").write_text(
+                        f"item,dim_0\nfoo,{job_index}\n")
+                    (stage_dir / f"embedding_{job_index}_history.csv").write_text(
+                        "epoch\n0\n")
+                    with open(stage_dir / f"embedding_{job_index}_result.csv",
+                              "w", newline="") as f:
+                        writer = csv.DictWriter(f, fieldnames=["restart", "seed", "loss"])
+                        writer.writeheader()
+                        writer.writerow({"restart": restart, "seed": random_state,
+                                          "loss": losses[job_index]})
+
+            with mock.patch.object(cw, "submit_and_wait", side_effect=fake_submit_and_wait), \
+                 mock.patch.object(cw, "queue_from_block", side_effect=fake_queue_from_block):
+                cw.run_final_final_stage(work_dir, folded_path, config, seed=1, best_d=3,
+                                          alpha=2.5, norm_penalty=0,
+                                          container_image="docker://fake")
+
+            self.assertEqual((work_dir / "best_final_embedding.csv").read_text(),
+                              "item,dim_0\nfoo,1\n")
+            self.assertEqual((work_dir / "best_final_embedding_history.csv").read_text(),
+                              "epoch\n0\n")
+
+            with open(work_dir / "best_final_embedding_restarts.csv", newline="") as f:
+                rows = list(csv.DictReader(f))
+            self.assertEqual(len(rows), 3)
+
+    def test_fixed_alpha_is_passed_through_to_every_job(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            folded_path = work_dir / "triplet_data_folded.csv"
+            folded_path.write_text("dummy")
+            config = {"final_final_fit": {"n_restarts": 1}}
+            captured = {}
+
+            def fake_submit_and_wait(submit_path, log_path, label):
+                captured["args"] = submit_path.read_text()
+                stage_dir = submit_path.parent
+                (stage_dir / "embedding_0.csv").write_text("item,dim_0\nfoo,0\n")
+                (stage_dir / "embedding_0_history.csv").write_text("epoch\n0\n")
+                with open(stage_dir / "embedding_0_result.csv", "w", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=["restart", "seed", "loss"])
+                    writer.writeheader()
+                    writer.writerow({"restart": 1, "seed": 1, "loss": 0.5})
+
+            with mock.patch.object(cw, "submit_and_wait", side_effect=fake_submit_and_wait):
+                cw.run_final_final_stage(work_dir, folded_path, config, seed=1, best_d=3,
+                                          alpha=7.25, norm_penalty=0,
+                                          container_image="docker://fake")
+
+            self.assertIn("--stage=final_final", captured["args"])
+            self.assertIn("--alpha=7.25", captured["args"])
+
+
 if __name__ == "__main__":
     unittest.main()

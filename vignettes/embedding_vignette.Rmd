@@ -25,7 +25,7 @@ This vignette explains how to compute similarity embeddings from triplet judgmen
 | `estimate_dimensionality()` | Fits embeddings across a range of dimensions to help choose `d` |
 | `run_group_embedding_from_list()` | Trains a single embedding on all participants' data combined |
 | `estimate_group_alpha()` | Jointly refines a group embedding's choice-model shape parameter and geometry, starting from a `run_group_embedding_from_list()` fit |
-| `run_group_embedding_workflow()` | Chains the three functions above into this package's standard group-embedding recipe: select `d`, fit a dedicated final embedding (with restarts), refine its choice-model shape |
+| `run_group_embedding_workflow()` | Chains this package's standard group-embedding recipe: select `d`, fit a warm-start embedding (with restarts), refine its choice-model shape, then fit the real production embedding at that shape (with restarts) |
 | `run_embeddings_from_list()` | Trains one embedding per participant plus a group embedding |
 
 All functions accept data in the named-list format used throughout `tripletTools` (e.g. `icon_triplets`).
@@ -195,25 +195,28 @@ On this dataset \(\alpha\) barely moves — two iterations, settling at 0.93, es
 
 ### Locking down the standard group-embedding workflow
 
-The three steps above — select a dimensionality, fit the production embedding, refine its choice-model shape — are exactly this package's standard recipe for a group embedding, and `run_group_embedding_workflow()` chains them for you:
+The steps above — select a dimensionality, fit a warm-start embedding, refine its choice-model shape, then fit the real production embedding at the now-fixed shape — are exactly this package's standard recipe for a group embedding, and `run_group_embedding_workflow()` chains all four for you:
 
 ```{r group-workflow, eval = FALSE}
 out <- run_group_embedding_workflow(
-  triplet_list     = icon_triplets,
-  dims             = 1:6,
-  n_restarts_dim   = 10L,   # estimate_dimensionality()'s own n_restarts
-  n_restarts_final = 5L     # independent restarts for the dedicated final fit
+  triplet_list           = icon_triplets,
+  dims                   = 1:6,
+  n_restarts_dim         = 10L,   # estimate_dimensionality()'s own n_restarts
+  n_restarts_final       = 5L,    # independent restarts for the warm-start fit (step 2)
+  n_restarts_final_final = 5L     # independent restarts for the production fit (step 4)
 )
 
-out$best_d           # selected dimensionality
-out$final_fit$embedding  # crowd-kernel (alpha = 1) production embedding at best_d
-out$refit$embedding      # choice-model-refit embedding
-out$refit$alpha          # estimated choice-model shape parameter
+out$best_d                # selected dimensionality
+out$refit$alpha            # estimated choice-model shape parameter
+out$final_final$embedding  # the production embedding (fit at best_d, refit$alpha)
+out$final_fit$embedding    # crowd-kernel (alpha = 1) warm-start fit for step 3 -- not the production embedding
 ```
 
-Two things this wrapper does beyond simply calling the three functions in sequence, in case you are assembling the pipeline yourself instead: the final fit (step 2) is a *dedicated* refit at `best_d` — run `n_restarts_final` times from independent random initializations, keeping whichever restart gets the lowest test loss — not a reuse of whichever embedding happened to win during the dimensionality search itself. That search already spends its own restart budget on every dimension in `dims`, so a dedicated final-fit step is the cheapest place in the whole workflow to spend *extra* restart budget on the one embedding that is actually used downstream. See `?run_group_embedding_workflow`'s *Why a dedicated final fit* section for the full reasoning, which mirrors `inst/condor/condor_workflow.py`'s own three-stage architecture (`vignette("condor_workflows_vignette")`) — that Condor workflow's final stage gained the identical restart-and-keep-lowest-loss logic (`final_fit.n_restarts` in its own config) for the same reason.
+Two things worth knowing if you're assembling the pipeline yourself instead of calling the wrapper: first, both the step-2 warm-start fit and the step-4 production fit are *dedicated* refits — each run `n_restarts_final`/`n_restarts_final_final` times from independent random initializations, keeping whichever restart gets the lowest test loss — not a reuse of whichever embedding happened to win during the dimensionality search. See `?run_group_embedding_workflow`'s *Why a dedicated final fit* section for the full reasoning, which mirrors `inst/condor/condor_workflow.py`'s own Condor architecture (`vignette("condor_workflows_vignette")`) stage for stage.
 
-Pass `refit_alpha = FALSE` to stop after the final fit (`out$refit` is then `NULL`) if you just want a quicker crowd-kernel-only production embedding — `estimate_group_alpha()` no longer requires `sampleAlg == "validation"` trials (see the previous section), so this is purely a time/thoroughness tradeoff now, not a data requirement.
+Second, step 4 is not just "refit once more" -- it first folds the `alpha_test` sub-pool step 3 profiled `alpha` on back into training (`fold_alpha_test_to_train()`), since that sub-pool's only job is done once `alpha` is fixed and holding it out any longer only costs training data for nothing. The result (`out$final_final`) is fit on more data than `out$refit`/`out$final_fit` ever saw, at the real estimated `alpha` instead of the crowd-kernel default — it is the embedding you actually want to use downstream, not `out$final_fit` or `out$refit$embedding`.
+
+Pass `refit_alpha = FALSE` to stop after the warm-start fit (`out$refit`/`out$final_final` are then both `NULL`, and `out$final_fit$embedding` becomes the production embedding instead) if you just want a quicker crowd-kernel-only embedding — `estimate_group_alpha()` no longer requires `sampleAlg == "validation"` trials (see the previous section), so this is purely a time/thoroughness tradeoff now, not a data requirement.
 
 ---
 

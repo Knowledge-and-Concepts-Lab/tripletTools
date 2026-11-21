@@ -4,7 +4,16 @@
 Runs, on an HTCondor cluster, in order:
   1. Dimensionality search: one Condor job per (dimension, restart) pair.
   2. Learning curve at the selected best_d: one job per (fraction, restart).
-  3. Final embedding: a single job, fit on the full dataset at best_d.
+  3. Final embedding (warm start for stage 4): a single job, fit on the
+     full dataset at best_d under the crowd-kernel default (alpha = 1).
+  4. Alpha estimation: a single job runs estimate_group_alpha()'s whole
+     coordinate-ascent loop, warm-started from stage 3, and folds the
+     alpha-profiling sub-pool back into training once alpha is fixed.
+  5. Final-final embedding, the actual production embedding: one job per
+     restart (as in stage 3) at the now-fixed (best_d, alpha), on the
+     folded data from stage 4.
+Stages 4-5 are skipped if the config sets refit_alpha: false (e.g. for
+geometry: sphere, which estimate_group_alpha() does not support).
 
 Every job runs condor_fit.R (in this same directory) inside the
 tripletTools container image via HTCondor's container universe -- no R
@@ -63,7 +72,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 CONDOR_FIT_R = SCRIPT_DIR / "condor_fit.R"
 
 NUMERIC_FIELDS = {"d", "restart", "loss", "accuracy", "epoch", "norm_ratio",
-                  "fraction", "n_train", "n_fit", "n_internal_test"}
+                  "fraction", "n_train", "n_fit", "n_internal_test",
+                  "alpha", "log_alpha", "ci_lo", "ci_hi", "n_test_fit", "n_alpha_test"}
 
 
 # ---------------------------------------------------------------------------
@@ -242,7 +252,8 @@ def read_result_row(path):
     row = rows[0]
     for key in NUMERIC_FIELDS & row.keys():
         row[key] = float(row[key])
-        if key in ("d", "restart", "epoch", "n_train", "n_fit", "n_internal_test"):
+        if key in ("d", "restart", "epoch", "n_train", "n_fit", "n_internal_test",
+                   "n_test_fit", "n_alpha_test"):
             row[key] = int(row[key])
     return row
 
@@ -603,6 +614,133 @@ def run_final_stage(work_dir, data_path, config, seed, best_d, geometry, radius,
         (stage_dir / f"embedding_{best_idx}_history.csv").read_text())
 
 
+def run_alpha_stage(work_dir, data_path, config, seed, best_d, norm_penalty,
+                     container_image, batch_size=None):
+    """Stage 4: ONE Condor job runs the entire estimate_group_alpha()
+    coordinate-ascent loop, warm-started from stage 3's best_embedding.csv.
+    Unlike stages 1-3, there is nothing to parallelize within this stage --
+    one embedding, one alpha -- see estimate_group_alpha()'s own docstring
+    for why. Returns (alpha, folded_data_path) for run_final_final_stage()."""
+    alpha_cfg = config.get("alpha_stage") or {}
+    stage_dir = work_dir / "stage4_alpha"
+    stage_dir.mkdir(parents=True, exist_ok=True)
+
+    warm_start_path = work_dir / "best_embedding.csv"
+
+    fixed_args = (
+        f"condor_fit.R --stage=alpha --triplet_data={data_path.name} "
+        f"--output=alpha_embedding.csv --d={best_d} --fraction=NA "
+        f"--restart=1 --base_seed={seed} --random_state={seed} "
+        f"--internal_test_frac=0.1 "
+        f"--max_epochs={get_config(alpha_cfg, 'max_epochs', config, 50000)} "
+        f"--tolerance={get_config(alpha_cfg, 'tolerance', config, 1e-4)} "
+        f"--tol_window={get_config(alpha_cfg, 'tol_window', config, 10000)} "
+        f"--device={get_config(alpha_cfg, 'device', config, 'cpu')} "
+        f"--geometry=euclidean --radius=1 --norm_penalty={norm_penalty} "
+        f"--warm_start={warm_start_path.name} "
+        f"--alpha_test_frac={get_config(alpha_cfg, 'alpha_test_frac', config, 0.5)} "
+        f"--max_outer={get_config(alpha_cfg, 'max_outer', config, 15)} "
+        f"--tol_log_alpha={get_config(alpha_cfg, 'tol_log_alpha', config, 0.05)} "
+        f"--alpha=NA"
+    )
+
+    def build_and_submit(jobs_subset):
+        submit_path = stage_dir / "alpha.sub"
+        write_submit_file(
+            submit_path,
+            container_image=container_image,
+            arguments=fixed_args,
+            transfer_input_files=f"{CONDOR_FIT_R}, {data_path}, {warm_start_path}",
+            log=str(stage_dir / "alpha.log"),
+            output=str(stage_dir / "alpha.out"),
+            error=str(stage_dir / "alpha.err"),
+            resources=resources_config(alpha_cfg, config),
+            initialdir=str(stage_dir),
+        )
+        submit_and_wait(submit_path, stage_dir / "alpha.log", "Stage 4 (alpha estimation)")
+
+    submit_jobs_with_retry(
+        stage_dir, [0], output_path_fn=lambda j: stage_dir / "alpha_embedding.csv",
+        build_and_submit=build_and_submit, label="Stage 4 (alpha estimation)",
+        batch_size=batch_size,
+    )
+
+    result = read_result_row(stage_dir / "alpha_embedding_result.csv")
+    alpha = result["alpha"]
+
+    write_csv(work_dir / "alpha_result.csv", [result])
+    (work_dir / "alpha_embedding.csv").write_text((stage_dir / "alpha_embedding.csv").read_text())
+    (work_dir / "alpha_history.csv").write_text((stage_dir / "alpha_embedding_history.csv").read_text())
+    folded_path = work_dir / "triplet_data_folded.csv"
+    folded_path.write_text((stage_dir / "triplet_data_folded.csv").read_text())
+
+    print(f"[condor_workflow] Stage 4: estimated alpha = {alpha:.6g}")
+    return alpha, folded_path
+
+
+def run_final_final_stage(work_dir, data_path_folded, config, seed, best_d, alpha,
+                           norm_penalty, container_image, batch_size=None):
+    """Stage 5: the actual production embedding -- like run_final_stage(),
+    one Condor job per restart (real wall-clock parallelism for the same
+    reason as stage 3), but fit at the now-fixed `alpha` on the folded
+    triplet data (alpha_test already moved back into "train"), bypassing
+    the CKL-only wrapper the same way stage 4 does."""
+    ff_cfg = config.get("final_final_fit") or {}
+    stage_dir = work_dir / "stage5_final_final"
+    stage_dir.mkdir(parents=True, exist_ok=True)
+
+    n_restarts = int(get_config(ff_cfg, "n_restarts", config, 5))
+    jobs = [(restart, seed + (restart - 1) * 1000, restart - 1)
+            for restart in range(1, n_restarts + 1)]
+
+    fixed_args = (
+        f"condor_fit.R --stage=final_final --triplet_data={data_path_folded.name} "
+        f"--output=embedding_$(job_index).csv --d={best_d} --fraction=NA "
+        f"--base_seed={seed} --internal_test_frac=0.1 "
+        f"--max_epochs={get_config(ff_cfg, 'max_epochs', config, 50000)} "
+        f"--tolerance={get_config(ff_cfg, 'tolerance', config, 1e-4)} "
+        f"--tol_window={get_config(ff_cfg, 'tol_window', config, 10000)} "
+        f"--device={get_config(ff_cfg, 'device', config, 'cpu')} "
+        f"--geometry=euclidean --radius=1 --norm_penalty={norm_penalty} "
+        f"--warm_start=NA --alpha_test_frac=0.5 --max_outer=1 --tol_log_alpha=0.05 "
+        f"--alpha={alpha} "
+        f"--restart=$(restart) --random_state=$(random_state)"
+    )
+
+    def build_and_submit(jobs_subset):
+        submit_path = stage_dir / "final_final.sub"
+        write_submit_file(
+            submit_path,
+            container_image=container_image,
+            arguments=fixed_args,
+            transfer_input_files=f"{CONDOR_FIT_R}, {data_path_folded}",
+            log=str(stage_dir / "final_final.log"),
+            output=str(stage_dir / "final_final_$(Process).out"),
+            error=str(stage_dir / "final_final_$(Process).err"),
+            resources=resources_config(ff_cfg, config),
+            initialdir=str(stage_dir),
+            queue_statement=queue_from_block(
+                ["restart", "random_state", "job_index"], jobs_subset
+            ),
+        )
+        submit_and_wait(submit_path, stage_dir / "final_final.log", "Stage 5 (final-final embedding)")
+
+    submit_jobs_with_retry(
+        stage_dir, jobs, output_path_fn=lambda j: stage_dir / f"embedding_{j[2]}_result.csv",
+        build_and_submit=build_and_submit, label="Stage 5 (final-final embedding)",
+        batch_size=batch_size,
+    )
+
+    results = [read_result_row(stage_dir / f"embedding_{i}_result.csv") for i in range(len(jobs))]
+    best_idx = pick_best_restart(results)
+
+    write_csv(work_dir / "best_final_embedding_restarts.csv", results)
+    (work_dir / "best_final_embedding.csv").write_text(
+        (stage_dir / f"embedding_{best_idx}.csv").read_text())
+    (work_dir / "best_final_embedding_history.csv").write_text(
+        (stage_dir / f"embedding_{best_idx}_history.csv").read_text())
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -637,6 +775,18 @@ def main():
     geometry     = config.get("geometry", "euclidean")
     radius       = config.get("radius", 1)
     norm_penalty = config.get("norm_penalty", 0)
+    refit_alpha  = config.get("refit_alpha", True)
+
+    # estimate_group_alpha() (stage 4) does not currently support spherical
+    # geometry, matching run_group_embedding_workflow()'s own same check --
+    # refuse up front rather than failing deep inside a Condor job after
+    # stages 1-3 have already run.
+    if geometry == "sphere" and refit_alpha:
+        sys.exit(
+            "Stage 4 (alpha estimation) does not currently support "
+            "geometry = \"sphere\". Set refit_alpha: false in the config to "
+            "use spherical geometry for stages 1-3 alone."
+        )
 
     condor_cfg = config.get("condor") or {}
     container_image = condor_cfg.get(
@@ -661,6 +811,17 @@ def main():
         norm_penalty, container_image, batch_size=batch_size,
     )
 
+    alpha = None
+    if refit_alpha:
+        alpha, folded_path = run_alpha_stage(
+            work_dir, args.triplet_data, config, seed, best_d, norm_penalty,
+            container_image, batch_size=batch_size,
+        )
+        run_final_final_stage(
+            work_dir, folded_path, config, seed, best_d, alpha,
+            norm_penalty, container_image, batch_size=batch_size,
+        )
+
     manifest = [
         f"Run finished:   {__import__('datetime').datetime.utcnow().isoformat()}Z",
         f"triplet_data:   {args.triplet_data.resolve()}",
@@ -668,6 +829,7 @@ def main():
         f"geometry:       {geometry}",
         f"norm_penalty:   {norm_penalty}",
         f"best_d:         {best_d}",
+        f"alpha:          {alpha if alpha is not None else 'N/A (refit_alpha: false)'}",
         f"container_image:{container_image}",
     ]
     (work_dir / "run_manifest.txt").write_text("\n".join(manifest) + "\n")

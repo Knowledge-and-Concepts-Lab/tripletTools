@@ -10,11 +10,18 @@
 # PyYAML (pip install --user pyyaml). Every fit runs inside the
 # tripletTools container image via HTCondor's container universe.
 #
-# Fields under `defaults:` apply to all three stages (dimensionality
-# search, learning curve, final fit) unless overridden inside that
-# stage's own block. seed/geometry/radius/norm_penalty are shared across
-# all stages on purpose, so the three stages describe the same embedding
-# space.
+# Fields under `defaults:` apply to all stages (dimensionality search,
+# learning curve, final fit, alpha estimation, final-final fit) unless
+# overridden inside that stage's own block. seed/geometry/radius/
+# norm_penalty are shared across stages 1-3 on purpose, so they describe
+# one coherent embedding space.
+#
+# Stages 4 (alpha estimation) and 5 (final-final fit) run automatically
+# after stage 3 unless refit_alpha below is set to false. They are the
+# Condor-scale version of run_group_embedding_workflow()'s steps 3-4
+# (vignette("embedding_vignette")) -- see that function's own roxygen for
+# the full rationale, and vignette("condor_workflows_vignette")'s Workflow 1
+# section for the Condor-specific details.
 # ---------------------------------------------------------------------------
 
 # Directory (on the submit node) where all stage outputs, summaries, and
@@ -35,8 +42,16 @@ seed: 1
 # Note: the learning-curve stage always fits in euclidean geometry with
 # radius 1, matching estimate_learning_curve()'s own hardcoded defaults --
 # these two fields only affect the dimensionality-search and final fit.
+# geometry: "sphere" requires refit_alpha: false below -- estimate_group_alpha()
+# (stage 4) does not currently support it.
 geometry: euclidean
 radius: 1
+
+# Run stages 4-5 (alpha estimation, then the final-final fit at that alpha)
+# after stage 3. Set to false to stop after stage 3's crowd-kernel
+# (alpha = 1) fit instead -- e.g. for geometry: sphere, or a quicker
+# crowd-kernel-only production embedding.
+refit_alpha: true
 
 # Non-negative number, forwarded to train_embedding()'s norm_penalty
 # argument everywhere. 0 (default) leaves checkpoint selection based on
@@ -122,9 +137,12 @@ learning_curve:
 # --- Stage 3: final embedding, fit on the full dataset ----------------------
 # n_restarts Condor jobs (one restart each), submitted together as a single
 # `queue ... from (...)` block -- same shape as stages 1-2. Unlike stage 2's
-# fraction = 1.0 fits (which still hold out a test set for evaluation), this
-# is meant as the production embedding, so give it a generous epoch budget
-# if you can afford to.
+# fraction = 1.0 fits (which still hold out a test set for evaluation),
+# this is meant to seed stage 4's alpha estimation well -- it is NOT the
+# production embedding when refit_alpha is true (the default): that's
+# stage 5's best_final_embedding.csv. Give it a generous epoch budget if
+# you can afford to, same as any embedding refit that feeds further fitting
+# downstream.
 final_fit:
   # max_epochs: 100000
   # Number of independent random restarts, each its own Condor job, keeping
@@ -135,6 +153,43 @@ final_fit:
   # matters here since a single final-fit restart on a large dataset can be
   # slow. Default 1 preserves prior single-job behavior exactly.
   n_restarts: 1
+  resources:
+    request_cpus: 1
+    request_memory: 8GB
+    request_disk: 8GB
+
+# --- Stage 4: alpha estimation -----------------------------------------------
+# ONE Condor job (not a restart grid -- there's nothing to parallelize at
+# the group level: one embedding, one alpha). Runs estimate_group_alpha()'s
+# whole coordinate-ascent loop, warm-started from stage 3's
+# best_embedding.csv, then folds the alpha-profiling sub-pool back into
+# training (triplet_data_folded.csv, stage 5's input) once alpha is fixed.
+# Skipped entirely if refit_alpha: false above.
+alpha_stage:
+  # Proportion of the sampleSet == "test" pool reserved to profile alpha,
+  # fixed once for the whole coordinate-ascent run -- see
+  # estimate_group_alpha()'s "Where alpha is profiled from" section for why
+  # this needs to be disjoint from the sub-pool governing the embedding
+  # refit's own early stopping (test_fit), and the earlier discussion in
+  # vignette("embedding_vignette") on sizing it for your own dataset.
+  alpha_test_frac: 0.5
+  # Maximum coordinate-ascent iterations, and the log-alpha convergence
+  # threshold -- see estimate_group_alpha()'s own defaults/docs.
+  max_outer: 15
+  tol_log_alpha: 0.05
+  # max_epochs: 100000   # applies to every embedding refit within the loop
+  resources:
+    request_cpus: 1
+    request_memory: 8GB
+    request_disk: 8GB
+
+# --- Stage 5: final-final embedding, the actual production embedding ------
+# Same job-per-restart shape as stage 3, but fit at the now-fixed
+# (best_d, alpha) on stage 4's folded data (alpha_test already moved back
+# into "train") -- this is what you actually want to use downstream.
+final_final_fit:
+  # max_epochs: 100000
+  n_restarts: 5
   resources:
     request_cpus: 1
     request_memory: 8GB
