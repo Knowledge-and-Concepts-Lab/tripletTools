@@ -439,6 +439,7 @@ def run_dimensionality_stage(work_dir, data_path, config, seed, geometry, radius
         f"--tol_window={get_config(dim_cfg, 'tol_window', config, 10000)} "
         f"--device={get_config(dim_cfg, 'device', config, 'cpu')} "
         f"--geometry={geometry} --radius={radius} --norm_penalty={norm_penalty} "
+        f"--warm_start=NA --alpha_test_frac=0.5 --max_outer=15 --tol_log_alpha=0.05 --alpha=NA "
         f"--d=$(d) --restart=$(restart) --random_state=$(random_state)"
     )
 
@@ -508,6 +509,7 @@ def run_learning_curve_stage(work_dir, data_path, config, seed, best_d, norm_pen
         f"--tol_window={get_config(lc_cfg, 'tol_window', config, 10000)} "
         f"--device={get_config(lc_cfg, 'device', config, 'cpu')} "
         f"--geometry=euclidean --radius=1 --norm_penalty={norm_penalty} "
+        f"--warm_start=NA --alpha_test_frac=0.5 --max_outer=15 --tol_log_alpha=0.05 --alpha=NA "
         f"--fraction=$(fraction) --restart=$(restart) --random_state=$(random_state)"
     )
 
@@ -577,6 +579,7 @@ def run_final_stage(work_dir, data_path, config, seed, best_d, geometry, radius,
         f"--tol_window={get_config(ff_cfg, 'tol_window', config, 10000)} "
         f"--device={get_config(ff_cfg, 'device', config, 'cpu')} "
         f"--geometry={geometry} --radius={radius} --norm_penalty={norm_penalty} "
+        f"--warm_start=NA --alpha_test_frac=0.5 --max_outer=15 --tol_log_alpha=0.05 --alpha=NA "
         f"--restart=$(restart) --random_state=$(random_state)"
     )
 

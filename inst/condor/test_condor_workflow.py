@@ -11,6 +11,7 @@ run. It is not invoked by devtools::test()/R CMD check -- it's a
 developer-facing check for the Python side of the Condor workflow.
 """
 import csv
+import re
 import statistics
 import sys
 import tempfile
@@ -553,6 +554,188 @@ class TestRunFinalFinalStage(unittest.TestCase):
 
             self.assertIn("--stage=final_final", captured["args"])
             self.assertIn("--alpha=7.25", captured["args"])
+
+
+class TestEveryStagePassesEveryRequiredArg(unittest.TestCase):
+    """Regression test for a real production bug: condor_fit.R's required-
+    argument list (parsed directly from the .R source below, not duplicated
+    by hand, so this can't itself drift out of sync with that file) was
+    extended to require --warm_start/--alpha_test_frac/--max_outer/
+    --tol_log_alpha/--alpha for every stage when stage=alpha/final_final
+    were added, but run_dimensionality_stage()/run_learning_curve_stage()/
+    run_final_stage()'s own submit-file arguments were never updated to
+    pass them -- so every job in stages 1-3 failed immediately with
+    "Missing required arguments", on a real CHTC deployment, before this was
+    caught and fixed. Checks that every stage's generated `arguments =` line
+    contains a --<flag>= token for each of condor_fit.R's required flags
+    (job-grid variables substituted as $(...) still count, since the
+    substring check only looks for "--flag=")."""
+
+    @staticmethod
+    def _required_flags():
+        text = (Path(__file__).resolve().parent / "condor_fit.R").read_text()
+        m = re.search(r'required <- c\((.*?)\)', text, re.S)
+        return re.findall(r'"([^"]+)"', m.group(1))
+
+    def _capture_arguments(self, run_stage_fn, stub_outputs):
+        """Run a run_*_stage() function with submit_and_wait()/
+        queue_from_block() mocked so no real Condor is touched; returns the
+        captured submit-file `arguments =` line. `stub_outputs(stage_dir,
+        rows)` must write whatever output file(s) make submit_jobs_with_retry
+        see every job as done after one fake "submission"."""
+        captured = {}
+        real_queue_from_block = cw.queue_from_block
+
+        def fake_queue_from_block(varnames, rows):
+            captured["rows"] = rows
+            return real_queue_from_block(varnames, rows)
+
+        def fake_submit_and_wait(submit_path, log_path, label):
+            text = submit_path.read_text()
+            m = re.search(r"^arguments\s*=\s*(.*)$", text, re.M)
+            captured["arguments"] = m.group(1)
+            stub_outputs(submit_path.parent, captured.get("rows", [(None, None, 0)]))
+
+        with mock.patch.object(cw, "submit_and_wait", side_effect=fake_submit_and_wait), \
+             mock.patch.object(cw, "queue_from_block", side_effect=fake_queue_from_block):
+            run_stage_fn()
+        return captured["arguments"]
+
+    def test_dimensionality_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            data_path = work_dir / "data.csv"
+            data_path.write_text("dummy")
+            config = {"dimensionality": {"dims": [2], "n_restarts": 1}}
+
+            def stub_outputs(stage_dir, rows):
+                for row in rows:
+                    job_index = row[3]
+                    with open(stage_dir / f"result_{job_index}.csv", "w", newline="") as f:
+                        w = csv.DictWriter(f, fieldnames=[
+                            "d", "restart", "loss", "accuracy", "epoch",
+                            "norm_ratio", "n_fit", "n_internal_test"])
+                        w.writeheader()
+                        w.writerow({"d": 2, "restart": 1, "loss": 0.5, "accuracy": 0.8,
+                                    "epoch": 10, "norm_ratio": 1.0, "n_fit": 5,
+                                    "n_internal_test": 2})
+
+            args = self._capture_arguments(
+                lambda: cw.run_dimensionality_stage(
+                    work_dir, data_path, config, seed=1, geometry="euclidean",
+                    radius=1, norm_penalty=0, container_image="docker://fake"),
+                stub_outputs,
+            )
+            for flag in self._required_flags():
+                self.assertIn(f"--{flag}=", args, f"missing --{flag}= in: {args}")
+
+    def test_learning_curve_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            data_path = work_dir / "data.csv"
+            data_path.write_text("dummy")
+            config = {"learning_curve": {"by": 1.0, "n_restarts": 1}}
+
+            def stub_outputs(stage_dir, rows):
+                for row in rows:
+                    job_index = row[3]
+                    with open(stage_dir / f"result_{job_index}.csv", "w", newline="") as f:
+                        w = csv.DictWriter(f, fieldnames=[
+                            "fraction", "n_train", "restart", "loss", "accuracy",
+                            "epoch", "norm_ratio", "n_internal_test"])
+                        w.writeheader()
+                        w.writerow({"fraction": 1.0, "n_train": 5, "restart": 1,
+                                    "loss": 0.5, "accuracy": 0.8, "epoch": 10,
+                                    "norm_ratio": 1.0, "n_internal_test": 2})
+
+            args = self._capture_arguments(
+                lambda: cw.run_learning_curve_stage(
+                    work_dir, data_path, config, seed=1, best_d=2, norm_penalty=0,
+                    container_image="docker://fake"),
+                stub_outputs,
+            )
+            for flag in self._required_flags():
+                self.assertIn(f"--{flag}=", args, f"missing --{flag}= in: {args}")
+
+    def test_final_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            data_path = work_dir / "data.csv"
+            data_path.write_text("dummy")
+            config = {"final_fit": {"n_restarts": 1}}
+
+            def stub_outputs(stage_dir, rows):
+                for row in rows:
+                    job_index = row[2]
+                    (stage_dir / f"embedding_{job_index}.csv").write_text("item,dim_0\nfoo,0\n")
+                    (stage_dir / f"embedding_{job_index}_history.csv").write_text("epoch\n0\n")
+                    with open(stage_dir / f"embedding_{job_index}_result.csv", "w", newline="") as f:
+                        w = csv.DictWriter(f, fieldnames=["restart", "seed", "loss"])
+                        w.writeheader()
+                        w.writerow({"restart": 1, "seed": 1, "loss": 0.5})
+
+            args = self._capture_arguments(
+                lambda: cw.run_final_stage(
+                    work_dir, data_path, config, seed=1, best_d=2, geometry="euclidean",
+                    radius=1, norm_penalty=0, container_image="docker://fake"),
+                stub_outputs,
+            )
+            for flag in self._required_flags():
+                self.assertIn(f"--{flag}=", args, f"missing --{flag}= in: {args}")
+
+    def test_alpha_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            data_path = work_dir / "data.csv"
+            data_path.write_text("dummy")
+            (work_dir / "best_embedding.csv").write_text("item,dim_0\nfoo,0.1\n")
+            config = {}
+
+            def stub_outputs(stage_dir, rows):
+                (stage_dir / "alpha_embedding.csv").write_text("item,dim_0\nfoo,0.2\n")
+                (stage_dir / "alpha_embedding_history.csv").write_text("iter\n1\n")
+                (stage_dir / "triplet_data_folded.csv").write_text("worker_id\np1\n")
+                with open(stage_dir / "alpha_embedding_result.csv", "w", newline="") as f:
+                    w = csv.DictWriter(f, fieldnames=[
+                        "alpha", "log_alpha", "ci_lo", "ci_hi", "n_test_fit", "n_alpha_test"])
+                    w.writeheader()
+                    w.writerow({"alpha": 2.5, "log_alpha": 0.9163, "ci_lo": 1.1,
+                                "ci_hi": 5.0, "n_test_fit": 30, "n_alpha_test": 20})
+
+            args = self._capture_arguments(
+                lambda: cw.run_alpha_stage(
+                    work_dir, data_path, config, seed=1, best_d=2, norm_penalty=0,
+                    container_image="docker://fake"),
+                stub_outputs,
+            )
+            for flag in self._required_flags():
+                self.assertIn(f"--{flag}=", args, f"missing --{flag}= in: {args}")
+
+    def test_final_final_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            folded_path = work_dir / "triplet_data_folded.csv"
+            folded_path.write_text("dummy")
+            config = {"final_final_fit": {"n_restarts": 1}}
+
+            def stub_outputs(stage_dir, rows):
+                for row in rows:
+                    job_index = row[2]
+                    (stage_dir / f"embedding_{job_index}.csv").write_text("item,dim_0\nfoo,0\n")
+                    (stage_dir / f"embedding_{job_index}_history.csv").write_text("epoch\n0\n")
+                    with open(stage_dir / f"embedding_{job_index}_result.csv", "w", newline="") as f:
+                        w = csv.DictWriter(f, fieldnames=["restart", "seed", "loss"])
+                        w.writeheader()
+                        w.writerow({"restart": 1, "seed": 1, "loss": 0.5})
+
+            args = self._capture_arguments(
+                lambda: cw.run_final_final_stage(
+                    work_dir, folded_path, config, seed=1, best_d=2, alpha=2.5,
+                    norm_penalty=0, container_image="docker://fake"),
+                stub_outputs,
+            )
+            for flag in self._required_flags():
+                self.assertIn(f"--{flag}=", args, f"missing --{flag}= in: {args}")
 
 
 if __name__ == "__main__":
