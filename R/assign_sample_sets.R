@@ -17,6 +17,11 @@
 #' \emph{proportions}, with the exact per-participant count controlled by
 #' rounding. Setting \code{seed} ensures the assignment is reproducible.
 #'
+#' If \code{df} already has a \code{sampleSet} column, it is overwritten
+#' (not merged with) by the newly-computed split, and a message
+#' (\code{"Prior sampleSet values re-assigned."}) is printed so this isn't
+#' silent.
+#'
 #' @section Validation trials:
 #' \code{sampleAlg == "validation"} trials are a separate category from the
 #' \code{"random"} trials that \code{test_prop} splits -- they're routed
@@ -109,6 +114,10 @@ assign_sample_sets <- function(df, test_prop = 0.2, seed = 42,
   if (is.list(df) && !is.data.frame(df)) {
     return(assign_sample_sets_list(df, test_prop = test_prop, seed = seed,
                                     validation_mode = validation_mode))
+  }
+
+  if ("sampleSet" %in% names(df)) {
+    message("Prior sampleSet values re-assigned.")
   }
 
   set.seed(seed)

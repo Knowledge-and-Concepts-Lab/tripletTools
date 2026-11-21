@@ -141,3 +141,28 @@ test_that("list input errors clearly on malformed input", {
   no_sample_alg <- data.frame(worker_id = "p1")
   expect_error(assign_sample_sets(list(no_sample_alg)), "sampleAlg")
 })
+
+test_that("a pre-existing sampleSet column is overwritten with a message, not silently merged", {
+  d <- data.frame(worker_id = rep("p1", 10), sampleAlg = rep("random", 10),
+                   sampleSet = "bogus")
+  expect_message(res <- assign_sample_sets(d, test_prop = 0.3, seed = 1),
+                  "Prior sampleSet values re-assigned")
+  expect_false(any(res$sampleSet == "bogus"))
+  expect_setequal(res$sampleSet, c("train", "test"))
+})
+
+test_that("no message is printed when sampleSet doesn't already exist", {
+  d <- data.frame(worker_id = rep("p1", 10), sampleAlg = rep("random", 10))
+  expect_no_message(assign_sample_sets(d, test_prop = 0.3, seed = 1))
+})
+
+test_that("the re-assignment message also fires through the list path", {
+  trips <- list(
+    p1 = data.frame(worker_id = "p1", sampleAlg = rep("random", 6),
+                     sampleSet = "bogus"),
+    p2 = data.frame(worker_id = "p2", sampleAlg = rep("random", 6))
+  )
+  expect_message(res <- assign_sample_sets(trips, test_prop = 0.3, seed = 1),
+                  "Prior sampleSet values re-assigned")
+  expect_false(any(res$p1$sampleSet == "bogus"))
+})

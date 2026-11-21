@@ -53,6 +53,11 @@ approximately, as an i.i.d. Bernoulli draw per trial would give -- and
 participants with different trial counts still get matched
 \emph{proportions}, with the exact per-participant count controlled by
 rounding. Setting \code{seed} ensures the assignment is reproducible.
+
+If \code{df} already has a \code{sampleSet} column, it is overwritten
+(not merged with) by the newly-computed split, and a message
+(\code{"Prior sampleSet values re-assigned."}) is printed so this isn't
+silent.
 }
 \section{Validation trials}{
 
