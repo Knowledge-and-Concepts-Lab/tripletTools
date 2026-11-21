@@ -173,5 +173,7 @@
   : Train a single triplet embedding model
 - [`write_embedding_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_embedding_list.md)
   : Write a list of individual embeddings to a CSV file
+- [`write_triplet_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_triplet_list.md)
+  : Write a list of participant triplet data frames to a CSV file
 - [`z.pred.mat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/z.pred.mat.md)
   : Z-score prediction matrix
