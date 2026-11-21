@@ -119,3 +119,21 @@ test_that("alpha_test_frac splits the test pool into disjoint sub-pools of the e
   expect_equal(joint_small$n_alpha_test, floor(0.2 * n_test_total))
   expect_lt(joint_small$n_alpha_test, joint_half$n_alpha_test)
 })
+
+test_that("alpha_test_rows reports real positions of alpha-test rows in do.call(rbind, triplet_list)", {
+  grp <- run_group_embedding_from_list(trips_novval, d = 2L, max_epochs = 50L, tol_window = 20L, seed = 1L)
+  joint <- estimate_group_alpha(
+    trips_novval, warm_start = grp$embedding,
+    max_epochs = 50L, tol_window = 20L, max_outer = 1L, seed = 1L,
+    alpha_test_frac = 0.3, verbose = FALSE
+  )
+
+  expect_length(joint$alpha_test_rows, joint$n_alpha_test)
+  expect_equal(length(unique(joint$alpha_test_rows)), joint$n_alpha_test)  # no duplicates
+
+  combined <- do.call(rbind, trips_novval)
+  expect_true(all(joint$alpha_test_rows >= 1L & joint$alpha_test_rows <= nrow(combined)))
+  # Every reported position really was sampleSet == "test" beforehand, and
+  # none of them is a check/NA-sampleSet row.
+  expect_true(all(combined$sampleSet[joint$alpha_test_rows] == "test"))
+})

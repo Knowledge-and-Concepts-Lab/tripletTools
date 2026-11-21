@@ -62,6 +62,7 @@ test_that("runs end to end with refit_alpha = TRUE and returns well-formed outpu
   out <- run_group_embedding_workflow(
     trips,
     dims = 1:2, n_restarts_dim = 2L, n_restarts_final = 2L,
+    n_restarts_final_final = 2L,
     max_epochs = 50L, tol_window = 20L, seed = 1L,
     max_outer = 2L, verbose = FALSE
   )
@@ -79,9 +80,34 @@ test_that("runs end to end with refit_alpha = TRUE and returns well-formed outpu
   expect_equal(ncol(out$refit$embedding), out$best_d)
   expect_true(is.finite(out$refit$alpha) && out$refit$alpha > 0)
   expect_length(out$refit$ci, 2L)
+  expect_true(length(out$refit$alpha_test_rows) > 0)
+
+  expect_false(is.null(out$final_final))
+  expect_equal(sort(rownames(out$final_final$embedding)), sort(items))
+  expect_equal(ncol(out$final_final$embedding), out$best_d)
+  expect_true(is.finite(out$final_final$loss))
+  expect_equal(nrow(out$final_final$restarts), 2L)
+  expect_equal(out$final_final$loss, min(out$final_final$restarts$loss))
 })
 
-test_that("refit_alpha = FALSE skips step 3", {
+test_that("final-final fit trains on more data than the final_fit warm-start did (alpha_test folded in)", {
+  out <- run_group_embedding_workflow(
+    trips_novval,
+    dims = 1L, n_restarts_dim = 1L, n_restarts_final = 1L,
+    n_restarts_final_final = 1L,
+    max_epochs = 50L, tol_window = 20L, seed = 1L,
+    max_outer = 1L, verbose = FALSE
+  )
+
+  mats_original <- prepare_triplet_matrices(trips_novval, seed = 1L)
+  folded <- fold_alpha_test_to_train(trips_novval, out$refit$alpha_test_rows)
+  mats_folded <- prepare_triplet_matrices(folded, seed = 1L)
+
+  expect_equal(nrow(mats_folded$X_train) - nrow(mats_original$X_train), out$refit$n_alpha_test)
+  expect_equal(nrow(mats_original$X_test) - nrow(mats_folded$X_test), out$refit$n_alpha_test)
+})
+
+test_that("refit_alpha = FALSE skips steps 3 and 4", {
   out <- run_group_embedding_workflow(
     trips_novval,
     dims = 1:2, n_restarts_dim = 2L, n_restarts_final = 1L,
@@ -89,6 +115,7 @@ test_that("refit_alpha = FALSE skips step 3", {
     refit_alpha = FALSE, verbose = FALSE
   )
   expect_null(out$refit)
+  expect_null(out$final_final)
   expect_false(is.null(out$final_fit))
   expect_equal(sort(rownames(out$final_fit$embedding)), sort(items))
 })
@@ -129,4 +156,23 @@ test_that("multiple final-fit restarts keep the lowest test loss", {
     refit_alpha = FALSE, verbose = FALSE
   )
   expect_lte(out3$final_fit$loss, out1$final_fit$loss)
+})
+
+test_that("multiple final-final-fit restarts keep the lowest test loss", {
+  # Same logic as the final-fit restart check above, applied to step 4.
+  out1 <- run_group_embedding_workflow(
+    trips_novval,
+    dims = 1L, n_restarts_dim = 1L, n_restarts_final = 1L,
+    n_restarts_final_final = 1L,
+    max_epochs = 50L, tol_window = 20L, seed = 5L,
+    max_outer = 1L, verbose = FALSE
+  )
+  out3 <- run_group_embedding_workflow(
+    trips_novval,
+    dims = 1L, n_restarts_dim = 1L, n_restarts_final = 1L,
+    n_restarts_final_final = 3L,
+    max_epochs = 50L, tol_window = 20L, seed = 5L,
+    max_outer = 1L, verbose = FALSE
+  )
+  expect_lte(out3$final_final$loss, out1$final_final$loss)
 })

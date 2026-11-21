@@ -125,6 +125,15 @@
 #'     refit's own early stopping.}
 #'   \item{\code{n_alpha_test}}{Row count of the sub-pool used to profile
 #'     \eqn{\alpha}.}
+#'   \item{\code{alpha_test_rows}}{Integer vector of length
+#'     \code{n_alpha_test}: the positions (1-based, into
+#'     \code{do.call(rbind, triplet_list)}) of the rows used to profile
+#'     \eqn{\alpha}. Pass this directly to
+#'     \code{\link{fold_alpha_test_to_train}} (on the same
+#'     \code{triplet_list}) once \eqn{\alpha} is finalized, to fold this
+#'     sub-pool back into training for one last fit at the now-fixed
+#'     \eqn{\alpha} -- its only job (estimating \eqn{\alpha}) is done at
+#'     that point, so there is nothing left for holding it out to protect.}
 #' }
 #'
 #' @export
@@ -182,6 +191,16 @@ estimate_group_alpha <- function(triplet_list,
     stop("triplet_list contains items not present in warm_start's row names -- warm_start must cover every item used in triplet_list.")
   }
 
+  # .row_pos tracks each row's position in do.call(rbind, triplet_list) --
+  # needed because combined's own row names can't be trusted for this:
+  # rbind.data.frame() disambiguates colliding names from different
+  # triplet_list elements (every element's own data.frame() call starts
+  # row-naming at "1") with .1/.2 suffixes, so rownames(combined) is not a
+  # reliable 1:n position index. Threading an explicit column through every
+  # subset instead is what lets alpha_test_rows (below) report real
+  # triplet_list positions for fold_alpha_test_to_train() to use later.
+  combined$.row_pos <- seq_len(nrow(combined))
+
   set.seed(seed)
   train_rows <- !is.na(combined$sampleSet) & combined$sampleSet == "train"
   test_rows  <- !is.na(combined$sampleSet) & combined$sampleSet == "test"
@@ -189,12 +208,15 @@ estimate_group_alpha <- function(triplet_list,
     fit_rows  <- !is.na(combined$sampleSet)
     shuffled  <- combined[fit_rows, ][sample(sum(fit_rows)), ]
     split_idx <- floor(0.7 * nrow(shuffled))
-    X_train <- as.matrix(shuffled[seq_len(split_idx), c("head", "winner", "loser")])
-    X_test  <- as.matrix(shuffled[seq(split_idx + 1L, nrow(shuffled)), c("head", "winner", "loser")])
+    train_df <- shuffled[seq_len(split_idx), ]
+    test_df  <- shuffled[seq(split_idx + 1L, nrow(shuffled)), ]
   } else {
-    X_train <- as.matrix(combined[train_rows, c("head", "winner", "loser")])
-    X_test  <- as.matrix(combined[test_rows,  c("head", "winner", "loser")])
+    train_df <- combined[train_rows, ]
+    test_df  <- combined[test_rows,  ]
   }
+  X_train <- as.matrix(train_df[, c("head", "winner", "loser")])
+  X_test  <- as.matrix(data.frame(head = test_df$head, winner = test_df$winner,
+                                   loser = test_df$loser, row_pos = test_df$.row_pos))
 
   # Split the held-out test pool itself into two disjoint sub-pools, fixed
   # once for the whole coordinate-ascent run (not re-drawn per outer
@@ -203,10 +225,14 @@ estimate_group_alpha <- function(triplet_list,
   # X_test would otherwise play; X_alpha_test is reserved only for
   # profiling alpha (step 1). Neither ever touches X_train, and
   # X_alpha_test additionally never touches X_test_fit -- see the "Where
-  # alpha is profiled from" section above.
-  split        <- sample_internal_test(X_test, frac = alpha_test_frac, seed = seed)
-  X_test_fit   <- split$X_fit
-  X_alpha_test <- split$X_internal_test
+  # alpha is profiled from" section above. The extra row_pos column rides
+  # along through the same shuffle/split (sample_internal_test() doesn't
+  # care how many columns X_train has), so alpha_test_rows below is read
+  # off afterward rather than computed by a second, separate random draw.
+  split             <- sample_internal_test(X_test, frac = alpha_test_frac, seed = seed)
+  X_test_fit        <- split$X_fit[, c("head", "winner", "loser"), drop = FALSE]
+  X_alpha_test      <- split$X_internal_test[, c("head", "winner", "loser"), drop = FALSE]
+  alpha_test_rows   <- split$X_internal_test[, "row_pos"]
   atest_head   <- X_alpha_test[, "head"]
   atest_winner <- X_alpha_test[, "winner"]
   atest_loser  <- X_alpha_test[, "loser"]
@@ -260,8 +286,12 @@ estimate_group_alpha <- function(triplet_list,
     colnames(embedding) <- paste0("dim_", seq_len(d) - 1L)
     epoch <- res[[3]]
 
-    dw2 <- rowSums((embedding[atest_head + 1L, ] - embedding[atest_winner + 1L, ])^2)
-    dl2 <- rowSums((embedding[atest_head + 1L, ] - embedding[atest_loser  + 1L, ])^2)
+    # drop = FALSE: at d = 1, embedding[rows, ] would otherwise degenerate to
+    # a plain vector (R's default single-column-matrix-subsetting behavior),
+    # breaking rowSums() below -- a real, latent bug exposed by exercising
+    # this function at d = 1 for the first time.
+    dw2 <- rowSums((embedding[atest_head + 1L, , drop = FALSE] - embedding[atest_winner + 1L, , drop = FALSE])^2)
+    dl2 <- rowSums((embedding[atest_head + 1L, , drop = FALSE] - embedding[atest_loser  + 1L, , drop = FALSE])^2)
     prof <- sapply(alpha_grid, function(a) profiled_ll(log(a), dw2, dl2))
     bi <- which.max(prof)
     new_log_alpha <- log(alpha_grid[bi])
@@ -287,5 +317,6 @@ estimate_group_alpha <- function(triplet_list,
 
   list(embedding = embedding, alpha = exp(log_alpha), log_alpha = log_alpha,
        ci = ci, history = history,
-       n_test_fit = nrow(X_test_fit), n_alpha_test = nrow(X_alpha_test))
+       n_test_fit = nrow(X_test_fit), n_alpha_test = nrow(X_alpha_test),
+       alpha_test_rows = alpha_test_rows)
 }

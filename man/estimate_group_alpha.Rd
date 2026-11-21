@@ -84,6 +84,15 @@ epoch), and \code{delta_log_alpha}.}
 refit's own early stopping.}
 \item{\code{n_alpha_test}}{Row count of the sub-pool used to profile
 \eqn{\alpha}.}
+\item{\code{alpha_test_rows}}{Integer vector of length
+\code{n_alpha_test}: the positions (1-based, into
+\code{do.call(rbind, triplet_list)}) of the rows used to profile
+\eqn{\alpha}. Pass this directly to
+\code{\link{fold_alpha_test_to_train}} (on the same
+\code{triplet_list}) once \eqn{\alpha} is finalized, to fold this
+sub-pool back into training for one last fit at the now-fixed
+\eqn{\alpha} -- its only job (estimating \eqn{\alpha}) is done at
+that point, so there is nothing left for holding it out to protect.}
 }
 }
 \description{

@@ -161,22 +161,12 @@ assign_sample_sets_list <- function(triplet_list, test_prop, seed, validation_mo
     stop("Every data frame in 'df' must have a 'sampleAlg' column.")
   }
 
-  idx_col <- ".assign_sample_sets_idx"
-  tagged <- Map(function(d, i) { d[[idx_col]] <- i; d }, triplet_list, seq_along(triplet_list))
-  combined <- dplyr::bind_rows(tagged)
+  combined <- tag_and_combine_triplet_list(triplet_list)
 
   combined <- assign_sample_sets(combined, test_prop = test_prop, seed = seed,
                                   validation_mode = validation_mode)
 
-  out <- split(combined, combined[[idx_col]])
-  out <- out[order(as.integer(names(out)))]
-  out <- lapply(out, function(d) {
-    d[[idx_col]] <- NULL
-    rownames(d) <- NULL
-    d
-  })
-  names(out) <- names(triplet_list)
-  out
+  split_combined_to_triplet_list(combined, names(triplet_list))
 }
 
 # Picks exactly round(test_prop * n_random) of the sampleAlg == "random"
