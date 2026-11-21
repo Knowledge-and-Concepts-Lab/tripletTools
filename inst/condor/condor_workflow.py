@@ -13,7 +13,11 @@ Runs, on an HTCondor cluster, in order:
      restart (as in stage 3) at the now-fixed (best_d, alpha), on the
      folded data from stage 4.
 Stages 4-5 are skipped if the config sets refit_alpha: false (e.g. for
-geometry: sphere, which estimate_group_alpha() does not support).
+geometry: sphere, which estimate_group_alpha() does not support). Stage 2
+is skipped if the config sets run_learning_curve: false -- e.g. when the
+dataset/dimensionality has already been characterized and only a
+production embedding is needed, since the learning curve is diagnostic
+only and nothing downstream (stages 3-5) depends on it.
 
 Every job runs condor_fit.R (in this same directory) inside the
 tripletTools container image via HTCondor's container universe -- no R
@@ -779,6 +783,7 @@ def main():
     radius       = config.get("radius", 1)
     norm_penalty = config.get("norm_penalty", 0)
     refit_alpha  = config.get("refit_alpha", True)
+    run_learning_curve = config.get("run_learning_curve", True)
 
     # estimate_group_alpha() (stage 4) does not currently support spherical
     # geometry, matching run_group_embedding_workflow()'s own same check --
@@ -805,10 +810,14 @@ def main():
         work_dir, args.triplet_data, config, seed, geometry, radius,
         norm_penalty, container_image, batch_size=batch_size,
     )
-    run_learning_curve_stage(
-        work_dir, args.triplet_data, config, seed, best_d, norm_penalty,
-        container_image, batch_size=batch_size,
-    )
+    if run_learning_curve:
+        run_learning_curve_stage(
+            work_dir, args.triplet_data, config, seed, best_d, norm_penalty,
+            container_image, batch_size=batch_size,
+        )
+    else:
+        print("[condor_workflow] Stage 2 (learning curve): skipped "
+              "(run_learning_curve: false)")
     run_final_stage(
         work_dir, args.triplet_data, config, seed, best_d, geometry, radius,
         norm_penalty, container_image, batch_size=batch_size,
@@ -831,6 +840,7 @@ def main():
         f"config:         {args.params.resolve()}",
         f"geometry:       {geometry}",
         f"norm_penalty:   {norm_penalty}",
+        f"learning_curve: {'ran' if run_learning_curve else 'skipped (run_learning_curve: false)'}",
         f"best_d:         {best_d}",
         f"alpha:          {alpha if alpha is not None else 'N/A (refit_alpha: false)'}",
         f"container_image:{container_image}",

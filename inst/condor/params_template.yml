@@ -53,6 +53,13 @@ radius: 1
 # crowd-kernel-only production embedding.
 refit_alpha: true
 
+# Run stage 2 (the learning curve at best_d). Set to false to skip it --
+# the learning curve is purely diagnostic (how much data is enough at the
+# selected dimensionality) and nothing in stages 3-5 depends on its output,
+# so it's safe to turn off once you've already characterized a dataset, or
+# whenever you just want the production embedding without that diagnostic.
+run_learning_curve: true
+
 # Non-negative number, forwarded to train_embedding()'s norm_penalty
 # argument everywhere. 0 (default) leaves checkpoint selection based on
 # raw test loss. See train_embedding()'s "Diagnosing outlier items"
@@ -129,6 +136,7 @@ dimensionality:
 
 # --- Stage 2: learning curve at the dimension selected in stage 1 ----------
 # One Condor job per (fraction, restart) pair -- ceil(1/by) * n_restarts jobs.
+# Skipped entirely if run_learning_curve: false above.
 learning_curve:
   by: 0.1
   n_restarts: 10
