@@ -138,6 +138,17 @@ A named list with seven elements:
 
   Row count of the sub-pool used to profile \\\alpha\\.
 
+- `alpha_test_rows`:
+
+  Integer vector of length `n_alpha_test`: the positions (1-based, into
+  `do.call(rbind, triplet_list)`) of the rows used to profile
+  \\\alpha\\. Pass this directly to
+  [`fold_alpha_test_to_train`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md)
+  (on the same `triplet_list`) once \\\alpha\\ is finalized, to fold
+  this sub-pool back into training for one last fit at the now-fixed
+  \\\alpha\\ – its only job (estimating \\\alpha\\) is done at that
+  point, so there is nothing left for holding it out to protect.
+
 ## Details
 
 Iteration stops once the re-estimated \\\alpha\\ changes by less than

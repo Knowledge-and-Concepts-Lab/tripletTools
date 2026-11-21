@@ -201,6 +201,17 @@ refit's own early stopping.</p></dd>
 <dd><p>Row count of the sub-pool used to profile
 \(\alpha\).</p></dd>
 
+<dt><code>alpha_test_rows</code></dt>
+<dd><p>Integer vector of length
+<code>n_alpha_test</code>: the positions (1-based, into
+<code>do.call(rbind, triplet_list)</code>) of the rows used to profile
+\(\alpha\). Pass this directly to
+<code><a href="fold_alpha_test_to_train.html">fold_alpha_test_to_train</a></code> (on the same
+<code>triplet_list</code>) once \(\alpha\) is finalized, to fold this
+sub-pool back into training for one last fit at the now-fixed
+\(\alpha\) – its only job (estimating \(\alpha\)) is done at
+that point, so there is nothing left for holding it out to protect.</p></dd>
+
 
 </dl></div>
     <div class="section level2">

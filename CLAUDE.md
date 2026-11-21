@@ -32,7 +32,12 @@ Current version: **0.2.0**. Package URL:
                                #   workflows, each with its own orchestrator/per-job-script/
                                #   config-template/unittest set:
                                #   condor_workflow.py           - dimensionality search -> learning
-                               #                                   curve -> final embedding fit
+                               #                                   curve -> warm-start fit -> alpha
+                               #                                   estimation -> final-final fit (the
+                               #                                   real production embedding, at the
+                               #                                   now-fixed alpha, on data with the
+                               #                                   alpha-profiling sub-pool folded back
+                               #                                   into training)
                                #                                   (condor_fit.R, params_template.yml)
                                #   condor_group_diff_workflow.py - group-difference permutation test,
                                #                                   Condor companion to the local R
@@ -187,7 +192,9 @@ Current version: **0.2.0**. Package URL:
 | [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) | R/train_embedding.R | Low-level: fit one embedding from matrices |
 | [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) | R/run_embeddings.R | Group embedding from triplet list |
 | [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md) | R/estimate_group_alpha.R | Takes a group embedding fit by [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) (alpha = 1 / crowd-kernel mu = 1) as a warm start, then coordinate-ascends between profiled-MLE alpha re-estimation and embedding refitting (via `_fit_offline()`, bypassing the CKL-only [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) wrapper) until alpha converges. Alpha is profiled on an `alpha_test_frac` split of the `sampleSet == "test"` pool (not `sampleAlg == "validation"` trials, which are no longer required and are left untouched if present – see the function’s own “Where alpha is profiled from” docs). Group-level analogue of `condor_joint_manifold_workflow.py`’s per-participant joint estimation, without that workflow’s shrinkage/pooling machinery (only one alpha to estimate, nothing to shrink toward) |
-| [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md) | R/run_group_embedding_workflow.R | Chains this package’s standard group-embedding recipe end to end: [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) (select `d`) -\> a *dedicated* [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) final fit at that `d` (several random restarts, keeps the lowest test loss) -\> [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md) (choice-model/embedding refit). The local, non-Condor equivalent of `condor_workflow.py`’s three-stage architecture; `refit_alpha = FALSE` stops after the final fit |
+| [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md) | R/run_group_embedding_workflow.R | Chains this package’s standard group-embedding recipe end to end: [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) (select `d`) -\> a *dedicated* [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) warm-start fit at that `d` (several random restarts, keeps the lowest test loss) -\> [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md) (choice-model/embedding refit) -\> [`fold_alpha_test_to_train()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md) + [`fit_group_embedding_restarts_at_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_group_embedding_restarts_at_alpha.md) (the real production fit, at the now-fixed alpha, several random restarts). The local, non-Condor equivalent of `condor_workflow.py`’s five-stage architecture; `refit_alpha = FALSE` stops after the warm-start fit |
+| [`fold_alpha_test_to_train()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md) | R/fold_alpha_test_to_train.R | Mechanical `sampleSet` flip at [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)’s own `alpha_test_rows` positions – nothing re-derived. Used by [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)’s step 4 and the Condor `alpha` stage (`condor_fit.R`) alike |
+| [`fit_group_embedding_restarts_at_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_group_embedding_restarts_at_alpha.md) | R/fit_group_embedding_restarts_at_alpha.R | Bypasses [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)’s CKL-only wrapper (`_fit_offline()` directly, same pattern [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md) uses) to fit several independent random restarts at a *fixed*, arbitrary alpha, keeping the lowest test loss. The production final-fit step of [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md) |
 | [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) | R/run_embeddings.R | Per-participant (+ optional group, via `compute_group`) embeddings |
 | [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md) | R/run_embeddings.R | Lower-level CSV-based pipeline; [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md) calls this internally (writes a temp pre-indexed CSV, then calls it) – [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md) does *not*, it calls [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md) directly instead |
 | [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md) | R/estimate_dimensionality.R | Grid search over d with random restarts |
@@ -3427,3 +3434,226 @@ back to the returned matrices.
     `n_alpha_test == floor(alpha_test_frac * n_test)`) at two different
     fractions. `vignettes/embedding_vignette.Rmd` re-knit to confirm it
     still builds with the corrected prose and real re-run numbers.
+- **[`write_triplet_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_triplet_list.md)**
+  (new) – CSV-export counterpart to
+  [`write_embedding_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_embedding_list.md),
+  for triplet data rather than fitted embeddings, added while the user
+  was prepping a real legacy dataset for
+  [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md).
+  Converts a named or unnamed list of per-participant triplet data
+  frames (the standard `Center`/`Left`/`Right`/`Answer`/`worker_id`
+  shape, e.g. `icon_triplets`) into one combined CSV; round-trips
+  through
+  [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
+  (`eflag = FALSE`). `worker_id` is read from each data frame’s own
+  column, not from `names(triplet_list)` – matching
+  [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)’s
+  read-back convention and
+  [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md)/[`assign_validation_from_frequency()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_validation_from_frequency.md)’s
+  existing input convention, since most of this package’s own triplet
+  lists (e.g. `make_fake_triplet_list()`’s fixtures, anything from
+  [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md))
+  aren’t named to begin with. Uses
+  [`dplyr::bind_rows()`](https://dplyr.tidyverse.org/reference/bind_rows.html)
+  rather than [`rbind()`](https://rdrr.io/r/base/cbind.html) so
+  participants don’t need identical columns (a real possibility for
+  legacy data assembled from several sources). No new dependency –
+  `dplyr` was already in Imports.
+- **[`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
+  now also accepts a `triplet_list` (a list of per-participant data
+  frames) directly, not just one combined data frame.** Came up while
+  the user was splitting a legacy dataset into a training pool and a
+  fully held-out set of participants (for final-embedding evaluation, in
+  place of the post-hoc validation-triplet approach
+  [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md)
+  targets, which needs more cross-participant item overlap than this
+  dataset has): assigning `sampleSet` to the training pool meant first
+  combining its list into one data frame, calling
+  [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md),
+  then splitting back – and the obvious way to split back,
+  `split(df, df$worker_id)`, reorders groups alphabetically by
+  `worker_id`, silently shuffling the list’s original order. The user
+  didn’t want to rely on name-based access to route around that, and
+  pointed out the function also didn’t operate on the package’s own
+  standard `triplet_list` container in the first place.
+  - Fixed by dispatching on `is.list(df) && !is.data.frame(df)` to a new
+    internal helper, `assign_sample_sets_list()`, rather than changing
+    the data-frame path at all (so nothing that already calls
+    [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
+    on a combined data frame,
+    e.g. [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md),
+    is affected). The list path tags each element with its original
+    position,
+    [`dplyr::bind_rows()`](https://dplyr.tidyverse.org/reference/bind_rows.html)s
+    once (so the seeded random split is still drawn in one deterministic
+    pass across every participant, exactly as for the
+    combined-data-frame path – not reset per participant, which
+    resetting the seed before each participant would otherwise do), runs
+    the same
+    [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
+    logic, then splits back by that position (not by `worker_id`) and
+    restores the original names – giving back a list of the same length,
+    names, and order as the input, with `sampleSet` added to each
+    element.
+  - Verified the two paths are actually equivalent, not just
+    similarly-shaped: calling this on a list, or on
+    [`dplyr::bind_rows()`](https://dplyr.tidyverse.org/reference/bind_rows.html)
+    of that same list directly with the same `seed`, gives identical
+    per-row `sampleSet` values (locked into
+    `test-assign_sample_sets.R`). Also tested: order/name preservation
+    on a deliberately non-alphabetical-by-worker_id list, correct
+    behavior on an unnamed list (`make_fake_triplet_list()`’s own
+    fixture shape), no stray internal tagging column left in the output,
+    and clear errors on an empty list, a non-data-frame element, or an
+    element missing `worker_id`/`sampleAlg`. Full test suite re-run
+    clean (711 passed) after the change.
+- **[`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
+  now prints a message when it overwrites a pre-existing `sampleSet`
+  column**, after the user asked what happens in that case and confirmed
+  overwrite-not-merge is the right behavior but wanted it to stop being
+  silent. `mutate()` was already overwriting (not merging) a same-named
+  column – this just adds
+  `message("Prior sampleSet values re-assigned.")` when `sampleSet` is
+  already present, on both the data-frame and list-input paths (the list
+  path gets it for free, since `assign_sample_sets_list()` calls back
+  into the same data-frame branch internally). Verified the message
+  fires through both paths and not when `sampleSet` is absent
+  (`expect_no_message`). Full suite re-run clean (717 passed).
+- **The standard group-embedding workflow gained a real 4th/5th step, on
+  both the local and Condor sides: folding the `alpha_test` sub-pool
+  back into training once `alpha` is fixed, then fitting the actual
+  production embedding at that `(d, alpha)` with several random-seed
+  restarts.** This closes a real gap identified while planning the
+  Condor run of this workflow on a real legacy dataset:
+  [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)’s
+  own refit (and `condor_workflow.py`’s stage 3) left `alpha_test` held
+  out forever, even after its only job (estimating `alpha`) was done –
+  pure wasted data, since there’s nothing left for that sub-pool to stay
+  independent *from* once `alpha` is a fixed number. Per the
+  methodological discussion that motivated this (see the
+  [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)/`alpha_test_frac`
+  entry above): `test_fit` keeps governing early stopping on every fit,
+  including this last one; only `alpha_test` gets folded back in, and
+  only once, right at the end.
+  - **New shared R pieces** (used by both the local workflow and the new
+    Condor stage, so there’s exactly one implementation of each, not two
+    that could drift):
+    - [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+      gained `alpha_test_rows` (integer positions into
+      `do.call(rbind, triplet_list)`), threaded through its existing
+      [`sample_internal_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
+      call via an extra tagged column rather than computed separately –
+      purely additive, verified bit-identical against the full existing
+      test suite before any new tests were added. Also fixed a real,
+      independent latent bug exposed by exercising this function at
+      `d = 1` for the first time (new tests needed `dims = 1L` with
+      `refit_alpha = TRUE`, a combination nothing had tried before):
+      `embedding[rows, ]` without `drop = FALSE` degenerates to a plain
+      vector at `d = 1`, breaking the alpha-test distance computation’s
+      [`rowSums()`](https://rdrr.io/r/base/colSums.html) call.
+    - [`fold_alpha_test_to_train()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md)
+      (new, exported) – a mechanical `sampleSet` flip at exactly the
+      positions `alpha_test_rows` names, nothing re-derived (so there’s
+      no risk of drifting out of sync with what `alpha` was actually
+      profiled on, the way independently replaying
+      [`sample_internal_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
+      a second time would risk).
+    - `R/triplet_list_utils.R` (new, internal) – the position-tagging
+      list\<-\>combined-data-frame round-trip (tag each element with its
+      original position,
+      [`dplyr::bind_rows()`](https://dplyr.tidyverse.org/reference/bind_rows.html),
+      later split back by that position rather than by `worker_id`)
+      factored out of `assign_sample_sets_list()` so
+      [`fold_alpha_test_to_train()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md)
+      doesn’t reimplement it a second time.
+    - [`fit_group_embedding_restarts_at_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_group_embedding_restarts_at_alpha.md)
+      (new, exported) – bypasses
+      [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)’s
+      CKL-only wrapper (direct `_fit_offline()` calls,
+      `noise_model = "TSTE"`, `module_kwargs = alpha`, the same pattern
+      [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+      itself already uses) to fit several independent random-seed
+      restarts at a fixed, arbitrary `alpha`, keeping the lowest test
+      loss – deliberately **not** warm-started from anything, since the
+      point of several random seeds is searching different local optima,
+      which a shared warm start would mostly defeat (matching
+      [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)’s
+      own restarts, which also aren’t warm-started).
+  - **[`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)**
+    gained step 4 (`n_restarts_final_final`, default `5L`): fold
+    `alpha_test` back in, then call the new restart function at
+    `(best_d, refit$alpha)`. Return value gains `final_final` – **this,
+    not `final_fit` or `refit$embedding`, is now the production
+    embedding** when `refit_alpha = TRUE`; `final_fit` is relabeled
+    throughout the docs as the crowd-kernel warm-start for step 3, not
+    an answer in its own right. `refit_alpha = FALSE` still stops after
+    the (now explicitly warm-start-only) step 2, same as before.
+  - **Condor side**: `condor_fit.R` gained two new `--stage` values,
+    `alpha` and `final_final`, alongside the original three – extending
+    the single-script-per-workflow convention rather than adding new
+    files, matching how the original three stages already share one
+    script. `--stage=alpha` runs
+    [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+    end to end (warm-started from `--warm_start=<best_embedding.csv>`)
+    as **one** Condor job – no restart grid, since there’s nothing to
+    parallelize at the group level, the same rationale already in that
+    function’s own docstring – and immediately folds the result via
+    [`fold_alpha_test_to_train()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md) +
+    [`write_triplet_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_triplet_list.md),
+    writing `triplet_data_folded.csv`. `--stage=final_final` is
+    structurally identical to `--stage=final` (one restart per job,
+    job-per-restart Condor-level parallelism) but reads the folded data
+    and a fixed `--alpha` instead of fitting under the CKL default, via
+    `fit_group_embedding_restarts_at_alpha(..., n_restarts = 1L)`.
+    - `condor_workflow.py` gained `run_alpha_stage()` (single job,
+      reuses `submit_jobs_with_retry()`’s retry machinery with a
+      one-element job list) and `run_final_final_stage()` (mirrors
+      `run_final_stage()`’s job-per-restart-grid/`pick_best_restart()`
+      pattern almost exactly, just reading `final_final_fit.n_restarts`
+      and writing
+      `best_final_embedding.csv`/`_history.csv`/`_restarts.csv` –
+      distinct names from stage 3’s `best_embedding.csv`, which is now
+      explicitly just the warm-start, not the production answer). Both
+      wired into `main()` right after the existing `run_final_stage()`
+      call, gated by a new top-level `refit_alpha` config field (default
+      `true`) that mirrors the local function’s own argument of the same
+      name – and, also mirroring it, refuses up front (before stages 1-3
+      even run) if `geometry: sphere` and `refit_alpha` isn’t explicitly
+      set to `false`, since
+      [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+      doesn’t support spherical geometry either.
+    - No change needed to `write_submit_file()` – the alpha stage’s
+      several plain output files (no subdirectory, unlike Workflow 4’s
+      `aligned/` output) are already covered by HTCondor’s default
+      “transfer whatever’s new in the sandbox” behavior.
+  - **`params_template.yml`** gained `refit_alpha: true` at the top
+    level, and new `alpha_stage:`/`final_final_fit:` blocks shaped like
+    the existing stage blocks (resources + the handful of forwarded
+    parameters).
+  - **Verified at every level**: full R suite (747 passed) both after
+    the
+    [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
+    refactor alone and after everything else; new R tests for
+    [`fold_alpha_test_to_train()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md)
+    and the
+    [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)
+    step-4 additions (including a direct check that the final-final
+    fit’s training data really does include the folded-back rows, and
+    that more restarts never produce a worse kept loss); 3 new
+    mocked-`condor_submit`/`condor_wait` Python tests
+    (`TestRunAlphaStage`, `TestRunFinalFinalStage`) alongside the
+    existing 30 (33 total, all passing, no real cluster or R involved);
+    and a real `Rscript condor_fit.R --stage=alpha` then
+    `--stage=final_final` smoke test chained by hand against
+    `icon_all_triplets.csv` (via a `--stage=final` run first for the
+    warm start), confirming the full five-stage data flow actually works
+    end to end, not just that each piece type-checks in isolation – this
+    is also what caught that
+    [`write_triplet_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_triplet_list.md)’s
+    output lands relative to R’s working directory (correct once
+    Condor’s `initialdir` is in play, but something a manual smoke test
+    has to replicate explicitly by `cd`-ing into the stage directory
+    first). Both touched vignettes (`embedding_vignette.Rmd`,
+    `condor_workflows_vignette.Rmd`) re-knit via
+    [`knitr::knit()`](https://rdrr.io/pkg/knitr/man/knit.html) to
+    confirm they still build.

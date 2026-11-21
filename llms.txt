@@ -113,6 +113,10 @@ Every vignette is also available from within R/RStudio
   : Find the most frequently repeated triplets across participants
 - [`fit_embedding_restart()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_embedding_restart.md)
   : Fit one embedding restart and summarize it as a single result row
+- [`fit_group_embedding_restarts_at_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_group_embedding_restarts_at_alpha.md)
+  : Fit a group embedding at a fixed alpha with several random restarts
+- [`fold_alpha_test_to_train()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md)
+  : Fold the alpha-profiling sub-pool back into training
 - [`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md)
   : Align multiple embeddings into one shared reference frame
 - [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
@@ -198,7 +202,7 @@ Every vignette is also available from within R/RStudio
   : Compute a group-level embedding from a triplet data list
 - [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)
   : Standard group-embedding workflow: dimensionality, final fit,
-  choice-model refit
+  choice-model refit, final-final fit
 - [`sample_internal_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
   : Split a triplet matrix into a fitting subset and an internal-test
   subset

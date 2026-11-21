@@ -110,13 +110,12 @@ fixed.)</p>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td>Dimensionality search → learning curve → final fit</td>
+<td>Dimensionality search → learning curve → final fit → alpha
+estimation → final-final fit</td>
 <td>Picks an embedding dimension, sanity-checks it against a learning
-curve, and produces a production embedding</td>
-<td>
-<code><a href="../reference/estimate_dimensionality.html">estimate_dimensionality()</a></code> /
-<code><a href="../reference/estimate_learning_curve.html">estimate_learning_curve()</a></code>
-</td>
+curve, estimates the choice-model shape alpha, and produces the real
+production embedding at that alpha</td>
+<td><code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code></td>
 <td>
 <code>condor_workflow.py</code>, <code>condor_fit.R</code>,
 <code>params_template.yml</code>
@@ -530,8 +529,13 @@ embedding fit<a class="anchor" aria-label="anchor" href="#workflow-1-dimensional
 </h2>
 <p>For the common case of “pick a dimension, check it against a learning
 curve, and fit the best embedding,” <code>condor_workflow.py</code> runs
-all three stages back to back, dispatching every individual fit to
-HTCondor as its own job.</p>
+five stages back to back, dispatching every individual fit to HTCondor
+as its own job: dimensionality search, learning curve, a crowd-kernel
+warm-start fit, alpha estimation, and finally the real production fit at
+that alpha. This is the Condor-scale version of
+<code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code>’s four-step recipe
+(<code><a href="../articles/embedding_vignette.html">vignette("embedding_vignette")</a></code>) – see that function’s own
+roxygen for the full statistical rationale behind each step.</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="ex">python3</span> condor_workflow.py triplet_data.csv my_params.yml</span></code></pre></div>
 <p>This produces, in <code>output_dir</code>:</p>
 <table class="table">
@@ -565,39 +569,65 @@ HTCondor as its own job.</p>
 selected above, one Condor job per (fraction, restart)</td>
 </tr>
 <tr class="odd">
-<td><code>best_embedding.csv</code></td>
-<td>The final embedding, fit at <code>best_d</code> on the <em>full</em>
-dataset (item names in the <code>item</code> column)</td>
+<td>
+<code>best_embedding.csv</code> /
+<code>best_embedding_history.csv</code> /
+<code>best_embedding_restarts.csv</code>
+</td>
+<td>Stage 3: the crowd-kernel (alpha = 1) warm-start fit for stage 4 –
+<strong>not</strong> the production embedding when
+<code>refit_alpha</code> (default <code>true</code>) runs stages 4-5;
+see below</td>
 </tr>
 <tr class="even">
-<td><code>best_embedding_history.csv</code></td>
-<td>That final fit’s per-epoch training history (loss, accuracy,
-<code>norm_ratio</code>, …)</td>
+<td>
+<code>alpha_embedding.csv</code> / <code>alpha_history.csv</code> /
+<code>alpha_result.csv</code>
+</td>
+<td>Stage 4: <code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code>’s refit
+embedding/history, and one row with <code>alpha</code>,
+<code>log_alpha</code>, <code>ci_lo</code>, <code>ci_hi</code>,
+<code>n_test_fit</code>, <code>n_alpha_test</code>
+</td>
 </tr>
 <tr class="odd">
-<td><code>best_embedding_restarts.csv</code></td>
-<td>One row per final-fit restart (<code>restart</code>,
-<code>seed</code>, <code>loss</code>), always written (one row when
-<code>final_fit.n_restarts</code> is left at its default of 1) — see
-below</td>
+<td><code>triplet_data_folded.csv</code></td>
+<td>Stage 4’s other output: the triplet data with the
+<code>alpha_test</code> sub-pool folded back into <code>"train"</code>
+(via <code><a href="../reference/fold_alpha_test_to_train.html">fold_alpha_test_to_train()</a></code>) – stage 5’s input</td>
 </tr>
 <tr class="even">
+<td>
+<code>best_final_embedding.csv</code> /
+<code>best_final_embedding_history.csv</code> /
+<code>best_final_embedding_restarts.csv</code>
+</td>
+<td>Stage 5: <strong>the actual production embedding</strong> – fit at
+<code>best_d</code> and the estimated <code>alpha</code>, on the folded
+data, with <code>final_final_fit.n_restarts</code> independent
+restarts</td>
+</tr>
+<tr class="odd">
 <td><code>run_manifest.txt</code></td>
-<td>Package version, input paths, <code>best_d</code>, and final loss,
-for provenance</td>
+<td>Package version, input paths, <code>best_d</code>,
+<code>alpha</code>, and final loss, for provenance</td>
 </tr>
 </tbody>
 </table>
 <p><code>seed</code>, <code>geometry</code>, <code>radius</code>, and
-<code>norm_penalty</code> apply to all three stages, so they describe
-one coherent embedding space throughout;
+<code>norm_penalty</code> apply to all five stages, so they describe one
+coherent embedding space throughout;
 <code>max_epochs</code>/<code>tolerance</code>/<code>tol_window</code>/<code>device</code>/<code>internal_test_frac</code>/Condor
 <code>resources</code> can be overridden per stage — see the comments in
 <code>params_template.yml</code>. See
 <code><a href="../articles/embedding_vignette.html">vignette("embedding_vignette")</a></code> for the full statistical
-rationale behind <code>internal_test_frac</code> and why the final
-embedding is a dedicated fit rather than a reused learning-curve
-restart.</p>
+rationale behind <code>internal_test_frac</code> and why the warm-start
+fit is a dedicated fit rather than a reused learning-curve restart.</p>
+<p>Set <code>refit_alpha: false</code> in the config to stop after stage
+3 (e.g. for <code>geometry: sphere</code>, which
+<code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code> does not support) – in that case
+<code>best_embedding.csv</code> is the production embedding instead, and
+stages 4-5 don’t run at all.</p>
 <p><code>final_fit.n_restarts</code> (default <code>1</code>, preserving
 prior behavior) submits that many Condor jobs for stage 3 — one restart
 each, as a single <code>queue ... from (...)</code> block, exactly like
@@ -615,12 +645,48 @@ afterwards and copies whichever got the lowest test loss to
 restart comparisons, just applied directly rather than folded into a
 <code>summarize_*()</code>-style aggregate (there’s nothing to average
 over here, only one winner to pick).
-<code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code> (the local, non-Condor
-equivalent of this same three-step recipe — see
-<code><a href="../articles/embedding_vignette.html">vignette("embedding_vignette")</a></code>) applies the identical
-restart-and-keep-lowest-loss rule, but necessarily runs its restarts one
-after another in a single R session, since there is no cluster to
-distribute them across locally.</p>
+<code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code> applies the identical
+restart-and-keep-lowest-loss rule locally, but necessarily runs its
+restarts one after another in a single R session, since there is no
+cluster to distribute them across locally.</p>
+<div class="section level3">
+<h3 id="stage-4-alpha-estimation-one-job-not-a-restart-grid">Stage 4 (alpha estimation): one job, not a restart grid<a class="anchor" aria-label="anchor" href="#stage-4-alpha-estimation-one-job-not-a-restart-grid"></a>
+</h3>
+<p>Unlike every other stage, stage 4 submits exactly
+<strong>one</strong> Condor job, not a grid – there is nothing to
+parallelize within it: one embedding, one alpha (see
+<code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code>’s own docstring for why this differs
+from the per-participant joint-manifold workflow, which genuinely does
+have cross-participant work to spread across jobs). That one job runs
+<code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code>’s entire coordinate-ascent loop,
+warm-started from stage 3’s <code>best_embedding.csv</code> (transferred
+in alongside <code>triplet_data.csv</code>), and – its only job done
+once <code>alpha</code> converges – immediately folds the
+<code>alpha_test</code> sub-pool back into training via
+<code><a href="../reference/fold_alpha_test_to_train.html">fold_alpha_test_to_train()</a></code>, writing the result as
+<code>triplet_data_folded.csv</code>.
+<code>alpha_stage.alpha_test_frac</code>/<code>max_outer</code>/<code>tol_log_alpha</code>
+control the same things <code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code>’s own
+arguments of the same name do; see the discussion in
+<code><a href="../articles/embedding_vignette.html">vignette("embedding_vignette")</a></code> on sizing
+<code>alpha_test_frac</code> (and the upstream <code>test_prop</code>
+that sets the size of the pool it splits) for your own dataset.</p>
+</div>
+<div class="section level3">
+<h3 id="stage-5-final-final-fit-the-real-production-embedding">Stage 5 (final-final fit): the real production embedding<a class="anchor" aria-label="anchor" href="#stage-5-final-final-fit-the-real-production-embedding"></a>
+</h3>
+<p>Stage 5 is the real point of running stages 4 and 1-3: it fits the
+embedding you actually use, at the now-fixed
+<code>(best_d, alpha)</code>, on <code>triplet_data_folded.csv</code> –
+which has strictly more training data than any earlier stage saw, since
+<code>alpha_test</code> has been folded in. Same job-per-restart shape
+as stage 3 (<code>final_final_fit.n_restarts</code>, same
+wall-clock-parallelism rationale), same <code>pick_best_restart()</code>
+selection, but bypassing <code><a href="../reference/train_embedding.html">train_embedding()</a></code>’s CKL-only
+wrapper the same way stage 4 does (<code>_fit_offline()</code> directly,
+<code>module_kwargs = alpha</code>) since the whole point is fitting
+under a real, non-default choice-model shape.</p>
+</div>
 <div class="section level3">
 <h3 id="recomputing-a-summary-yourself-without-refitting-anything">Recomputing a summary yourself, without refitting anything<a class="anchor" aria-label="anchor" href="#recomputing-a-summary-yourself-without-refitting-anything"></a>
 </h3>

@@ -69,9 +69,10 @@ both sets.</p>
 
 
 <dl><dt id="arg-df">df<a class="anchor" aria-label="anchor" href="#arg-df"></a></dt>
-<dd><p>Data frame with columns <code>worker_id</code> and <code>sampleAlg</code>.
-<code>sampleAlg</code> must contain the values <code>"check"</code>,
-<code>"random"</code>, and/or <code>"validation"</code>.</p></dd>
+<dd><p>Either a single data frame with columns <code>worker_id</code> and
+<code>sampleAlg</code>, or a list of such data frames (one per participant)
+– see <em>List input</em> below. <code>sampleAlg</code> must contain the
+values <code>"check"</code>, <code>"random"</code>, and/or <code>"validation"</code>.</p></dd>
 
 
 <dt id="arg-test-prop">test_prop<a class="anchor" aria-label="anchor" href="#arg-test-prop"></a></dt>
@@ -92,10 +93,12 @@ for reproducibility. Default: <code>42</code>.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>The input data frame with an additional character column
-<code>sampleSet</code> containing <code>"train"</code>, <code>"test"</code>, or
-<code>NA</code> (for catch trials, and for validation trials when
-<code>validation_mode = "holdout"</code>).</p>
+    <p>If <code>df</code> is a data frame: the same data frame with an
+additional character column <code>sampleSet</code> containing <code>"train"</code>,
+<code>"test"</code>, or <code>NA</code> (for catch trials, and for validation
+trials when <code>validation_mode = "holdout"</code>). If <code>df</code> is a
+list: a list of the same length, names, and order, each element with
+<code>sampleSet</code> added the same way – see <em>List input</em> above.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -110,6 +113,10 @@ approximately, as an i.i.d. Bernoulli draw per trial would give – and
 participants with different trial counts still get matched
 <em>proportions</em>, with the exact per-participant count controlled by
 rounding. Setting <code>seed</code> ensures the assignment is reproducible.</p>
+<p>If <code>df</code> already has a <code>sampleSet</code> column, it is overwritten
+(not merged with) by the newly-computed split, and a message
+(<code>"Prior sampleSet values re-assigned."</code>) is printed so this isn't
+silent.</p>
     </div>
     <div class="section level2">
     <h2 id="validation-trials">Validation trials<a class="anchor" aria-label="anchor" href="#validation-trials"></a></h2>
@@ -138,6 +145,29 @@ uses. <code><a href="set_validation_behavior.html">set_validation_behavior</a></
 for data that's already been through this function, without redoing
 the <code>"random"</code>-trial split.</p>
     </div>
+    <div class="section level2">
+    <h2 id="list-input">List input<a class="anchor" aria-label="anchor" href="#list-input"></a></h2>
+
+
+<p><code>df</code> can also be a list of per-participant data frames – this
+package's standard <code>triplet_list</code> container (e.g.
+<code><a href="icon_triplets.html">icon_triplets</a></code>), each with its own <code>worker_id</code> and
+<code>sampleAlg</code> columns – instead of one combined data frame. The
+result is then a list of the same length, names, and <strong>order</strong> as
+<code>df</code>, each with <code>sampleSet</code> added, rather than a single
+combined data frame. This is not just a convenience wrapper that
+<code><a href="https://dplyr.tidyverse.org/reference/bind_rows.html" class="external-link">bind_rows</a></code>es the list and <code><a href="https://rdrr.io/r/base/split.html" class="external-link">split</a></code>s it
+back up – <code><a href="https://rdrr.io/r/base/split.html" class="external-link">split()</a></code> reorders groups by factor level (alphabetical
+by <code>worker_id</code> by default), which would silently reshuffle the
+list's original order; this path combines once internally (so the
+seeded random split is drawn in a single deterministic pass across every
+participant, exactly as for the combined-data-frame path, not reset per
+participant) and splits back by original list position instead, so the
+input list's order and names are preserved exactly. The random
+assignment itself is identical either way: calling this on a list, or on
+<code><a href="https://dplyr.tidyverse.org/reference/bind_rows.html" class="external-link">bind_rows</a>(df)</code> directly with the same <code>seed</code>,
+gives the same per-row <code>sampleSet</code> values.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
@@ -152,6 +182,9 @@ the <code>"random"</code>-trial split.</p>
 <span class="r-in"><span><span class="co"># Exclude them from training and model selection entirely, for use as a</span></span></span>
 <span class="r-in"><span><span class="co"># clean final evaluation set via get.hoacc(trialtype = "validation"):</span></span></span>
 <span class="r-in"><span><span class="fu">assign_sample_sets</span><span class="op">(</span><span class="va">d</span>, test_prop <span class="op">=</span> <span class="fl">0.2</span>, seed <span class="op">=</span> <span class="fl">1</span>, validation_mode <span class="op">=</span> <span class="st">"holdout"</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Or operate directly on a standard triplet_list, order/names preserved:</span></span></span>
+<span class="r-in"><span><span class="fu">assign_sample_sets</span><span class="op">(</span><span class="va">icon_triplets</span>, test_prop <span class="op">=</span> <span class="fl">0.2</span>, seed <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>

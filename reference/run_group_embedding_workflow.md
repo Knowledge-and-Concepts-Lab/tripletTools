@@ -1,6 +1,6 @@
-# Standard group-embedding workflow: dimensionality, final fit, choice-model refit
+# Standard group-embedding workflow: dimensionality, final fit, choice-model refit, final-final fit
 
-Chains together the three steps of this package's standard recipe for
+Chains together the four steps of this package's standard recipe for
 producing a production group embedding:
 
 1.  **Dimensionality.**
@@ -8,13 +8,14 @@ producing a production group embedding:
     searches over `dims` under the crowd-kernel choice model (\\\alpha =
     1\\), selecting `best_d` via its one-standard-error rule.
 
-2.  **Final fit.**
+2.  **Final fit (warm start for step 3).**
     [`run_group_embedding_from_list`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
     is called `n_restarts_final` times at `best_d`, each from an
     independent random initialization, keeping whichever restart
     achieves the lowest test loss. This is a dedicated refit, not a
     reuse of one of the embeddings fitted during step 1 – see the *Why a
-    dedicated final fit* section below.
+    dedicated final fit* section below. Its only job is seeding step 3;
+    it is not the production embedding (see step 4).
 
 3.  **Choice-model refit.**
     [`estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
@@ -28,6 +29,20 @@ producing a production group embedding:
     this whole function, free to serve as an honest final-quality check
     afterward.
 
+4.  **Final-final fit, the actual production embedding.** Once
+    \\\alpha\\ is fixed, the `alpha_test` sub-pool step 3 profiled it on
+    has no further job to do – holding it out any longer only costs
+    training data for no remaining benefit.
+    [`fold_alpha_test_to_train`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md)
+    folds it back into training (the remaining `test_fit` sub-pool stays
+    held out, still governing early stopping), and
+    [`fit_group_embedding_restarts_at_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_group_embedding_restarts_at_alpha.md)
+    fits `n_restarts_final_final` independent random-seed embeddings at
+    the now-fixed `(best_d, alpha)`, keeping the lowest test loss – the
+    same restart-and-keep-best rule as step 2, just at the real
+    choice-model shape instead of the crowd-kernel default, and on more
+    data than step 2 had (since `alpha_test` has been folded back in).
+
 ## Usage
 
 ``` r
@@ -36,6 +51,7 @@ run_group_embedding_workflow(
   dims = 1:8,
   n_restarts_dim = 10L,
   n_restarts_final = 5L,
+  n_restarts_final_final = 5L,
   internal_test_frac = 0.1,
   max_epochs = 50000L,
   tolerance = 1e-04,
@@ -86,6 +102,13 @@ run_group_embedding_workflow(
   uses seed `seed + (r - 1) * 1000`, the same restart-seed formula used
   throughout this package's Condor workflows.
 
+- n_restarts_final_final:
+
+  Independent random restarts for the production final-final fit in step
+  4; the restart with the lowest test loss is kept. Default `5L`.
+  Ignored if `refit_alpha = FALSE` (there is no fixed \\\alpha\\ to fit
+  at).
+
 - internal_test_frac, max_epochs, tolerance, tol_window, device,
   norm_penalty:
 
@@ -96,14 +119,16 @@ run_group_embedding_workflow(
   (step 2); `max_epochs`, `tolerance`, `tol_window`, `device`, and
   `norm_penalty` are also forwarded to
   [`estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
-  (step 3). `internal_test_frac` is only used by step 1 (see that
+  (step 3) and
+  [`fit_group_embedding_restarts_at_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_group_embedding_restarts_at_alpha.md)
+  (step 4). `internal_test_frac` is only used by step 1 (see that
   function's own documentation).
 
 - seed:
 
-  Base integer seed. Step 1 receives it directly; step 2's restarts
-  derive `seed + (r - 1) * 1000` from it; step 3 receives it directly as
-  its own `seed`.
+  Base integer seed. Step 1 receives it directly; step 2's and step 4's
+  restarts each derive `seed + (r - 1) * 1000` from it; step 3 receives
+  it directly as its own `seed`.
 
 - geometry:
 
@@ -128,9 +153,10 @@ run_group_embedding_workflow(
 
 - refit_alpha:
 
-  Logical; if `TRUE` (default), run step 3. Set to `FALSE` to stop after
-  the final fit (step 2), e.g. for a quicker crowd-kernel-only
-  production embedding.
+  Logical; if `TRUE` (default), run steps 3-4. Set to `FALSE` to stop
+  after the final fit (step 2), e.g. for a quicker crowd-kernel-only
+  production embedding – in that case step 2's own `final_fit` is the
+  production embedding instead of step 4's `final_final`.
 
 - alpha_test_frac, max_outer, tol_log_alpha, alpha_grid:
 
@@ -141,14 +167,15 @@ run_group_embedding_workflow(
 - verbose:
 
   Logical; print a progress line at the start of each step and for each
-  final-fit restart. Default `TRUE`. Forwarded to
-  [`estimate_dimensionality`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
+  final-fit/final-final-fit restart. Default `TRUE`. Forwarded to
+  [`estimate_dimensionality`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md),
+  [`estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md),
   and
-  [`estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md).
+  [`fit_group_embedding_restarts_at_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_group_embedding_restarts_at_alpha.md).
 
 ## Value
 
-A named list with four elements:
+A named list with five elements:
 
 - `dimensionality`:
 
@@ -166,14 +193,24 @@ A named list with four elements:
   The winning restart's return value from
   [`run_group_embedding_from_list`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
   (step 2): `embedding`, `loss`, `history` – the crowd-kernel (\\\alpha
-  = 1\\) production embedding at `best_d`.
+  = 1\\) warm-start fit for step 3, **not** the production embedding
+  when `refit_alpha = TRUE` (see `final_final` below).
 
 - `refit`:
 
   `NULL` if `refit_alpha = FALSE`; otherwise the return value of
   [`estimate_group_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
-  (step 3): `embedding` (the refit geometry), `alpha`, `log_alpha`,
-  `ci`, `history`.
+  (step 3): `embedding` (the refit geometry, itself superseded by
+  `final_final`), `alpha`, `log_alpha`, `ci`, `history`,
+  `alpha_test_rows`.
+
+- `final_final`:
+
+  `NULL` if `refit_alpha = FALSE`; otherwise the return value of
+  [`fit_group_embedding_restarts_at_alpha`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_group_embedding_restarts_at_alpha.md)
+  (step 4): `embedding`, `loss`, `epoch`, `history`, `restart`,
+  `restarts` – **this is the production embedding**, fit at `best_d` and
+  `refit$alpha` with `alpha_test` folded back into training.
 
 ## Why a dedicated final fit
 
@@ -229,12 +266,13 @@ out <- run_group_embedding_workflow(
   n_restarts_final = 5L
 )
 out$best_d
-out$final_fit$embedding       # crowd-kernel (alpha = 1) production embedding
-out$refit$embedding           # choice-model-refit embedding
-out$refit$alpha               # estimated choice-model shape parameter
+out$refit$alpha                 # estimated choice-model shape parameter
+out$final_final$embedding       # the production embedding (fit at best_d, refit$alpha)
+out$final_fit$embedding         # crowd-kernel (alpha = 1) warm-start fit for step 3, not the production embedding
 
 # Stop after the final fit, e.g. for a quicker crowd-kernel-only embedding
 out2 <- run_group_embedding_workflow(icon_triplets, refit_alpha = FALSE)
-out2$refit  # NULL
+out2$refit        # NULL
+out2$final_final  # NULL -- out2$final_fit$embedding is the production embedding here
 } # }
 ```

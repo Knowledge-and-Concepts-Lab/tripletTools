@@ -108,9 +108,10 @@ fit</td>
 </tr>
 <tr class="odd">
 <td><code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code></td>
-<td>Chains the three functions above into this package’s standard
-group-embedding recipe: select <code>d</code>, fit a dedicated final
-embedding (with restarts), refine its choice-model shape</td>
+<td>Chains this package’s standard group-embedding recipe: select
+<code>d</code>, fit a warm-start embedding (with restarts), refine its
+choice-model shape, then fit the real production embedding at that shape
+(with restarts)</td>
 </tr>
 <tr class="even">
 <td><code><a href="../reference/run_embeddings_from_list.html">run_embeddings_from_list()</a></code></td>
@@ -349,47 +350,54 @@ joint estimation in
 <div class="section level3">
 <h3 id="locking-down-the-standard-group-embedding-workflow">Locking down the standard group-embedding workflow<a class="anchor" aria-label="anchor" href="#locking-down-the-standard-group-embedding-workflow"></a>
 </h3>
-<p>The three steps above — select a dimensionality, fit the production
-embedding, refine its choice-model shape — are exactly this package’s
-standard recipe for a group embedding, and
-<code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code> chains them for you:</p>
+<p>The steps above — select a dimensionality, fit a warm-start
+embedding, refine its choice-model shape, then fit the real production
+embedding at the now-fixed shape — are exactly this package’s standard
+recipe for a group embedding, and
+<code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code> chains all four for you:</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">out</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow</a></span><span class="op">(</span></span>
-<span>  triplet_list     <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
-<span>  dims             <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span>
-<span>  n_restarts_dim   <span class="op">=</span> <span class="fl">10L</span>,   <span class="co"># estimate_dimensionality()'s own n_restarts</span></span>
-<span>  n_restarts_final <span class="op">=</span> <span class="fl">5L</span>     <span class="co"># independent restarts for the dedicated final fit</span></span>
+<span>  triplet_list           <span class="op">=</span> <span class="va">icon_triplets</span>,</span>
+<span>  dims                   <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span>
+<span>  n_restarts_dim         <span class="op">=</span> <span class="fl">10L</span>,   <span class="co"># estimate_dimensionality()'s own n_restarts</span></span>
+<span>  n_restarts_final       <span class="op">=</span> <span class="fl">5L</span>,    <span class="co"># independent restarts for the warm-start fit (step 2)</span></span>
+<span>  n_restarts_final_final <span class="op">=</span> <span class="fl">5L</span>     <span class="co"># independent restarts for the production fit (step 4)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">out</span><span class="op">$</span><span class="va">best_d</span>           <span class="co"># selected dimensionality</span></span>
-<span><span class="va">out</span><span class="op">$</span><span class="va">final_fit</span><span class="op">$</span><span class="va">embedding</span>  <span class="co"># crowd-kernel (alpha = 1) production embedding at best_d</span></span>
-<span><span class="va">out</span><span class="op">$</span><span class="va">refit</span><span class="op">$</span><span class="va">embedding</span>      <span class="co"># choice-model-refit embedding</span></span>
-<span><span class="va">out</span><span class="op">$</span><span class="va">refit</span><span class="op">$</span><span class="va">alpha</span>          <span class="co"># estimated choice-model shape parameter</span></span></code></pre></div>
-<p>Two things this wrapper does beyond simply calling the three
-functions in sequence, in case you are assembling the pipeline yourself
-instead: the final fit (step 2) is a <em>dedicated</em> refit at
-<code>best_d</code> — run <code>n_restarts_final</code> times from
-independent random initializations, keeping whichever restart gets the
-lowest test loss — not a reuse of whichever embedding happened to win
-during the dimensionality search itself. That search already spends its
-own restart budget on every dimension in <code>dims</code>, so a
-dedicated final-fit step is the cheapest place in the whole workflow to
-spend <em>extra</em> restart budget on the one embedding that is
-actually used downstream. See
+<span><span class="va">out</span><span class="op">$</span><span class="va">best_d</span>                <span class="co"># selected dimensionality</span></span>
+<span><span class="va">out</span><span class="op">$</span><span class="va">refit</span><span class="op">$</span><span class="va">alpha</span>            <span class="co"># estimated choice-model shape parameter</span></span>
+<span><span class="va">out</span><span class="op">$</span><span class="va">final_final</span><span class="op">$</span><span class="va">embedding</span>  <span class="co"># the production embedding (fit at best_d, refit$alpha)</span></span>
+<span><span class="va">out</span><span class="op">$</span><span class="va">final_fit</span><span class="op">$</span><span class="va">embedding</span>    <span class="co"># crowd-kernel (alpha = 1) warm-start fit for step 3 -- not the production embedding</span></span></code></pre></div>
+<p>Two things worth knowing if you’re assembling the pipeline yourself
+instead of calling the wrapper: first, both the step-2 warm-start fit
+and the step-4 production fit are <em>dedicated</em> refits — each run
+<code>n_restarts_final</code>/<code>n_restarts_final_final</code> times
+from independent random initializations, keeping whichever restart gets
+the lowest test loss — not a reuse of whichever embedding happened to
+win during the dimensionality search. See
 <code><a href="../reference/run_group_embedding_workflow.html">?run_group_embedding_workflow</a></code>’s <em>Why a dedicated final
 fit</em> section for the full reasoning, which mirrors
-<code>inst/condor/condor_workflow.py</code>’s own three-stage
-architecture (<code><a href="../articles/condor_workflows_vignette.html">vignette("condor_workflows_vignette")</a></code>) — that
-Condor workflow’s final stage gained the identical
-restart-and-keep-lowest-loss logic (<code>final_fit.n_restarts</code> in
-its own config) for the same reason.</p>
-<p>Pass <code>refit_alpha = FALSE</code> to stop after the final fit
-(<code>out$refit</code> is then <code>NULL</code>) if you just want a
-quicker crowd-kernel-only production embedding —
-<code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code> no longer requires
-<code>sampleAlg == "validation"</code> trials (see the previous
-section), so this is purely a time/thoroughness tradeoff now, not a data
-requirement.</p>
+<code>inst/condor/condor_workflow.py</code>’s own Condor architecture
+(<code><a href="../articles/condor_workflows_vignette.html">vignette("condor_workflows_vignette")</a></code>) stage for
+stage.</p>
+<p>Second, step 4 is not just “refit once more” – it first folds the
+<code>alpha_test</code> sub-pool step 3 profiled <code>alpha</code> on
+back into training (<code><a href="../reference/fold_alpha_test_to_train.html">fold_alpha_test_to_train()</a></code>), since that
+sub-pool’s only job is done once <code>alpha</code> is fixed and holding
+it out any longer only costs training data for nothing. The result
+(<code>out$final_final</code>) is fit on more data than
+<code>out$refit</code>/<code>out$final_fit</code> ever saw, at the real
+estimated <code>alpha</code> instead of the crowd-kernel default — it is
+the embedding you actually want to use downstream, not
+<code>out$final_fit</code> or <code>out$refit$embedding</code>.</p>
+<p>Pass <code>refit_alpha = FALSE</code> to stop after the warm-start
+fit (<code>out$refit</code>/<code>out$final_final</code> are then both
+<code>NULL</code>, and <code>out$final_fit$embedding</code> becomes the
+production embedding instead) if you just want a quicker
+crowd-kernel-only embedding — <code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code> no
+longer requires <code>sampleAlg == "validation"</code> trials (see the
+previous section), so this is purely a time/thoroughness tradeoff now,
+not a data requirement.</p>
 <hr>
 </div>
 </div>

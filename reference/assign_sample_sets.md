@@ -19,8 +19,10 @@ assign_sample_sets(
 
 - df:
 
-  Data frame with columns `worker_id` and `sampleAlg`. `sampleAlg` must
-  contain the values `"check"`, `"random"`, and/or `"validation"`.
+  Either a single data frame with columns `worker_id` and `sampleAlg`,
+  or a list of such data frames (one per participant) – see *List input*
+  below. `sampleAlg` must contain the values `"check"`, `"random"`,
+  and/or `"validation"`.
 
 - test_prop:
 
@@ -41,9 +43,12 @@ assign_sample_sets(
 
 ## Value
 
-The input data frame with an additional character column `sampleSet`
-containing `"train"`, `"test"`, or `NA` (for catch trials, and for
-validation trials when `validation_mode = "holdout"`).
+If `df` is a data frame: the same data frame with an additional
+character column `sampleSet` containing `"train"`, `"test"`, or `NA`
+(for catch trials, and for validation trials when
+`validation_mode = "holdout"`). If `df` is a list: a list of the same
+length, names, and order, each element with `sampleSet` added the same
+way – see *List input* above.
 
 ## Details
 
@@ -58,6 +63,11 @@ trial would give – and participants with different trial counts still
 get matched *proportions*, with the exact per-participant count
 controlled by rounding. Setting `seed` ensures the assignment is
 reproducible.
+
+If `df` already has a `sampleSet` column, it is overwritten (not merged
+with) by the newly-computed split, and a message
+(`"Prior sampleSet values re-assigned."`) is printed so this isn't
+silent.
 
 ## Validation trials
 
@@ -83,6 +93,30 @@ validation rows never consume any of the random draws `test_prop` uses.
 offers the same three modes for data that's already been through this
 function, without redoing the `"random"`-trial split.
 
+## List input
+
+`df` can also be a list of per-participant data frames – this package's
+standard `triplet_list` container (e.g.
+[`icon_triplets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_triplets.md)),
+each with its own `worker_id` and `sampleAlg` columns – instead of one
+combined data frame. The result is then a list of the same length,
+names, and **order** as `df`, each with `sampleSet` added, rather than a
+single combined data frame. This is not just a convenience wrapper that
+[`bind_rows`](https://dplyr.tidyverse.org/reference/bind_rows.html)es
+the list and [`split`](https://rdrr.io/r/base/split.html)s it back up –
+[`split()`](https://rdrr.io/r/base/split.html) reorders groups by factor
+level (alphabetical by `worker_id` by default), which would silently
+reshuffle the list's original order; this path combines once internally
+(so the seeded random split is drawn in a single deterministic pass
+across every participant, exactly as for the combined-data-frame path,
+not reset per participant) and splits back by original list position
+instead, so the input list's order and names are preserved exactly. The
+random assignment itself is identical either way: calling this on a
+list, or on
+[`bind_rows`](https://dplyr.tidyverse.org/reference/bind_rows.html)`(df)`
+directly with the same `seed`, gives the same per-row `sampleSet`
+values.
+
 ## Examples
 
 ``` r
@@ -97,5 +131,8 @@ assign_sample_sets(d, test_prop = 0.2, seed = 1, validation_mode = "test")
 # Exclude them from training and model selection entirely, for use as a
 # clean final evaluation set via get.hoacc(trialtype = "validation"):
 assign_sample_sets(d, test_prop = 0.2, seed = 1, validation_mode = "holdout")
+
+# Or operate directly on a standard triplet_list, order/names preserved:
+assign_sample_sets(icon_triplets, test_prop = 0.2, seed = 1)
 } # }
 ```
