@@ -12,9 +12,10 @@ assign_sample_sets(
 )
 }
 \arguments{
-\item{df}{Data frame with columns \code{worker_id} and \code{sampleAlg}.
-\code{sampleAlg} must contain the values \code{"check"},
-\code{"random"}, and/or \code{"validation"}.}
+\item{df}{Either a single data frame with columns \code{worker_id} and
+\code{sampleAlg}, or a list of such data frames (one per participant)
+-- see \emph{List input} below. \code{sampleAlg} must contain the
+values \code{"check"}, \code{"random"}, and/or \code{"validation"}.}
 
 \item{test_prop}{Numeric between 0 and 1. Proportion of non-check,
 non-validation trials to assign to the test set. Default: \code{0.2}.}
@@ -27,10 +28,12 @@ for reproducibility. Default: \code{42}.}
 "validation"} trials are routed. See \emph{Validation trials} below.}
 }
 \value{
-The input data frame with an additional character column
-\code{sampleSet} containing \code{"train"}, \code{"test"}, or
-\code{NA} (for catch trials, and for validation trials when
-\code{validation_mode = "holdout"}).
+If \code{df} is a data frame: the same data frame with an
+additional character column \code{sampleSet} containing \code{"train"},
+\code{"test"}, or \code{NA} (for catch trials, and for validation
+trials when \code{validation_mode = "holdout"}). If \code{df} is a
+list: a list of the same length, names, and order, each element with
+\code{sampleSet} added the same way -- see \emph{List input} above.
 }
 \description{
 Randomly assigns each non-catch trial to either a training set or a test
@@ -77,6 +80,28 @@ for data that's already been through this function, without redoing
 the \code{"random"}-trial split.
 }
 
+\section{List input}{
+
+\code{df} can also be a list of per-participant data frames -- this
+package's standard \code{triplet_list} container (e.g.
+\code{\link{icon_triplets}}), each with its own \code{worker_id} and
+\code{sampleAlg} columns -- instead of one combined data frame. The
+result is then a list of the same length, names, and \strong{order} as
+\code{df}, each with \code{sampleSet} added, rather than a single
+combined data frame. This is not just a convenience wrapper that
+\code{\link[dplyr]{bind_rows}}es the list and \code{\link{split}}s it
+back up -- \code{split()} reorders groups by factor level (alphabetical
+by \code{worker_id} by default), which would silently reshuffle the
+list's original order; this path combines once internally (so the
+seeded random split is drawn in a single deterministic pass across every
+participant, exactly as for the combined-data-frame path, not reset per
+participant) and splits back by original list position instead, so the
+input list's order and names are preserved exactly. The random
+assignment itself is identical either way: calling this on a list, or on
+\code{\link[dplyr]{bind_rows}(df)} directly with the same \code{seed},
+gives the same per-row \code{sampleSet} values.
+}
+
 \examples{
 \dontrun{
 d <- data.frame(
@@ -89,6 +114,9 @@ assign_sample_sets(d, test_prop = 0.2, seed = 1, validation_mode = "test")
 # Exclude them from training and model selection entirely, for use as a
 # clean final evaluation set via get.hoacc(trialtype = "validation"):
 assign_sample_sets(d, test_prop = 0.2, seed = 1, validation_mode = "holdout")
+
+# Or operate directly on a standard triplet_list, order/names preserved:
+assign_sample_sets(icon_triplets, test_prop = 0.2, seed = 1)
 }
 
 }

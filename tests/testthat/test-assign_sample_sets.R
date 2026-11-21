@@ -89,3 +89,55 @@ test_that("a participant with zero random trials doesn't error", {
   d <- data.frame(worker_id = "p1", sampleAlg = "check")
   expect_no_error(assign_sample_sets(d, test_prop = 0.2, seed = 1))
 })
+
+test_that("list input gives the same per-row sampleSet as bind_rows() + the data-frame path", {
+  trips <- list(
+    z = data.frame(worker_id = "z", sampleAlg = rep("random", 10)),
+    a = data.frame(worker_id = "a", sampleAlg = rep("random", 10))
+  )
+  res_list <- assign_sample_sets(trips, test_prop = 0.3, seed = 1)
+  res_df   <- assign_sample_sets(dplyr::bind_rows(trips), test_prop = 0.3, seed = 1)
+
+  expect_identical(dplyr::bind_rows(res_list)$sampleSet, res_df$sampleSet)
+})
+
+test_that("list input preserves the input list's order and names, not alphabetical by worker_id", {
+  trips <- list(
+    z_participant = data.frame(worker_id = "z", sampleAlg = rep("random", 5)),
+    a_participant = data.frame(worker_id = "a", sampleAlg = rep("random", 5))
+  )
+  res <- assign_sample_sets(trips, test_prop = 0.2, seed = 1)
+
+  expect_identical(names(res), c("z_participant", "a_participant"))
+  expect_equal(length(res), 2)
+})
+
+test_that("list input works and stays unnamed on an unnamed triplet_list", {
+  trips <- make_fake_triplet_list(n_participants = 3L, n_items = 5L, n_trials = 10L, seed = 1L)
+  expect_null(names(trips))
+
+  res <- assign_sample_sets(trips, test_prop = 0.2, seed = 1)
+
+  expect_null(names(res))
+  expect_equal(length(res), 3)
+  expect_true(all(vapply(res, function(d) "sampleSet" %in% names(d), logical(1))))
+})
+
+test_that("list input returns each element with sampleSet added and no stray index column", {
+  trips <- list(p1 = data.frame(worker_id = "p1", sampleAlg = rep("random", 8)))
+  res <- assign_sample_sets(trips, test_prop = 0.25, seed = 1)
+
+  expect_false(".assign_sample_sets_idx" %in% names(res[["p1"]]))
+  expect_equal(sum(res[["p1"]]$sampleSet == "test"), 2)
+})
+
+test_that("list input errors clearly on malformed input", {
+  expect_error(assign_sample_sets(list()), "empty")
+  expect_error(assign_sample_sets(list(1:3)), "data frame")
+
+  no_worker_id <- data.frame(sampleAlg = "random")
+  expect_error(assign_sample_sets(list(no_worker_id)), "worker_id")
+
+  no_sample_alg <- data.frame(worker_id = "p1")
+  expect_error(assign_sample_sets(list(no_sample_alg)), "sampleAlg")
+})
