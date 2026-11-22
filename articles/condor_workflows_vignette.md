@@ -425,11 +425,11 @@ with execute nodes, and worth looking at directly (`condor_q -held`,
 ## Workflow 1: Dimensionality search, learning curve, and final embedding fit
 
 For the common case of “pick a dimension, check it against a learning
-curve, and fit the best embedding,” `condor_workflow.py` runs five
-stages back to back, dispatching every individual fit to HTCondor as its
-own job: dimensionality search, learning curve, a crowd-kernel
-warm-start fit, alpha estimation, and finally the real production fit at
-that alpha. This is the Condor-scale version of
+curve, and fit the best embedding,” `condor_workflow.py` runs six stages
+back to back, dispatching every individual fit to HTCondor as its own
+job: dimensionality search, learning curve, a crowd-kernel warm-start
+fit, alpha estimation, the real production fit at that alpha, and
+finally a summary report. This is the Condor-scale version of
 [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)’s
 four-step recipe
 ([`vignette("embedding_vignette")`](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/embedding_vignette.md))
@@ -445,12 +445,13 @@ This produces, in `output_dir`:
 | File | Contents |
 |----|----|
 | `dimensionality_results.csv` / `dimensionality_summary.csv` | [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)’s `results`/`summary`, one Condor job per (dimension, restart) |
-| `learning_curve_results.csv` / `learning_curve_summary.csv` | [`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)’s `results`/`summary`, at the `best_d` selected above, one Condor job per (fraction, restart) |
+| `learning_curve_results.csv` / `learning_curve_summary.csv` | [`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)’s `results`/`summary`, at the `best_d` selected above, one Condor job per (fraction, restart) – not written if `run_learning_curve: false` |
 | `best_embedding.csv` / `best_embedding_history.csv` / `best_embedding_restarts.csv` | Stage 3: the crowd-kernel (alpha = 1) warm-start fit for stage 4 – **not** the production embedding when `refit_alpha` (default `true`) runs stages 4-5; see below |
 | `alpha_embedding.csv` / `alpha_history.csv` / `alpha_result.csv` | Stage 4: [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)’s refit embedding/history, and one row with `alpha`, `log_alpha`, `ci_lo`, `ci_hi`, `n_test_fit`, `n_alpha_test` |
 | `triplet_data_folded.csv` | Stage 4’s other output: the triplet data with the `alpha_test` sub-pool folded back into `"train"` (via [`fold_alpha_test_to_train()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md)) – stage 5’s input |
 | `best_final_embedding.csv` / `best_final_embedding_history.csv` / `best_final_embedding_restarts.csv` | Stage 5: **the actual production embedding** – fit at `best_d` and the estimated `alpha`, on the folded data, with `final_final_fit.n_restarts` independent restarts |
 | `run_manifest.txt` | Package version, input paths, `best_d`, `alpha`, and final loss, for provenance |
+| `summary.md` / `summary_files/` | Stage 6: [`summarize_group_embedding_run()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_group_embedding_run.md)’s own Markdown report (one section per stage, with plots) and its sibling figure directory – not written if `generate_summary: false` |
 
 `seed`, `geometry`, `radius`, and `norm_penalty` apply to all five
 stages, so they describe one coherent embedding space throughout;
@@ -467,6 +468,23 @@ Set `refit_alpha: false` in the config to stop after stage 3 (e.g. for
 [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
 does not support) – in that case `best_embedding.csv` is the production
 embedding instead, and stages 4-5 don’t run at all.
+
+Set `run_learning_curve: false` to skip stage 2 entirely – it’s purely
+diagnostic (how much data is enough at the selected `best_d`) and
+nothing in stages 3-5 reads
+`learning_curve_results.csv`/`learning_curve_summary.csv`, so there’s no
+downstream effect beyond those two files not being written. Useful once
+a dataset’s learning curve has already been checked, or whenever only
+the production embedding is needed.
+
+Set `generate_summary: false` to skip stage 6 – e.g. if you plan to call
+[`summarize_group_embedding_run()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_group_embedding_run.md)
+yourself afterward with non-default arguments (a custom `item_colors`
+vector, say). It runs regardless of whether stages 2 or 4-5 themselves
+ran;
+[`summarize_group_embedding_run()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_group_embedding_run.md)
+already detects which of their output files are present and writes a
+short note in place of a skipped stage’s section rather than failing.
 
 `final_fit.n_restarts` (default `1`, preserving prior behavior) submits
 that many Condor jobs for stage 3 — one restart each, as a single
@@ -526,6 +544,33 @@ but bypassing
 CKL-only wrapper the same way stage 4 does (`_fit_offline()` directly,
 `module_kwargs = alpha`) since the whole point is fitting under a real,
 non-default choice-model shape.
+
+### Stage 6 (summary report): one job, run inside the container
+
+Stage 6 runs
+[`summarize_group_embedding_run()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_group_embedding_run.md)
+([`?summarize_group_embedding_run`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_group_embedding_run.md))
+against whichever of stages 1-5’s own output files exist directly in
+`output_dir`, producing `summary.md` and a sibling `summary_files/` of
+PNGs – the same report you could otherwise generate by hand once a run
+finishes, just run automatically as one more Condor job so it happens
+without any further action. Like stage 4, this is a single job (nothing
+to parallelize – there’s one report to render, not several). It runs
+inside the container (same `docker://.../triplettools` image as every
+other stage) rather than locally on the submit node once
+`condor_workflow.py` itself finishes, for the same reason
+`condor_joint_manifold_update.R` had to move off the submit node in an
+earlier workflow: R is not assumed to be installed there, only Python
+and this script.
+
+Because `summary_files/` is a directory, not a plain file, it needs an
+explicit `transfer_output_files` entry in its submit file – HTCondor’s
+default “send back whatever’s new in the sandbox” output transfer
+reliably picks up new plain files but does not reliably recurse into a
+newly-created subdirectory otherwise (the same pitfall documented for
+the joint-manifold workflow’s `aligned/` output, in [“A job finishes
+cleanly but its output file is
+empty”](#a-job-finishes-cleanly-but-its-output-file-is-empty) above).
 
 ### Recomputing a summary yourself, without refitting anything
 

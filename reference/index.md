@@ -4,180 +4,267 @@
 
 - [`align.embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/align.embeddings.md)
   : Align embeddings across participants
+
 - [`animal_adjacency_matrix`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/animal_adjacency_matrix.md)
   : Verbal-fluency co-occurrence graph for 295 animal words
+
 - [`animal_triplet_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/animal_triplet_embedding.md)
   : Triplet-based embedding of 213 animal words
+
 - [`assign_sample_alg()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_alg.md)
   : Label each trial with its sampling algorithm
+
 - [`assign_sample_sets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_sample_sets.md)
   : Assign trials to train or test sets
+
 - [`assign_validation_from_frequency()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/assign_validation_from_frequency.md)
   : Promote frequently-repeated triplets to validation trials
+
 - [`color_emb_group`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_emb_group.md)
   : Group embedding data for 58 color patches
+
 - [`color_emb_ind`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_emb_ind.md)
   : Individual embedding data for 58 color patches
+
 - [`color_lab`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_lab.md)
   : CIE LAB coordinates for 58 color patches
+
 - [`color_triplets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/color_triplets.md)
   : Triplet data for 58 color patches
+
 - [`emotion_bge_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_bge_embedding.md)
   : Language-model embedding of 213 emotion words (BAAI/bge-m3)
+
 - [`emotion_categories`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_categories.md)
   : Basic emotion categories for the 213 Shaver emotion words
+
 - [`emotion_triplet_embedding`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/emotion_triplet_embedding.md)
   : Triplet-based embedding of 213 emotion words
+
 - [`estimate_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_dimensionality.md)
   : Estimate the latent dimensionality of a triplet dataset
+
 - [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)
   : Jointly estimate a group-level choice-model shape and refine the
   group embedding
+
 - [`estimate_intrinsic_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_intrinsic_dimension.md)
   : Estimate how many dimensions of a distance matrix reflect real
   structure
+
 - [`estimate_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_learning_curve.md)
   : Estimate a learning curve for a triplet embedding
+
 - [`filter_failed_catch()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_failed_catch.md)
   : Exclude participants who fail too many catch trials
+
 - [`filter_fast_responders()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_fast_responders.md)
   : Exclude participants with suspiciously fast mean reaction times
+
 - [`filter_incomplete()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/filter_incomplete.md)
   : Exclude participants with too few trials
+
 - [`find_discrepant_items()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discrepant_items.md)
   : Find items whose relative position differs most between two
   embeddings
+
 - [`find_discriminating_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_discriminating_triplets.md)
   : Find triplets where two embeddings make discrepant predictions
+
 - [`find_frequent_triplets()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/find_frequent_triplets.md)
   : Find the most frequently repeated triplets across participants
+
 - [`fit_embedding_restart()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_embedding_restart.md)
   : Fit one embedding restart and summarize it as a single result row
+
 - [`fit_group_embedding_restarts_at_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_group_embedding_restarts_at_alpha.md)
   : Fit a group embedding at a fixed alpha with several random restarts
+
 - [`fold_alpha_test_to_train()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fold_alpha_test_to_train.md)
   : Fold the alpha-profiling sub-pool back into training
+
 - [`generalized_procrustes()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/generalized_procrustes.md)
   : Align multiple embeddings into one shared reference frame
+
 - [`get.combined()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.combined.md)
   : Get combined data
+
 - [`get.group.list.mean()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.group.list.mean.md)
   : Get group list mean
+
 - [`get.hoacc()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.hoacc.md)
   : Get hold-out prediction accuracy
+
 - [`get.nearest.k()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.nearest.k.md)
   : Get nearest k
+
 - [`get.participant.summary()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.participant.summary.md)
   : Get participant summary
+
 - [`get.prediction.matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.prediction.matrix.md)
   : Get prediction matrix
+
 - [`get.raster.from.png()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.raster.from.png.md)
   : Get raster from PNG
+
 - [`get.rep.dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.rep.dist.md)
   : Get representational distances
+
 - [`get.tip.coords()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/get.tip.coords.md)
   : Get tip coordinates
+
 - [`group_difference_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/group_difference_test.md)
   : Test whether two groups' embeddings differ reliably
+
 - [`hellinger_dist()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/hellinger_dist.md)
   : Pairwise Hellinger distances between rows of a profile matrix
+
 - [`icon_emb_group`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_emb_group.md)
   : Group embedding data for 32 icon images of faces and buildings
+
 - [`icon_emb_ind`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_emb_ind.md)
   : Individual embedding data for 32 icon images of faces and buildings
+
 - [`icon_pics`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_pics.md)
   : Face and Place icon pictures
+
 - [`icon_triplets`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/icon_triplets.md)
   : Triplet data for 32 icons of faces and places
+
 - [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md)
   : Leave-one-out prediction accuracy along a smoothed embedding
   trajectory
+
 - [`make.tripnames()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.tripnames.md)
   : Make triplet names
+
 - [`make.vmat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/make.vmat.md)
   : Make validation matrix
+
 - [`matrix_rank()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/matrix_rank.md)
   : Effective (numerical) rank of a matrix
+
 - [`model.strength()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/model.strength.md)
   : Get model strength
+
 - [`pacc.by.cluster()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/pacc.by.cluster.md)
   : Prediction accuracy by cluster
+
 - [`plot_2d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_2d_trajectory.md)
   : Plot a 2-D embedding at one point along a smoothed trajectory
+
 - [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md)
   : Plot a 3-D embedding at one point along a smoothed trajectory
+
 - [`plot_cis()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_cis.md)
   : Plot column means and 95% confidence intervals
+
 - [`plot_directions()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_directions.md)
   : Scatterplot with directional arrows
+
 - [`plot_pics()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_pics.md)
   : Plot pictures in a scatterplot
+
 - [`prepare_triplet_matrices()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/prepare_triplet_matrices.md)
   : Build train/test triplet matrices from a list of participant data
   frames
+
 - [`process_choices()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/process_choices.md)
   : Clean raw choice strings from jsPsych CSV output
+
 - [`procrustes_rank_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_rank_ceiling.md)
   : Variance captured by the top k dimensions of a target matrix
+
 - [`procrustes_spectral_ceiling()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/procrustes_spectral_ceiling.md)
   : Spectral similarity between two matrices' variance structure
+
 - [`read_legacy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_legacy.md)
   : Standardise a legacy triadic comparison dataset
+
 - [`read_raw_data()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/read_raw_data.md)
   : Clean raw jsPsych triplet experiment data
+
 - [`reduce_embedding_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/reduce_embedding_dimension.md)
   : Reduce an embedding to the lowest dimension that preserves its
   structure
+
 - [`repeated_stratified_logistic_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_logistic_cv.md)
   : Repeated stratified cross-validated logistic regression for
   embedding coordinates
+
 - [`repeated_stratified_multinomial_cv()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/repeated_stratified_multinomial_cv.md)
   : Repeated stratified cross-validated multinomial regression for
   embedding coordinates
+
 - [`run_embeddings()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings.md)
   : Run the full embedding pipeline for all workers
+
 - [`run_embeddings_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_embeddings_from_list.md)
   : Run the embedding pipeline from a triplet data list
+
 - [`run_group_embedding_from_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_from_list.md)
   : Compute a group-level embedding from a triplet data list
+
 - [`run_group_embedding_workflow()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/run_group_embedding_workflow.md)
   : Standard group-embedding workflow: dimensionality, final fit,
   choice-model refit, final-final fit
+
 - [`sample_internal_test()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/sample_internal_test.md)
   : Split a triplet matrix into a fitting subset and an internal-test
   subset
+
 - [`set_validation_behavior()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/set_validation_behavior.md)
   : Set how validation trials are used in an already-split triplet
   dataset
+
 - [`setup_python_env()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/setup_python_env.md)
   : Set up the Python environment for triplet embeddings
+
 - [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md)
   : Smoothly averaged embedding trajectory along a 1-D latent axis
+
 - [`strsplit1()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/strsplit1.md)
   : Split a string
+
 - [`successor_matrix()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/successor_matrix.md)
   : Successor representation of a weighted adjacency matrix
+
 - [`summarize_dimensionality()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_dimensionality.md)
   : Summarize per-restart dimensionality-search results
+
+- [`summarize_group_embedding_run()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_group_embedding_run.md)
+  :
+
+  Summarize a `condor_workflow.py` run
+
 - [`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md)
   : Summarize a joint-manifold Condor workflow run
+
 - [`summarize_learning_curve()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_learning_curve.md)
   : Summarize per-restart learning-curve results
+
 - [`test.model()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test.model.md)
   : Test embedding model predictions.
+
 - [`test_cluster_stability()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_cluster_stability.md)
   : Test how stable a hierarchical-clustering partition is under
   resampling
+
 - [`test_dominant_dimension()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_dominant_dimension.md)
   : Test whether a classical-MDS dimension reflects real structure via
   simulation
+
 - [`test_for_clusters()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/test_for_clusters.md)
   : Test whether embeddings show any cluster structure at all
+
 - [`train_embedding()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/train_embedding.md)
   : Train a single triplet embedding model
+
 - [`write_embedding_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_embedding_list.md)
   : Write a list of individual embeddings to a CSV file
+
 - [`write_triplet_list()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/write_triplet_list.md)
   : Write a list of participant triplet data frames to a CSV file
+
 - [`z.pred.mat()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/z.pred.mat.md)
   : Z-score prediction matrix

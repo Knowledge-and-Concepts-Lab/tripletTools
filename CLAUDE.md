@@ -37,7 +37,10 @@ Current version: **0.2.0**. Package URL:
                                #                                   real production embedding, at the
                                #                                   now-fixed alpha, on data with the
                                #                                   alpha-profiling sub-pool folded back
-                               #                                   into training)
+                               #                                   into training) -> summary report
+                               #                                   (summarize_group_embedding_run(), run
+                               #                                   as its own single Condor job since R
+                               #                                   isn't assumed on the submit node)
                                #                                   (condor_fit.R, params_template.yml)
                                #   condor_group_diff_workflow.py - group-difference permutation test,
                                #                                   Condor companion to the local R
@@ -222,13 +225,21 @@ Current version: **0.2.0**. Package URL:
 | [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md) | R/plot_3d_trajectory.R | 3-D scatterplot of one query point of a [`smooth_embedding_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/smooth_embedding_trajectory.md) result (`scatterplot3d`, Suggests-only), with an `effective_n` strip along the bottom, a red marker at the query point shown, and (optional) small black dots marking real participants’ own positions along the same strip |
 | [`plot_2d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_2d_trajectory.md) | R/plot_3d_trajectory.R | Same as [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md) (same argument conventions, same bottom strip/marker/dots) but for 2-D embeddings, built on base [`graphics::plot()`](https://rdrr.io/r/graphics/plot.default.html) instead of `scatterplot3d` – no extra dependency |
 | [`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md) | R/summarize_joint_estimation.R | Reads a `condor_joint_manifold_workflow.py` output directory (`inst/condor/`) and writes a self-contained Markdown diagnostic report: independent per-participant position- and alpha-convergence flagging (geometry and alpha are decoupled, not a shared curve, so each gets its own spaghetti plot + oscillation detection), population-level alpha diagnostics (mean alpha / tau2 trajectory), an embedding-geometry grid (2-D/3-D), a descriptive final-alpha-vs-position scatter, and – when the original combined triplet data is supplied (never recoverable from `output_dir` alone, since validation trials are deliberately held out of the Condor workflow itself) – a 7-row own/pooled/grand-mean-embedding x alpha=1/shrunk-alpha decomposition (the grand-mean rows isolate whether a participant’s own recovered *position* adds anything beyond plain averaging across everyone) and a [`loo_trajectory_accuracy()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/loo_trajectory_accuracy.md) fully-out-of-sample confirmation |
+| [`summarize_group_embedding_run()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_group_embedding_run.md) | R/summarize_group_embedding_run.R | `condor_workflow.py`’s own counterpart to [`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md): reads a `condor_workflow.py` output directory and writes a self-contained Markdown report with one section per stage – dimensionality search (mean loss/accuracy vs. `d` with error bars, `best_d` highlighted), the learning curve, the Stage 3 crowd-kernel warm-start fit (training curve, restart stability), Stage 4 alpha estimation (alpha/convergence trajectory, CI), and the Stage 5 final-final production fit (training curve, restart stability), plus a closing geometry plot of whichever embedding is the real production one. Stages 2/4/5 are optional in the workflow itself (`run_learning_curve: false` / `refit_alpha: false`), detected directly from which output files exist in `output_dir` (not trusted to `run_manifest.txt`’s own fields, which an older run may not have) rather than erroring. Also wired into `condor_workflow.py` itself as its Stage 6 (`condor_fit.R --stage=report`), run automatically at the end of a Condor run unless `generate_summary: false` |
 
 Internal helpers in `R/zzz.R`: `.pkg_env`, `.onLoad`,
 `.get_compute_py()`. Internal helpers in
-`R/repeated_stratified_logistic_cv.R` (not exported): `make_binary()`,
-`make_stratified_folds()`, `roc_auc()`, `classification_metrics()`.
-Internal helpers in `R/find_discriminating_triplets.R` (not exported):
-`ckl_prob()` (same formula/`mu` as the vendored Python CKL noise model),
+`R/summarize_group_embedding_run.R` (not exported):
+`read_group_embedding_run()`, `read_csv_if_exists()`,
+`read_embedding_csv_if_exists()`, `round_df()`,
+`plot_training_history()`, `plot_restarts()`,
+`plot_embedding_geometry()` (reuses `summarize_joint_estimation.R`’s
+`%||%`/`md_table()` helpers, already available package-wide). Internal
+helpers in `R/repeated_stratified_logistic_cv.R` (not exported):
+`make_binary()`, `make_stratified_folds()`, `roc_auc()`,
+`classification_metrics()`. Internal helpers in
+`R/find_discriminating_triplets.R` (not exported): `ckl_prob()` (same
+formula/`mu` as the vendored Python CKL noise model),
 `symmetric_kl_bernoulli()`. Internal helpers in
 `R/repeated_stratified_multinomial_cv.R` (not exported):
 `multinom_probs_matrix()` (normalizes
@@ -3657,3 +3668,193 @@ back to the returned matrices.
     `condor_workflows_vignette.Rmd`) re-knit via
     [`knitr::knit()`](https://rdrr.io/pkg/knitr/man/knit.html) to
     confirm they still build.
+- \*\*Real production bug found on the user’s first actual Condor
+  deployment of the five-stage workflow above: all 40 Stage-1
+  (dimensionality) jobs came back with missing/empty output, surviving
+  every one of `submit_jobs_with_retry()`‘s 5 retries\*\* – a
+  100%-of-jobs failure rate, unlike the known transient
+  file-transfer-overload issue that motivated that retry mechanism in
+  the first place (which typically affects only a subset). The `.err`
+  files confirmed a deterministic script error, not a transient one:
+  `Error: Missing required arguments: --warm_start, --alpha_test_frac, --max_outer, --tol_log_alpha, --alpha`.
+  Root cause: a prior session extended `condor_fit.R`’s `required`
+  argument list to demand these five flags for *every* `--stage` value
+  (part of adding the `alpha`/`final_final` stages), but never updated
+  `run_dimensionality_stage()`/`run_learning_curve_stage()`/`run_final_stage()`
+  in `condor_workflow.py` to actually pass them – a pure
+  orchestrator/script mismatch. Fixed by adding
+  `--warm_start=NA --alpha_test_frac=0.5 --max_outer=15 --tol_log_alpha=0.05 --alpha=NA`
+  (harmless placeholders – `condor_fit.R`’s
+  `dimensionality`/`learning_curve`/`final` branches never read these
+  five `opt$...` values, only the `alpha`/`final_final` branches do) to
+  all three affected stages’ `fixed_args`. Locked down with a new
+  regression test, `TestEveryStagePassesEveryRequiredArg`
+  (`test_condor_workflow.py`), that parses `condor_fit.R`‘s actual
+  `required <- c(...)` list straight from its source via regex (rather
+  than a hand-copied duplicate that could itself drift) and checks every
+  one of the five `run_*_stage()` functions’ real generated submit
+  arguments against it – specifically to catch this exact class of drift
+  if a future stage addition repeats the mistake. Confirmed via GitHub’s
+  Actions API that the fix commit didn’t trigger a container rebuild
+  (`inst/condor/**` is outside `docker-publish.yml`’s path filters) – no
+  rebuild needed before retrying, only refreshing the submit node’s own
+  clone of `condor_workflow.py`/`condor_fit.R`.
+- **`run_learning_curve: false`** (new top-level config field, default
+  `true`) – lets a Condor run skip Stage 2 (the learning curve)
+  entirely, added after the user pointed out they won’t always need it.
+  Unlike `refit_alpha`, which gates two whole downstream stages, this
+  gates a single stage with nothing downstream depending on its output
+  at all (`learning_curve_results.csv`/`learning_curve_summary.csv` are
+  purely diagnostic – no later stage reads them), so the change in
+  `condor_workflow.py`’s `main()` is just an `if run_learning_curve:`
+  around the existing `run_learning_curve_stage()` call, with a
+  `[condor_workflow] Stage 2 ... skipped` print and a `run_manifest.txt`
+  line when it’s off. No `main()`-level control flow is unit-tested
+  anywhere in this file (every existing test targets an individual stage
+  function directly), so no new Python test was added for this –
+  consistent with that existing convention.
+- **[`summarize_group_embedding_run()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_group_embedding_run.md)**
+  (new) – the user’s first full real Condor run of the five-stage
+  `condor_workflow.py` pipeline (AlienFruit legacy dataset, 300 items)
+  completed cleanly, and after inspecting its output by hand (manifest,
+  per-stage summary CSVs, `.err` files) the user asked for a reusable
+  report generator “similar to what we’ve done with the joint manifold
+  estimation workflow” –
+  i.e. [`summarize_joint_estimation()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_joint_estimation.md)’s
+  report-generation idea, applied to this package’s *other* Condor
+  workflow. Reads `run_manifest.txt` plus whichever of
+  `dimensionality_results.csv`/`_summary.csv`,
+  `learning_curve_results.csv`/`_summary.csv`, `best_embedding*.csv`
+  (Stage 3), `alpha_*.csv` (Stage 4), and `best_final_embedding*.csv`
+  (Stage 5) are present, and writes one Markdown section per stage with
+  its own plot(s): loss/accuracy vs. `d` (error bars, `best_d`
+  highlighted) for Stage 1; loss/accuracy vs. fraction for Stage 2;
+  train/test training curves plus a restart-stability dotplot for Stages
+  3 and 5; the alpha and `delta_log_alpha` trajectories for Stage 4; and
+  a closing geometry plot of whichever embedding is the actual
+  production one (`best_final_embedding.csv` if stages 4-5 ran,
+  `best_embedding.csv` otherwise – matching
+  [`vignette("condor_workflows_vignette")`](https://knowledge-and-concepts-lab.github.io/tripletTools/articles/condor_workflows_vignette.md)’s
+  own convention). Stages 2/4/5 being optional
+  (`run_learning_curve: false` / `refit_alpha: false`) is detected
+  directly from which files exist in `output_dir`, not from
+  `run_manifest.txt`’s own fields (an older run predating this doc’s
+  `run_learning_curve:` manifest line still reports correctly).
+  - **Real bug caught before shipping, found by actually rendering the
+    report against the user’s real output directory, not just reading
+    the code**: the d = 1 geometry plot (`best_d = 1` turned out to be
+    genuinely common – dimensionality-search losses were flat across d =
+    1-4 on the real run, so the parsimony rule correctly picked the
+    simplest one, and a generic 1-D plot was never a hypothetical case)
+    came out with every one of 300 items plotted in the same color
+    despite passing a 300-color
+    [`rainbow()`](https://rdrr.io/r/grDevices/palettes.html) vector.
+    Root cause, confirmed directly:
+    [`graphics::stripchart()`](https://rdrr.io/r/graphics/stripchart.html)
+    silently honors only `col[1]` for an ungrouped vector of points – a
+    real, confirmed base-R quirk, not a mistake in how the color vector
+    was built (verified `rainbow(300)` itself does vary correctly).
+    Fixed by replacing the
+    [`stripchart()`](https://rdrr.io/r/graphics/stripchart.html) call
+    with a manual jittered
+    [`plot()`](https://rdrr.io/r/graphics/plot.default.html)
+    ([`runif()`](https://rdrr.io/r/stats/Uniform.html)-jittered y, real
+    [`points()`](https://rdrr.io/r/graphics/points.html) call), which
+    does honor a per-point `col` vector – re-rendered and visually
+    confirmed the fix (colors now vary smoothly across the 1-D axis,
+    matching each item’s row position). Locked down with a test that
+    renders to a real PNG
+    ([`png::readPNG()`](https://rdrr.io/pkg/png/man/readPNG.html),
+    already an Imports dependency) and counts distinct non-background
+    colors, rather than reaching into plot-object internals.
+  - Legend placement on the Stage 1 loss panel (`"topright"`) was also
+    moved to `"bottomright"` after visual inspection showed it colliding
+    with a tall error bar at `d = 3` on the real data – a plain visual
+    fix, not a correctness one.
+  - New test file `test-summarize_group_embedding_run.R` (5
+    `test_that()` blocks) builds a small synthetic fake
+    `condor_workflow.py` output directory covering: every stage present
+    (checks all expected figures/table rows, and that a single-restart
+    stage’s restart-stability plot is correctly skipped as
+    uninformative); stages 2/4/5 all skipped (checks the correct skip
+    messages and that `best_embedding.csv` is reported as the production
+    embedding instead); `d = 1` specifically (the real case that caught
+    the stripchart bug above); a clear error when `run_manifest.txt` is
+    missing; and the stripchart-regression test itself.
+  - Verified end-to-end against the user’s real `AlienFruit` output
+    directory (`condor_output/`, found via the file’s own last-write
+    time after searching likely data-drive locations) in addition to the
+    synthetic fixture – every number in the generated report
+    (`best_d = 1`, `alpha = 4.145`, 95% CI `[4.145, 4.892]`, 25 Stage-5
+    restarts ranging 0.303167-0.303353) matched the figures already
+    found by hand in this same conversation. Full package suite re-run
+    clean (775 passed) after the fix.
+  - **Scope, per explicit user instruction**: this is local/interactive
+    only for now (“let’s test it out locally first”) – it is *not* wired
+    into `condor_workflow.py`’s own `main()` to auto-generate at the end
+    of a Condor run. That would need to run inside the container as its
+    own Condor job (R is deliberately not assumed on the submit node,
+    the same constraint that moved `condor_joint_manifold_update.R` off
+    the submit node in an earlier session – see that entry above), which
+    is a real follow-up task, not yet started.
+- **[`summarize_group_embedding_run()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_group_embedding_run.md)
+  wired into `condor_workflow.py` as a new Stage 6**, once the local
+  version above was confirmed working against a real run. `condor_fit.R`
+  gained a sixth `--stage=report` value, extending the
+  single-script-per-workflow convention rather than adding a new file
+  (same precedent as `alpha`/`final_final` before it) – dispatches
+  *before* the script’s own unconditional
+  `get.combined(opt$triplet_data)` call, since this stage needs no
+  triplet CSV at all, only the already-computed stage output files
+  condor_workflow.py has already written to its own `work_dir`.
+  `condor_workflow.py` gained `run_report_stage()` (single job, no
+  restart grid – same rationale as stage 4: one report to render,
+  nothing to parallelize), a `REPORT_INPUT_FILES` list naming exactly
+  what
+  [`summarize_group_embedding_run()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/summarize_group_embedding_run.md)
+  reads (filtered to files that actually exist for this run before being
+  listed in `transfer_input_files`, since stages 2/4-5 are themselves
+  optional), and a new `generate_summary` top-level config field
+  (default `true`, same on/off pattern as
+  `refit_alpha`/`run_learning_curve`). `write_submit_file()` gained an
+  optional `transfer_output_files` parameter (copied over from
+  `condor_joint_manifold_workflow.py`’s own copy, which already needed
+  it for its `aligned/` directory) since `summary_files/` is a
+  directory, not a plain file, and HTCondor’s default output transfer
+  does not reliably recurse into a new subdirectory without it being
+  named explicitly. `run_manifest.txt` is now written *before* Stage 6
+  runs (not just at the very end), since the report reads it like every
+  other stage’s output file. `params_template.yml` gained a `report:`
+  resources block (deliberately modest – this stage fits nothing, just
+  renders a few base-R plots from small CSVs already on disk) and the
+  `generate_summary` field’s own doc comment.
+  - Verified at every level: 41 Python unit tests (up from 38) – 2 new
+    `TestRunReportStage` tests (only existing files get transferred in;
+    `transfer_output_files` is exactly `"summary.md, summary_files"`;
+    the stage returns early with a printed note, never calling
+    `submit_and_wait()`, when no stage output files exist yet) plus a
+    sixth `test_report_stage` method added to the existing
+    `TestEveryStagePassesEveryRequiredArg` regression class (same
+    drift-proofing as the other five: parses `condor_fit.R`’s actual
+    required-flag list from its source rather than a hand-copied
+    duplicate). A real `Rscript condor_fit.R --stage=report ...` smoke
+    test, run directly against the user’s actual `AlienFruit` output
+    directory (after installing the dev build so
+    [`library(tripletTools)`](https://knowledge-and-concepts-lab.github.io/tripletTools/)
+    inside the script picks up the new function – `devtools::load_all()`
+    alone doesn’t reach a fresh `Rscript` subprocess), reproduced the
+    exact same `summary.md`/`summary_files/` already verified by hand in
+    this conversation, confirming the real end-to-end data flow (not
+    just the mocked Python tests) actually works.
+  - `vignettes/condor_workflows_vignette.Rmd`’s Workflow 1 section
+    updated throughout: “five stages” -\> “six stages,” a new
+    outputs-table row for `summary.md`/`summary_files/`, a
+    `generate_summary: false` paragraph alongside the existing
+    `refit_alpha`/`run_learning_curve` ones, and a new “Stage 6 (summary
+    report): one job, run inside the container” subsection explaining
+    why it runs in the container rather than locally (R not assumed on
+    the submit node) and why it needs the `transfer_output_files` fix (a
+    directory output, same pitfall as the joint-manifold workflow’s
+    `aligned/`). Re-knit
+    ([`knitr::knit()`](https://rdrr.io/pkg/knitr/man/knit.html)) to
+    confirm it still builds.

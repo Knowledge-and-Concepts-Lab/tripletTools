@@ -529,10 +529,10 @@ embedding fit<a class="anchor" aria-label="anchor" href="#workflow-1-dimensional
 </h2>
 <p>For the common case of “pick a dimension, check it against a learning
 curve, and fit the best embedding,” <code>condor_workflow.py</code> runs
-five stages back to back, dispatching every individual fit to HTCondor
-as its own job: dimensionality search, learning curve, a crowd-kernel
-warm-start fit, alpha estimation, and finally the real production fit at
-that alpha. This is the Condor-scale version of
+six stages back to back, dispatching every individual fit to HTCondor as
+its own job: dimensionality search, learning curve, a crowd-kernel
+warm-start fit, alpha estimation, the real production fit at that alpha,
+and finally a summary report. This is the Condor-scale version of
 <code><a href="../reference/run_group_embedding_workflow.html">run_group_embedding_workflow()</a></code>’s four-step recipe
 (<code><a href="../articles/embedding_vignette.html">vignette("embedding_vignette")</a></code>) – see that function’s own
 roxygen for the full statistical rationale behind each step.</p>
@@ -566,7 +566,9 @@ roxygen for the full statistical rationale behind each step.</p>
 <td>
 <code><a href="../reference/estimate_learning_curve.html">estimate_learning_curve()</a></code>’s
 <code>results</code>/<code>summary</code>, at the <code>best_d</code>
-selected above, one Condor job per (fraction, restart)</td>
+selected above, one Condor job per (fraction, restart) – not written if
+<code>run_learning_curve: false</code>
+</td>
 </tr>
 <tr class="odd">
 <td>
@@ -612,6 +614,15 @@ restarts</td>
 <td>Package version, input paths, <code>best_d</code>,
 <code>alpha</code>, and final loss, for provenance</td>
 </tr>
+<tr class="even">
+<td>
+<code>summary.md</code> / <code>summary_files/</code>
+</td>
+<td>Stage 6: <code><a href="../reference/summarize_group_embedding_run.html">summarize_group_embedding_run()</a></code>’s own Markdown
+report (one section per stage, with plots) and its sibling figure
+directory – not written if <code>generate_summary: false</code>
+</td>
+</tr>
 </tbody>
 </table>
 <p><code>seed</code>, <code>geometry</code>, <code>radius</code>, and
@@ -628,6 +639,20 @@ fit is a dedicated fit rather than a reused learning-curve restart.</p>
 <code><a href="../reference/estimate_group_alpha.html">estimate_group_alpha()</a></code> does not support) – in that case
 <code>best_embedding.csv</code> is the production embedding instead, and
 stages 4-5 don’t run at all.</p>
+<p>Set <code>run_learning_curve: false</code> to skip stage 2 entirely –
+it’s purely diagnostic (how much data is enough at the selected
+<code>best_d</code>) and nothing in stages 3-5 reads
+<code>learning_curve_results.csv</code>/<code>learning_curve_summary.csv</code>,
+so there’s no downstream effect beyond those two files not being
+written. Useful once a dataset’s learning curve has already been
+checked, or whenever only the production embedding is needed.</p>
+<p>Set <code>generate_summary: false</code> to skip stage 6 – e.g. if
+you plan to call <code><a href="../reference/summarize_group_embedding_run.html">summarize_group_embedding_run()</a></code> yourself
+afterward with non-default arguments (a custom <code>item_colors</code>
+vector, say). It runs regardless of whether stages 2 or 4-5 themselves
+ran; <code><a href="../reference/summarize_group_embedding_run.html">summarize_group_embedding_run()</a></code> already detects which
+of their output files are present and writes a short note in place of a
+skipped stage’s section rather than failing.</p>
 <p><code>final_fit.n_restarts</code> (default <code>1</code>, preserving
 prior behavior) submits that many Condor jobs for stage 3 — one restart
 each, as a single <code>queue ... from (...)</code> block, exactly like
@@ -686,6 +711,33 @@ selection, but bypassing <code><a href="../reference/train_embedding.html">train
 wrapper the same way stage 4 does (<code>_fit_offline()</code> directly,
 <code>module_kwargs = alpha</code>) since the whole point is fitting
 under a real, non-default choice-model shape.</p>
+</div>
+<div class="section level3">
+<h3 id="stage-6-summary-report-one-job-run-inside-the-container">Stage 6 (summary report): one job, run inside the container<a class="anchor" aria-label="anchor" href="#stage-6-summary-report-one-job-run-inside-the-container"></a>
+</h3>
+<p>Stage 6 runs <code><a href="../reference/summarize_group_embedding_run.html">summarize_group_embedding_run()</a></code>
+(<code><a href="../reference/summarize_group_embedding_run.html">?summarize_group_embedding_run</a></code>) against whichever of
+stages 1-5’s own output files exist directly in <code>output_dir</code>,
+producing <code>summary.md</code> and a sibling
+<code>summary_files/</code> of PNGs – the same report you could
+otherwise generate by hand once a run finishes, just run automatically
+as one more Condor job so it happens without any further action. Like
+stage 4, this is a single job (nothing to parallelize – there’s one
+report to render, not several). It runs inside the container (same
+<code>docker://.../triplettools</code> image as every other stage)
+rather than locally on the submit node once
+<code>condor_workflow.py</code> itself finishes, for the same reason
+<code>condor_joint_manifold_update.R</code> had to move off the submit
+node in an earlier workflow: R is not assumed to be installed there,
+only Python and this script.</p>
+<p>Because <code>summary_files/</code> is a directory, not a plain file,
+it needs an explicit <code>transfer_output_files</code> entry in its
+submit file – HTCondor’s default “send back whatever’s new in the
+sandbox” output transfer reliably picks up new plain files but does not
+reliably recurse into a newly-created subdirectory otherwise (the same
+pitfall documented for the joint-manifold workflow’s
+<code>aligned/</code> output, in <a href="#a-job-finishes-cleanly-but-its-output-file-is-empty">“A job
+finishes cleanly but its output file is empty”</a> above).</p>
 </div>
 <div class="section level3">
 <h3 id="recomputing-a-summary-yourself-without-refitting-anything">Recomputing a summary yourself, without refitting anything<a class="anchor" aria-label="anchor" href="#recomputing-a-summary-yourself-without-refitting-anything"></a>
