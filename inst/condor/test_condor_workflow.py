@@ -602,6 +602,18 @@ class TestRunReportStage(unittest.TestCase):
             self.assertNotIn("best_final_embedding.csv", captured["transfer_input_files"])
             self.assertEqual(captured["transfer_output_files"], "summary.md, summary_files")
 
+            # Regression test for a real production bug: condor_fit.R itself
+            # (the script `arguments = condor_fit.R --stage=report ...` runs)
+            # was never included in this stage's transfer_input_files -- every
+            # other stage's build_and_submit() prepends CONDOR_FIT_R, but this
+            # one built its list purely from REPORT_INPUT_FILES. The job then
+            # failed near-instantly on a real CHTC deployment (Rscript can't
+            # find condor_fit.R in its sandbox) and held with a confusing
+            # "transfer output files failure... summary.md: No such file or
+            # directory" -- summary.md was never written because the script
+            # never ran, not because of any transfer-overload flakiness.
+            self.assertIn(str(cw.CONDOR_FIT_R), captured["transfer_input_files"])
+
             self.assertEqual((work_dir / "summary.md").read_text(), "# report\n")
             self.assertEqual((work_dir / "summary_files" / "fig1.png").read_text(),
                               "fake png bytes")

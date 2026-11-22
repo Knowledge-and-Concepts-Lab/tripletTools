@@ -821,7 +821,7 @@ def run_report_stage(work_dir, config, seed, container_image, batch_size=None):
             submit_path,
             container_image=container_image,
             arguments=fixed_args,
-            transfer_input_files=", ".join(str(p) for p in inputs),
+            transfer_input_files=", ".join([str(CONDOR_FIT_R)] + [str(p) for p in inputs]),
             log=str(stage_dir / "report.log"),
             output=str(stage_dir / "report.out"),
             error=str(stage_dir / "report.err"),
