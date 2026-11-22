@@ -237,7 +237,7 @@ Nothing further to do in that case — just let it keep running. If a job holds 
 
 ## Workflow 1: Dimensionality search, learning curve, and final embedding fit
 
-For the common case of "pick a dimension, check it against a learning curve, and fit the best embedding," `condor_workflow.py` runs five stages back to back, dispatching every individual fit to HTCondor as its own job: dimensionality search, learning curve, a crowd-kernel warm-start fit, alpha estimation, and finally the real production fit at that alpha. This is the Condor-scale version of `run_group_embedding_workflow()`'s four-step recipe (`vignette("embedding_vignette")`) -- see that function's own roxygen for the full statistical rationale behind each step.
+For the common case of "pick a dimension, check it against a learning curve, and fit the best embedding," `condor_workflow.py` runs six stages back to back, dispatching every individual fit to HTCondor as its own job: dimensionality search, learning curve, a crowd-kernel warm-start fit, alpha estimation, the real production fit at that alpha, and finally a summary report. This is the Condor-scale version of `run_group_embedding_workflow()`'s four-step recipe (`vignette("embedding_vignette")`) -- see that function's own roxygen for the full statistical rationale behind each step.
 
 ```{r condor-run-workflow, engine = "bash"}
 python3 condor_workflow.py triplet_data.csv my_params.yml
@@ -254,12 +254,15 @@ This produces, in `output_dir`:
 | `triplet_data_folded.csv` | Stage 4's other output: the triplet data with the `alpha_test` sub-pool folded back into `"train"` (via `fold_alpha_test_to_train()`) -- stage 5's input |
 | `best_final_embedding.csv` / `best_final_embedding_history.csv` / `best_final_embedding_restarts.csv` | Stage 5: **the actual production embedding** -- fit at `best_d` and the estimated `alpha`, on the folded data, with `final_final_fit.n_restarts` independent restarts |
 | `run_manifest.txt` | Package version, input paths, `best_d`, `alpha`, and final loss, for provenance |
+| `summary.md` / `summary_files/` | Stage 6: `summarize_group_embedding_run()`'s own Markdown report (one section per stage, with plots) and its sibling figure directory -- not written if `generate_summary: false` |
 
 `seed`, `geometry`, `radius`, and `norm_penalty` apply to all five stages, so they describe one coherent embedding space throughout; `max_epochs`/`tolerance`/`tol_window`/`device`/`internal_test_frac`/Condor `resources` can be overridden per stage — see the comments in `params_template.yml`. See `vignette("embedding_vignette")` for the full statistical rationale behind `internal_test_frac` and why the warm-start fit is a dedicated fit rather than a reused learning-curve restart.
 
 Set `refit_alpha: false` in the config to stop after stage 3 (e.g. for `geometry: sphere`, which `estimate_group_alpha()` does not support) -- in that case `best_embedding.csv` is the production embedding instead, and stages 4-5 don't run at all.
 
 Set `run_learning_curve: false` to skip stage 2 entirely -- it's purely diagnostic (how much data is enough at the selected `best_d`) and nothing in stages 3-5 reads `learning_curve_results.csv`/`learning_curve_summary.csv`, so there's no downstream effect beyond those two files not being written. Useful once a dataset's learning curve has already been checked, or whenever only the production embedding is needed.
+
+Set `generate_summary: false` to skip stage 6 -- e.g. if you plan to call `summarize_group_embedding_run()` yourself afterward with non-default arguments (a custom `item_colors` vector, say). It runs regardless of whether stages 2 or 4-5 themselves ran; `summarize_group_embedding_run()` already detects which of their output files are present and writes a short note in place of a skipped stage's section rather than failing.
 
 `final_fit.n_restarts` (default `1`, preserving prior behavior) submits that many Condor jobs for stage 3 — one restart each, as a single `queue ... from (...)` block, exactly like stages 1-2 — rather than looping over restarts inside one job. This is deliberate, not just consistency for its own sake: a single final-fit restart on a large dataset can take a long time, so spreading `n_restarts` of them across separate execute nodes gives genuine wall-clock speedup (an `n_restarts`-fold speedup if the pool has that many free slots to run them on simultaneously), where running them back to back in one job would not. `condor_workflow.py` reads every restart's own result file afterwards and copies whichever got the lowest test loss to `best_embedding.csv`/`best_embedding_history.csv` — the same lowest-test-loss selection rule stages 1-2 already use for restart comparisons, just applied directly rather than folded into a `summarize_*()`-style aggregate (there's nothing to average over here, only one winner to pick). `run_group_embedding_workflow()` applies the identical restart-and-keep-lowest-loss rule locally, but necessarily runs its restarts one after another in a single R session, since there is no cluster to distribute them across locally.
 
@@ -270,6 +273,12 @@ Unlike every other stage, stage 4 submits exactly **one** Condor job, not a grid
 ### Stage 5 (final-final fit): the real production embedding
 
 Stage 5 is the real point of running stages 4 and 1-3: it fits the embedding you actually use, at the now-fixed `(best_d, alpha)`, on `triplet_data_folded.csv` -- which has strictly more training data than any earlier stage saw, since `alpha_test` has been folded in. Same job-per-restart shape as stage 3 (`final_final_fit.n_restarts`, same wall-clock-parallelism rationale), same `pick_best_restart()` selection, but bypassing `train_embedding()`'s CKL-only wrapper the same way stage 4 does (`_fit_offline()` directly, `module_kwargs = alpha`) since the whole point is fitting under a real, non-default choice-model shape.
+
+### Stage 6 (summary report): one job, run inside the container
+
+Stage 6 runs `summarize_group_embedding_run()` (`?summarize_group_embedding_run`) against whichever of stages 1-5's own output files exist directly in `output_dir`, producing `summary.md` and a sibling `summary_files/` of PNGs -- the same report you could otherwise generate by hand once a run finishes, just run automatically as one more Condor job so it happens without any further action. Like stage 4, this is a single job (nothing to parallelize -- there's one report to render, not several). It runs inside the container (same `docker://.../triplettools` image as every other stage) rather than locally on the submit node once `condor_workflow.py` itself finishes, for the same reason `condor_joint_manifold_update.R` had to move off the submit node in an earlier workflow: R is not assumed to be installed there, only Python and this script.
+
+Because `summary_files/` is a directory, not a plain file, it needs an explicit `transfer_output_files` entry in its submit file -- HTCondor's default "send back whatever's new in the sandbox" output transfer reliably picks up new plain files but does not reliably recurse into a newly-created subdirectory otherwise (the same pitfall documented for the joint-manifold workflow's `aligned/` output, in ["A job finishes cleanly but its output file is empty"](#a-job-finishes-cleanly-but-its-output-file-is-empty) above).
 
 ### Recomputing a summary yourself, without refitting anything
 

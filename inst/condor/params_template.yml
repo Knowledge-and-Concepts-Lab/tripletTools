@@ -22,6 +22,14 @@
 # (vignette("embedding_vignette")) -- see that function's own roxygen for
 # the full rationale, and vignette("condor_workflows_vignette")'s Workflow 1
 # section for the Condor-specific details.
+#
+# Stage 6 (summary report) runs automatically after whichever of stages
+# 1-5 ran, unless generate_summary below is set to false. It writes
+# summary.md (+ a sibling summary_files/ of PNGs) via
+# summarize_group_embedding_run() -- same R function you'd otherwise call
+# by hand against output_dir once the run finishes, just run as one more
+# Condor job so it happens automatically and without needing R on the
+# submit node.
 # ---------------------------------------------------------------------------
 
 # Directory (on the submit node) where all stage outputs, summaries, and
@@ -59,6 +67,11 @@ refit_alpha: true
 # so it's safe to turn off once you've already characterized a dataset, or
 # whenever you just want the production embedding without that diagnostic.
 run_learning_curve: true
+
+# Run stage 6 (the summary report). Set to false to skip it -- e.g. if you
+# plan to call summarize_group_embedding_run() yourself afterward with
+# non-default arguments (a custom item_colors vector, say).
+generate_summary: true
 
 # Non-negative number, forwarded to train_embedding()'s norm_penalty
 # argument everywhere. 0 (default) leaves checkpoint selection based on
@@ -202,3 +215,15 @@ final_final_fit:
     request_cpus: 1
     request_memory: 8GB
     request_disk: 8GB
+
+# --- Stage 6: summary report --------------------------------------------
+# ONE Condor job (no restart grid -- there's nothing to fit here, just a
+# report to render) running summarize_group_embedding_run() against
+# whichever of stages 1-5's output files exist. Cheap -- a few small CSVs
+# in, a handful of base-R plots out -- so the default resources below are
+# modest relative to every other stage's.
+report:
+  resources:
+    request_cpus: 1
+    request_memory: 2GB
+    request_disk: 2GB

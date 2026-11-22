@@ -12,12 +12,18 @@ Runs, on an HTCondor cluster, in order:
   5. Final-final embedding, the actual production embedding: one job per
      restart (as in stage 3) at the now-fixed (best_d, alpha), on the
      folded data from stage 4.
+  6. Summary report: ONE job that runs summarize_group_embedding_run() on
+     whichever of the above stages' own output files exist in output_dir,
+     writing summary.md + a sibling summary_files/ of PNGs back to it.
 Stages 4-5 are skipped if the config sets refit_alpha: false (e.g. for
 geometry: sphere, which estimate_group_alpha() does not support). Stage 2
 is skipped if the config sets run_learning_curve: false -- e.g. when the
 dataset/dimensionality has already been characterized and only a
 production embedding is needed, since the learning curve is diagnostic
-only and nothing downstream (stages 3-5) depends on it.
+only and nothing downstream (stages 3-5) depends on it. Stage 6 is
+skipped if the config sets generate_summary: false; it runs regardless of
+whether stages 2/4-5 themselves ran, since summarize_group_embedding_run()
+already handles a run where those were skipped.
 
 Every job runs condor_fit.R (in this same directory) inside the
 tripletTools container image via HTCondor's container universe -- no R
@@ -59,6 +65,7 @@ import argparse
 import csv
 import math
 import re
+import shutil
 import statistics
 import subprocess
 import sys
@@ -138,7 +145,7 @@ def condor_arg(value):
 
 def write_submit_file(path, *, container_image, arguments, transfer_input_files,
                        log, output, error, resources, initialdir,
-                       queue_statement="queue\n"):
+                       queue_statement="queue\n", transfer_output_files=None):
     """queue_statement is the literal trailing text of the submit file --
     either a plain "queue\\n" for a single job, or a multi-line
     "queue var1,var2,... from (\\n  ...\\n)\\n" block for many jobs sharing
@@ -149,7 +156,17 @@ def write_submit_file(path, *, container_image, arguments, transfer_input_files,
     transfers back any new output files a job creates (e.g. result_$(Process).csv
     written via a bare relative --output=... argument) -- without it, that
     default transfer targets whatever directory condor_submit happened to be
-    run from, not the stage directory read_result_row() looks in afterwards."""
+    run from, not the stage directory read_result_row() looks in afterwards.
+
+    transfer_output_files: HTCondor's default output transfer ("send back
+    whatever's new in the sandbox") reliably picks up new plain files but
+    does not reliably recurse into a newly-created SUBDIRECTORY unless it's
+    named explicitly here (confirmed on a real deployment of the sibling
+    joint-manifold workflow). Every stage here writes only flat files
+    except Stage 6 (report), whose summary_files/ needs this set."""
+    transfer_output_line = (
+        f"transfer_output_files   = {transfer_output_files}\n" if transfer_output_files else ""
+    )
     content = f"""universe        = container
 container_image = {container_image}
 
@@ -166,6 +183,7 @@ initialdir = {initialdir}
 transfer_input_files    = {transfer_input_files}
 should_transfer_files   = YES
 when_to_transfer_output = ON_EXIT
+{transfer_output_line}
 
 request_cpus   = {resources.get("request_cpus", 1)}
 request_memory = {resources.get("request_memory", "4GB")}
@@ -748,6 +766,86 @@ def run_final_final_stage(work_dir, data_path_folded, config, seed, best_d, alph
         (stage_dir / f"embedding_{best_idx}_history.csv").read_text())
 
 
+# Every file summarize_group_embedding_run() (R, package-internal
+# read_group_embedding_run()) reads from an output directory -- kept as one
+# list here rather than re-derived, so Stage 6 only ever transfers in files
+# that function actually uses. Not every one exists for a given run (stages
+# 2/4-5 are themselves optional); filtered to existing files before
+# submission, below.
+REPORT_INPUT_FILES = [
+    "run_manifest.txt",
+    "dimensionality_results.csv", "dimensionality_summary.csv",
+    "learning_curve_results.csv", "learning_curve_summary.csv",
+    "best_embedding.csv", "best_embedding_history.csv", "best_embedding_restarts.csv",
+    "alpha_result.csv", "alpha_history.csv", "alpha_embedding.csv",
+    "best_final_embedding.csv", "best_final_embedding_history.csv", "best_final_embedding_restarts.csv",
+]
+
+
+def run_report_stage(work_dir, config, seed, container_image, batch_size=None):
+    """Stage 6 (optional -- config: generate_summary, default true): ONE
+    Condor job that runs summarize_group_embedding_run() (R, package
+    tripletTools) against whichever of stages 1-5's own output files exist
+    directly in work_dir, producing summary.md + a sibling summary_files/
+    of PNGs. Runs inside the container, not locally after this script
+    finishes -- R is not assumed to be installed on the submit node (the
+    same reason condor_joint_manifold_update.R moved off the submit node in
+    an earlier workflow), and work_dir itself may not even be reachable
+    from wherever a submit-node cron or wrapper eventually invokes this
+    script. Every argument this job's condor_fit.R call needs besides
+    --output is an unused placeholder (same convention as --warm_start=NA
+    for stages that don't use it) -- this stage reads nothing but the
+    already-computed files transferred in below."""
+    report_cfg = config.get("report") or {}
+    stage_dir = work_dir / "stage6_report"
+    stage_dir.mkdir(parents=True, exist_ok=True)
+
+    inputs = [work_dir / f for f in REPORT_INPUT_FILES if (work_dir / f).exists()]
+    if not inputs:
+        print("[condor_workflow] Stage 6 (summary report): no stage output files found "
+              f"in {work_dir} -- skipping.")
+        return
+
+    fixed_args = (
+        "condor_fit.R --stage=report --triplet_data=NA --output=summary.md "
+        "--d=NA --fraction=NA --restart=1 "
+        f"--base_seed={seed} --random_state={seed} --internal_test_frac=0.1 "
+        "--max_epochs=1 --tolerance=1e-4 --tol_window=10000 --device=cpu "
+        "--geometry=euclidean --radius=1 --norm_penalty=0 "
+        "--warm_start=NA --alpha_test_frac=0.5 --max_outer=1 --tol_log_alpha=0.05 --alpha=NA"
+    )
+
+    def build_and_submit(jobs_subset):
+        submit_path = stage_dir / "report.sub"
+        write_submit_file(
+            submit_path,
+            container_image=container_image,
+            arguments=fixed_args,
+            transfer_input_files=", ".join(str(p) for p in inputs),
+            log=str(stage_dir / "report.log"),
+            output=str(stage_dir / "report.out"),
+            error=str(stage_dir / "report.err"),
+            resources=resources_config(report_cfg, config),
+            initialdir=str(stage_dir),
+            transfer_output_files="summary.md, summary_files",
+        )
+        submit_and_wait(submit_path, stage_dir / "report.log", "Stage 6 (summary report)")
+
+    submit_jobs_with_retry(
+        stage_dir, [0], output_path_fn=lambda j: stage_dir / "summary.md",
+        build_and_submit=build_and_submit, label="Stage 6 (summary report)",
+        batch_size=batch_size,
+    )
+
+    (work_dir / "summary.md").write_text((stage_dir / "summary.md").read_text())
+    report_files_dst = work_dir / "summary_files"
+    if report_files_dst.exists():
+        shutil.rmtree(report_files_dst)
+    shutil.copytree(stage_dir / "summary_files", report_files_dst)
+
+    print(f"[condor_workflow] Stage 6: wrote {work_dir / 'summary.md'}")
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -784,6 +882,7 @@ def main():
     norm_penalty = config.get("norm_penalty", 0)
     refit_alpha  = config.get("refit_alpha", True)
     run_learning_curve = config.get("run_learning_curve", True)
+    generate_summary   = config.get("generate_summary", True)
 
     # estimate_group_alpha() (stage 4) does not currently support spherical
     # geometry, matching run_group_embedding_workflow()'s own same check --
@@ -845,7 +944,15 @@ def main():
         f"alpha:          {alpha if alpha is not None else 'N/A (refit_alpha: false)'}",
         f"container_image:{container_image}",
     ]
+    # Written before Stage 6 (not just at the very end): the report reads
+    # run_manifest.txt from work_dir along with every other stage's own
+    # output files.
     (work_dir / "run_manifest.txt").write_text("\n".join(manifest) + "\n")
+
+    if generate_summary:
+        run_report_stage(work_dir, config, seed, container_image, batch_size=batch_size)
+    else:
+        print("[condor_workflow] Stage 6 (summary report): skipped (generate_summary: false)")
 
     print(f"[condor_workflow] Done. Outputs written to {work_dir}/")
 

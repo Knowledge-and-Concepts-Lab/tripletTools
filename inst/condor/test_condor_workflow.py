@@ -556,6 +556,65 @@ class TestRunFinalFinalStage(unittest.TestCase):
             self.assertIn("--alpha=7.25", captured["args"])
 
 
+class TestRunReportStage(unittest.TestCase):
+    """run_report_stage() is a single Condor job (no restart grid, like
+    run_alpha_stage()) that runs summarize_group_embedding_run() inside the
+    container against whichever of stages 1-5's own output files exist in
+    work_dir, then copies summary.md + summary_files/ (a directory, hence
+    the transfer_output_files requirement -- see write_submit_file()) back.
+    No real HTCondor cluster or R needed: submit_and_wait() is mocked."""
+
+    def test_transfers_only_existing_input_files_and_copies_back_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            # Only a subset of REPORT_INPUT_FILES exists -- e.g. a run with
+            # run_learning_curve: false and refit_alpha: false.
+            (work_dir / "run_manifest.txt").write_text("best_d: 2\n")
+            (work_dir / "dimensionality_results.csv").write_text("d\n2\n")
+            (work_dir / "dimensionality_summary.csv").write_text("d\n2\n")
+            (work_dir / "best_embedding.csv").write_text("item,dim_0\nfoo,0.1\n")
+            (work_dir / "best_embedding_history.csv").write_text("epoch\n0\n")
+            (work_dir / "best_embedding_restarts.csv").write_text("restart\n1\n")
+            captured = {}
+
+            def fake_submit_and_wait(submit_path, log_path, label):
+                captured["transfer_input_files"] = re.search(
+                    r"^transfer_input_files\s*=\s*(.*)$", submit_path.read_text(), re.M
+                ).group(1)
+                captured["transfer_output_files"] = re.search(
+                    r"^transfer_output_files\s*=\s*(.*)$", submit_path.read_text(), re.M
+                ).group(1)
+                stage_dir = submit_path.parent
+                (stage_dir / "summary.md").write_text("# report\n")
+                (stage_dir / "summary_files").mkdir()
+                (stage_dir / "summary_files" / "fig1.png").write_text("fake png bytes")
+
+            with mock.patch.object(cw, "submit_and_wait", side_effect=fake_submit_and_wait):
+                cw.run_report_stage(work_dir, config={}, seed=1, container_image="docker://fake")
+
+            # Files that exist are transferred in; files that don't (e.g.
+            # learning_curve_*.csv, alpha_*.csv, best_final_embedding*.csv)
+            # are not -- transferring a nonexistent path would fail the
+            # whole submission.
+            self.assertIn("dimensionality_results.csv", captured["transfer_input_files"])
+            self.assertIn("best_embedding.csv", captured["transfer_input_files"])
+            self.assertNotIn("alpha_result.csv", captured["transfer_input_files"])
+            self.assertNotIn("best_final_embedding.csv", captured["transfer_input_files"])
+            self.assertEqual(captured["transfer_output_files"], "summary.md, summary_files")
+
+            self.assertEqual((work_dir / "summary.md").read_text(), "# report\n")
+            self.assertEqual((work_dir / "summary_files" / "fig1.png").read_text(),
+                              "fake png bytes")
+
+    def test_skips_cleanly_when_no_stage_outputs_exist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            with mock.patch.object(cw, "submit_and_wait") as mock_submit:
+                cw.run_report_stage(work_dir, config={}, seed=1, container_image="docker://fake")
+            mock_submit.assert_not_called()
+            self.assertFalse((work_dir / "summary.md").exists())
+
+
 class TestEveryStagePassesEveryRequiredArg(unittest.TestCase):
     """Regression test for a real production bug: condor_fit.R's required-
     argument list (parsed directly from the .R source below, not duplicated
@@ -732,6 +791,23 @@ class TestEveryStagePassesEveryRequiredArg(unittest.TestCase):
                 lambda: cw.run_final_final_stage(
                     work_dir, folded_path, config, seed=1, best_d=2, alpha=2.5,
                     norm_penalty=0, container_image="docker://fake"),
+                stub_outputs,
+            )
+            for flag in self._required_flags():
+                self.assertIn(f"--{flag}=", args, f"missing --{flag}= in: {args}")
+
+    def test_report_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work_dir = Path(tmp)
+            (work_dir / "run_manifest.txt").write_text("best_d: 2\n")
+
+            def stub_outputs(stage_dir, rows):
+                (stage_dir / "summary.md").write_text("# report\n")
+                (stage_dir / "summary_files").mkdir()
+
+            args = self._capture_arguments(
+                lambda: cw.run_report_stage(
+                    work_dir, config={}, seed=1, container_image="docker://fake"),
                 stub_outputs,
             )
             for flag in self._required_flags():

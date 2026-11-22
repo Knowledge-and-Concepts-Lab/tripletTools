@@ -8,7 +8,7 @@
 #
 # Usage (all arguments are --key=value, order doesn't matter):
 #   Rscript condor_fit.R \
-#     --stage=dimensionality|learning_curve|final|alpha|final_final \
+#     --stage=dimensionality|learning_curve|final|alpha|final_final|report \
 #     --triplet_data=triplet_data.csv \
 #     --output=result.csv \
 #     --d=3 --fraction=NA --restart=1 \
@@ -50,6 +50,22 @@
 # wrapper via fit_group_embedding_restarts_at_alpha(..., n_restarts = 1L),
 # the same _fit_offline()-direct pattern stage=alpha (and
 # estimate_group_alpha() itself) already uses.
+#
+# stage=report: the final, optional stage (condor_workflow.py's
+# generate_summary: true, the default) -- ONE Condor job that calls
+# summarize_group_embedding_run() on the stage outputs condor_workflow.py
+# has already written to its own work_dir, producing summary.md + a
+# sibling summary_files/ of PNGs. Runs inside the container (same reason
+# condor_joint_manifold_update.R moved off the submit node in an earlier
+# workflow: R is not assumed to be installed there) rather than locally
+# after the Python orchestrator finishes. Dispatches *before* the
+# unconditional get.combined() call below, since this stage reads nothing
+# but those already-computed output files -- transferred in flat into this
+# job's own sandbox (its initialdir), so "." already IS that directory, the
+# same way a bare --output=<relative path> already writes into it for every
+# other stage. --triplet_data (and every other flag besides --output) is a
+# required-but-unused placeholder here, same convention as --warm_start=NA
+# for stages that don't need it.
 #
 # --base_seed vs --random_state: base_seed must be identical across every
 # job in a stage -- it's what prepare_triplet_matrices() uses to build the
@@ -115,11 +131,18 @@ missing <- setdiff(required, names(opt))
 if (length(missing)) {
   stop("Missing required arguments: ", paste0("--", missing, collapse = ", "), call. = FALSE)
 }
-if (!opt$stage %in% c("dimensionality", "learning_curve", "final", "alpha", "final_final")) {
-  stop("--stage must be one of: dimensionality, learning_curve, final, alpha, final_final", call. = FALSE)
+if (!opt$stage %in% c("dimensionality", "learning_curve", "final", "alpha", "final_final", "report")) {
+  stop("--stage must be one of: dimensionality, learning_curve, final, alpha, final_final, report", call. = FALSE)
 }
 
 suppressPackageStartupMessages(library(tripletTools))
+
+if (opt$stage == "report") {
+  # See header comment above -- dispatches before get.combined() below
+  # since there is no real triplet_data for this stage.
+  summarize_group_embedding_run(".", output_md = opt$output, verbose = TRUE)
+  quit(status = 0)
+}
 
 d            <- as.integer(opt$d)
 restart      <- as.integer(opt$restart)
