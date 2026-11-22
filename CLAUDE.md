@@ -3858,3 +3858,73 @@ back to the returned matrices.
     `aligned/`). Re-knit
     ([`knitr::knit()`](https://rdrr.io/pkg/knitr/man/knit.html)) to
     confirm it still builds.
+- **[`model.strength()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/model.strength.md)
+  gained an `alpha` argument (default `NULL`, fully
+  backward-compatible)**, for the user’s own use case: a set of fully
+  held-out triplets with a binary per-trial accuracy indicator, a fixed
+  group embedding, and an alpha already estimated for it (e.g. via
+  [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)),
+  wanting to relate empirical accuracy to how “easy” the choice model
+  itself predicts each triplet to be – the existing distance-ratio
+  strength metric doesn’t depend on the choice model at all, just raw
+  geometry. With `alpha` set, the function now returns the
+  TSTE/Student-t choice-model probability of whichever option is
+  predicted to win (always the larger of the two win-probabilities, so
+  always \>= 0.5), computed directly via a new internal (not exported)
+  helper, `tste_closer_prob(d1_sq, d2_sq, alpha)` – the same formula as
+  the vendored Python `TSTE._probs()`
+  (`inst/python/salmon/.../_noise_models.py`), confirmed by reading that
+  file directly rather than assumed from memory, since `alpha` here is
+  the TSTE parameter this package’s own convention equates with
+  crowd-kernel `mu` at `alpha = 1` (see
+  [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)’s
+  docs), not the different (though related) CKL-mu formula already
+  duplicated elsewhere as `find_discriminating_triplets.R`’s
+  `ckl_prob()`. No free scale parameter is fit here (unlike
+  `summarize_joint_estimation.R`’s `ckl_validation_eval()`, which
+  profiles one) – the embedding’s own distances are used as-is, on the
+  assumption they’re already at the scale they were fit at. New
+  regression test in `test-model_strength.R` checks the returned
+  probability against a hand-computed value from the same formula,
+  checks every value is in `[0.5, 1]`, and confirms `alpha = NULL`
+  reproduces the original metric exactly (unchanged behavior).
+- **[`plot_accuracy_vs_strength()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_accuracy_vs_strength.md)**
+  (new, `R/plot_accuracy_vs_strength.R`) – visualizes empirical
+  prediction accuracy as a function of
+  [`model.strength()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/model.strength.md)’s
+  “how easy should this triplet be” metric (with or without its new
+  `alpha` argument above), for exactly the follow-up question the
+  `alpha` addition was made to support. Discussed with the user first as
+  a design question before writing any code: a bare binomial-GLM fitted
+  curve alone doesn’t show the data it’s summarizing, and a
+  kernel-weighted smoother has no natural confidence interval – landed
+  on a calibration/psychometric-function-style plot instead (standard in
+  that literature): quantile-binned empirical accuracy with Wilson score
+  confidence intervals (not a naive `phat +/- 1.96*SE`, which misbehaves
+  badly near `p = 0`/`1` – exactly where bins near `strength = 1` tend
+  to land for a good embedding), overlaid with a fitted binomial GLM
+  curve, plus the raw per-triplet 0/1 outcomes jittered in the
+  background so the summary isn’t the only thing shown. Quantile binning
+  (default) keeps each bin’s N roughly equal even when `strength`
+  clusters near 1; `binning = "equal_width"` is also available. Base-R
+  graphics only, no new dependency (matching every other `plot_*()`
+  function in this package) – `wilson_ci()`/`bin_accuracy_by_strength()`
+  are small internal (not exported) helpers. Verified by actually
+  rendering real PNGs (not just checking it ran without erroring): a
+  typical case (smoothly increasing accuracy with strength, CI bars and
+  GLM curve both tracking the simulated truth), a heavy-ties case (most
+  triplets at `strength = 1`, exercising the bin-collapsing message when
+  requested quantile breakpoints aren’t unique), and
+  `binning = "equal_width"`/`glm = FALSE`/`show_raw = FALSE`. New test
+  file `test-plot_accuracy_vs_strength.R` (16 assertions) covers the
+  Wilson CI formula directly, the binning helper’s bin count/collapsing
+  behavior, the end-to-end plot call’s return value, and input
+  validation (mismatched lengths, non-0/1 accuracy, NA-dropping) – using
+  this package’s existing `pdf(NULL)`/`on.exit(dev.off())` convention
+  for exercising a plotting function in tests. One real bug caught
+  before shipping: the original NA-handling order checked
+  `accuracy %in% c(0,1)` *before* dropping NA rows, and `NA %in% c(0,1)`
+  is `FALSE` (not `NA`), so any NA in `accuracy` tripped the “must be
+  0/1” error before the intended NA-dropping path ever ran – fixed by
+  moving the NA-drop earlier, confirmed by a regression test with NAs in
+  both `strength` and `accuracy`.

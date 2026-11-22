@@ -53,7 +53,7 @@ the distance of the furthest option divided by the sum of both distances.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">model.strength</span><span class="op">(</span><span class="va">model</span>, <span class="va">vdat</span>, isemb <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">model.strength</span><span class="op">(</span><span class="va">model</span>, <span class="va">vdat</span>, isemb <span class="op">=</span> <span class="cn">TRUE</span>, alpha <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -71,11 +71,23 @@ the distance of the furthest option divided by the sum of both distances.</p>
 <dt id="arg-isemb">isemb<a class="anchor" aria-label="anchor" href="#arg-isemb"></a></dt>
 <dd><p>Flag indicating whether model is an embedding; if FALSE, model is treated as a distance matrix.</p></dd>
 
+
+<dt id="arg-alpha">alpha<a class="anchor" aria-label="anchor" href="#arg-alpha"></a></dt>
+<dd><p>Optional choice-model alpha (the same parameter fit by
+<code><a href="estimate_group_alpha.html">estimate_group_alpha()</a></code>/<code><a href="fit_group_embedding_restarts_at_alpha.html">fit_group_embedding_restarts_at_alpha()</a></code>,
+where \(\alpha = 1\) is exactly crowd-kernel \(\mu = 1\)). If <code>NULL</code>
+(default), the function's original distance-ratio behavior is
+unchanged. If set, the function instead returns, for each triplet, the
+TSTE/Student-t choice-model probability of whichever option is
+predicted to win (the one closer to <code>Center</code>) – always the larger of
+the two win-probabilities, so always \(\ge 0.5\).</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Vector containing the prediction strength metric for each triplet
-in <code>vdat</code></p>
+    <p>Vector containing, for each triplet in <code>vdat</code>, either the
+prediction-strength metric (<code>alpha = NULL</code>) or the choice-model
+probability of the predicted winner (<code>alpha</code> set)</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -93,6 +105,11 @@ participants. If the embedding is good, such items will also have a high
 prediction-strength score. Thus the correlation between prediction strength
 and inter-subject agreement tells you something about the quality of the
 embedding.</p>
+<p>Setting <code>alpha</code> ties this same "how easy should this triplet be" idea
+directly to the choice model actually used to fit the embedding, rather
+than to the raw distance ratio – useful for checking, e.g., whether the
+empirical probability of an accurate response on a set of fully held-out
+triplets tracks the model-implied probability of its predicted winner.</p>
     </div>
 
     <div class="section level2">
@@ -104,6 +121,9 @@ embedding.</p>
 <span class="r-in"><span><span class="va">vdat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">trips</span>, <span class="va">trips</span><span class="op">$</span><span class="va">sampleAlg</span><span class="op">==</span><span class="st">"validation"</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="va">pstrength</span> <span class="op">&lt;-</span> <span class="fu">model.strength</span><span class="op">(</span><span class="va">emb</span>, <span class="va">vdat</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co">#Same triplets, but as a choice-model probability at alpha = 1</span></span></span>
+<span class="r-in"><span><span class="va">pwin</span> <span class="op">&lt;-</span> <span class="fu">model.strength</span><span class="op">(</span><span class="va">emb</span>, <span class="va">vdat</span>, alpha <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

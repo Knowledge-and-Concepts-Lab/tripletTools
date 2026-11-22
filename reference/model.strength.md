@@ -8,7 +8,7 @@ both distances.
 ## Usage
 
 ``` r
-model.strength(model, vdat, isemb = TRUE)
+model.strength(model, vdat, isemb = TRUE, alpha = NULL)
 ```
 
 ## Arguments
@@ -26,10 +26,22 @@ model.strength(model, vdat, isemb = TRUE)
   Flag indicating whether model is an embedding; if FALSE, model is
   treated as a distance matrix.
 
+- alpha:
+
+  Optional choice-model alpha (the same parameter fit by
+  [`estimate_group_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/estimate_group_alpha.md)/[`fit_group_embedding_restarts_at_alpha()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/fit_group_embedding_restarts_at_alpha.md),
+  where \\\alpha = 1\\ is exactly crowd-kernel \\\mu = 1\\). If `NULL`
+  (default), the function's original distance-ratio behavior is
+  unchanged. If set, the function instead returns, for each triplet, the
+  TSTE/Student-t choice-model probability of whichever option is
+  predicted to win (the one closer to `Center`) – always the larger of
+  the two win-probabilities, so always \\\ge 0.5\\.
+
 ## Value
 
-Vector containing the prediction strength metric for each triplet in
-`vdat`
+Vector containing, for each triplet in `vdat`, either the
+prediction-strength metric (`alpha = NULL`) or the choice-model
+probability of the predicted winner (`alpha` set)
 
 ## Details
 
@@ -51,6 +63,12 @@ also have a high prediction-strength score. Thus the correlation between
 prediction strength and inter-subject agreement tells you something
 about the quality of the embedding.
 
+Setting `alpha` ties this same "how easy should this triplet be" idea
+directly to the choice model actually used to fit the embedding, rather
+than to the raw distance ratio – useful for checking, e.g., whether the
+empirical probability of an accurate response on a set of fully held-out
+triplets tracks the model-implied probability of its predicted winner.
+
 ## Examples
 
 ``` r
@@ -61,4 +79,7 @@ trips <- icon_triplets[[1]] #Triplets for participant 1
 vdat <- subset(trips, trips$sampleAlg=="validation")
 
 pstrength <- model.strength(emb, vdat)
+
+#Same triplets, but as a choice-model probability at alpha = 1
+pwin <- model.strength(emb, vdat, alpha = 1)
 ```

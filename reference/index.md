@@ -156,6 +156,9 @@
 - [`plot_3d_trajectory()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_3d_trajectory.md)
   : Plot a 3-D embedding at one point along a smoothed trajectory
 
+- [`plot_accuracy_vs_strength()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_accuracy_vs_strength.md)
+  : Plot prediction accuracy as a function of model strength
+
 - [`plot_cis()`](https://knowledge-and-concepts-lab.github.io/tripletTools/reference/plot_cis.md)
   : Plot column means and 95% confidence intervals
 
